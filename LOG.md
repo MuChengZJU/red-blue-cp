@@ -76,7 +76,7 @@
 | 2026-05-09 | M1b 完成 | done | FastAPI + 5 API + HTMX 模板，路径穿越防御，135 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | QA + 接线 bug 修复 | done | 真链接跑通 3/3，修了 5 个接线层 bug（serve/job_id/metadata/timeout/file_urls）。137 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | P0 收尾 | done | 三类链接均能稳定出 Markdown：xhs 图文 / B 站视频 / xhs 视频笔记 |
-| 待定 | P1 启动（M2） | pending | 下阶段后再说 |
+| 待定 | P1 启动（M2） | pending | P0 稳定运行后启动 |
 
 ---
 

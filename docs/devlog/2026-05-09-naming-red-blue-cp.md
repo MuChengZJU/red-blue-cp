@@ -21,7 +21,7 @@ status: active
 - **拓本 / Tuoben**：中文古典意象贴合，但英文用户读不出
 - **Distill / Steno / Imprint / Pluck**：英文短词，但跟项目"中文互联网平台专用"定位不够紧密
 
-最终作者提出 **Red Blue CP**，并定 tagline："**自古红蓝出 CP —— B 站小红书 Content Pipeline**"。
+最终定为 **Red Blue CP**，tagline："**自古红蓝出 CP —— B 站小红书 Content Pipeline**"。
 
 ## 决策
 
