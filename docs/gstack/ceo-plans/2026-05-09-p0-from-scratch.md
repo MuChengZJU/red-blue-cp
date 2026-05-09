@@ -1,0 +1,1 @@
+~/.gstack/projects/red-blue-cp/ceo-plans/2026-05-09-p0-from-scratch.md
