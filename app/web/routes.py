@@ -61,14 +61,21 @@ def _run_job(
     job_id: int,
     url: str,
     storage: Storage,
-    pipeline_fn: Callable[[str], str],
+    pipeline_fn: Callable[[str], dict],
 ) -> None:
     storage.mark_running(job_id)
     logger.info("[job %s] start: %s", job_id, url)
     try:
-        md_path = pipeline_fn(url)
-        storage.mark_done(job_id, md_path=md_path)
-        logger.info("[job %s] done: %s", job_id, md_path)
+        result = pipeline_fn(url)
+        storage.mark_done(
+            job_id,
+            md_path=result["md_path"],
+            title=result.get("title"),
+            author=result.get("author"),
+            platform=result.get("platform"),
+            content_type=result.get("content_type"),
+        )
+        logger.info("[job %s] done: %s", job_id, result["md_path"])
     except Exception as error:
         tb = traceback.format_exc()
         storage.mark_failed(
@@ -172,5 +179,5 @@ def job_detail(
     return templates.TemplateResponse(
         request,
         "detail.html",
-        {"request": request, "job": job},
+        {"request": request, "job_id": job_id, "job": job},
     )

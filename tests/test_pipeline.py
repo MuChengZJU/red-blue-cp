@@ -49,10 +49,17 @@ class TestRunPipeline:
             api_key="test-key",
             output_dir=tmp_path,
         )
-        md_path = pipeline("https://www.bilibili.com/video/BV1test123")
+        result = pipeline("https://www.bilibili.com/video/BV1test123")
 
-        assert md_path is not None
-        result_path = Path(md_path)
+        # pipeline 返回 dict：md_path + 业务元数据
+        assert isinstance(result, dict)
+        assert "md_path" in result
+        assert result["title"] == "测试视频"
+        assert result["author"] == "UP主"
+        assert result["platform"] == "bilibili"
+        assert result["content_type"] == "video"
+
+        result_path = Path(result["md_path"])
         assert result_path.exists()
         assert result_path.suffix == ".md"
         content = result_path.read_text(encoding="utf-8")

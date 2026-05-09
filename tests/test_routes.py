@@ -256,6 +256,19 @@ class TestHtmlPages:
         ct = resp.headers.get("content-type", "")
         assert "html" in ct.lower()
 
+    def test_job_detail_page_includes_job_id(self, client, mock_storage):
+        """模板必须把 job_id 注入 JS / fetch URL，否则前端拉不到具体任务"""
+        # 用一个 url 里不包含 id 数字的 job，避免误判
+        job_id = mock_storage.create_job("https://www.bilibili.com/video/abcdef")
+        # 创建几个干扰 job 让 id 不是 1
+        for _ in range(7):
+            mock_storage.create_job("https://example.com/x")
+        target = mock_storage.create_job("https://www.bilibili.com/video/target")
+
+        resp = client.get(f"/jobs/{target}")
+        # 期望 HTML 里出现 /api/jobs/{target} 或者 "{target}" 这种 jobId 字面量
+        assert f'/api/jobs/{target}' in resp.text or f'"{target}"' in resp.text
+
     def test_job_detail_404_on_missing(self, client):
         resp = client.get("/jobs/99999")
         assert resp.status_code == 404
@@ -267,10 +280,16 @@ class TestAsyncJobExecution:
 
     def test_job_runs_in_background(self, client, mock_storage, mock_pipeline, tmp_md_dir):
         """提交任务后，pipeline 应被异步调用（最终状态变为 done）"""
-        # 让 pipeline 返回真实的 md_path
+        # pipeline 返回 dict（包含 md_path + 业务元数据）
         md_file = tmp_md_dir / "result.md"
         md_file.write_text("done", encoding="utf-8")
-        mock_pipeline.return_value = str(md_file)
+        mock_pipeline.return_value = {
+            "md_path": str(md_file),
+            "title": "测试视频标题",
+            "author": "测试UP主",
+            "platform": "bilibili",
+            "content_type": "video",
+        }
 
         resp = client.post("/api/jobs", json={"url": "https://www.bilibili.com/video/BV1test"})
         job_id = resp.json()["job_id"]
@@ -287,6 +306,35 @@ class TestAsyncJobExecution:
         job = mock_storage.get_job(job_id)
         assert job["status"] == "done", f"Expected done, got {job['status']}: {job.get('error_message')}"
         assert mock_pipeline.called
+
+    def test_done_job_persists_metadata(self, client, mock_storage, mock_pipeline, tmp_md_dir):
+        """成功的任务必须把 title/author/platform/content_type 写入 storage（修 UI '未知作者' bug）"""
+        md_file = tmp_md_dir / "result.md"
+        md_file.write_text("hello", encoding="utf-8")
+        mock_pipeline.return_value = {
+            "md_path": str(md_file),
+            "title": "我的视频标题",
+            "author": "张三UP",
+            "platform": "bilibili",
+            "content_type": "video",
+        }
+
+        resp = client.post("/api/jobs", json={"url": "https://www.bilibili.com/video/BV1test"})
+        job_id = resp.json()["job_id"]
+
+        import time
+        for _ in range(20):
+            job = mock_storage.get_job(job_id)
+            if job["status"] in ("done", "failed"):
+                break
+            time.sleep(0.05)
+
+        job = mock_storage.get_job(job_id)
+        assert job["status"] == "done"
+        assert job["title"] == "我的视频标题"
+        assert job["author"] == "张三UP"
+        assert job["platform"] == "bilibili"
+        assert job["content_type"] == "video"
 
     def test_failed_job_persists_error(self, client, mock_storage, mock_pipeline):
         """pipeline 抛错时，job 应该被 mark_failed 并存 error_message"""

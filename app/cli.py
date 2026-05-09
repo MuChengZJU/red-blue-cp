@@ -18,14 +18,23 @@ from app.service.model import DashscopeProvider
 app = typer.Typer()
 
 
-def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], str]:
-    """Create a URL-to-Markdown pipeline bound to runtime configuration."""
+def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]:
+    """Create a URL-to-Markdown pipeline bound to runtime configuration.
 
-    def pipeline(url: str) -> str:
+    Returns a dict with md_path + 业务元数据，供 storage.mark_done 持久化。
+    """
+
+    def pipeline(url: str) -> dict:
         provider = DashscopeProvider(api_key=api_key)
         result = extract_url(url, provider)
         md_path = render_and_write(result, output_dir=output_dir)
-        return str(md_path)
+        return {
+            "md_path": str(md_path),
+            "title": result.title,
+            "author": result.author,
+            "platform": result.platform,
+            "content_type": result.content_type,
+        }
 
     return pipeline
 
@@ -36,7 +45,7 @@ def run_pipeline(url: str) -> str:
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     pipeline = _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
-    return pipeline(url)
+    return pipeline(url)["md_path"]
 
 
 @app.command("run")
