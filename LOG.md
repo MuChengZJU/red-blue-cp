@@ -67,7 +67,7 @@
 | 2026-05-09 | 项目命名 v3.2 | done | 定名 Red Blue CP（红蓝CP），CLI 命令 rbcp，文档批量更新 |
 | 2026-05-09 | CEO review 完成 | done | 参考移植方案确定，P0 scope 精简（+ModelProvider -Queue/status/auth），文档同步 22 处 |
 | 2026-05-09 | Eng review 完成 | done | 9 条架构决议（extractor 拆分、to_thread、config 发现等），Codex 审查通过 |
-| 待定 | M0 启动 | pending | 研读上游代码 + 评估 SDK/爬取复杂度 |
+| 2026-05-09 | M0 完成 | done | 研读上游代码 + 云端模型调研完成，确认自实现可行。[详情](docs/devlog/2026-05-09-m0-upstream-analysis.md) |
 | 待定 | M1a 完成 | pending | CLI 极简闭环：rbcp run \<url\> 出 MD |
 | 待定 | M1b 完成 | pending | WebUI 最小页 |
 | 待定 | P0 收尾 | pending | 三类链接均能稳定出 Markdown |

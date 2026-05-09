@@ -42,11 +42,25 @@ app/
     routes.py           # 输入页 + 任务列表 + 详情 + 下载
     templates/          # Jinja2 模板
   cli.py                # rbcp run <url>
-.env                    # DASHSCOPE_API_KEY + XHS_COOKIE + RBCP_OUTPUT_DIR（gitignored）
-.env.example            # 配置模板
+.env                    # 见下方配置项列表（gitignored）
+.env.example            # 配置模板（含所有配置项 + 默认值注释）
 ```
 
 配置发现顺序：环境变量 > `~/.config/rbcp/.env` > 当前目录 `.env`。
+
+### 配置项
+
+| 变量名 | 必填 | 默认值 | 说明 |
+|---|---|---|---|
+| `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
+| `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
+| `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录 |
+| `RBCP_ASR_MODEL` | 否 | `qwen3-asr-flash` | 短音频 ASR 模型（≤300s，SDK 调用） |
+| `RBCP_ASR_LONG_MODEL` | 否 | `qwen3-asr-flash-filetrans` | 长音频 ASR 模型（>300s，REST 异步） |
+| `RBCP_VLM_MODEL` | 否 | `qwen3-vl-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
+| `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清理 LLM 模型（OpenAI 兼容） |
+
+代码里 `os.getenv("RBCP_ASR_MODEL", "qwen3-asr-flash")` 带默认值读取，不配就用默认。
 
 P0 走捷径：
 - 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
@@ -66,7 +80,7 @@ URL ──→ Job (status=pending)
 service.extractor.extract_url(url, provider)
      ├─ fetcher 爬取平台数据（requests + cookie）
      ├─ B 站视频：有字幕 → 用字幕；无字幕 → provider.asr()（自动，status=asr）
-     ├─ 小红书视频：音频 URL 优先发 ASR；失败 → ffmpeg 下载后发 ASR
+     ├─ 小红书视频：音频流通过 OSS 流式中转发 ASR；失败 → ffmpeg 下载后发 ASR
      ├─ 小红书图文：所有图片并发调 provider.vlm()（URL 优先 + tempfile 兜底）
      ├─ provider.llm_clean() 清理文本
      └─ 转换成 ExtractResult dataclass
@@ -287,13 +301,21 @@ P1 引入持久化前不要做多进程部署。
 ### 8.3 视频音频 ASR 调用
 
 ```
-双轨策略（与 VLM 图片处理同理）：
+主路径：OSS 流式中转（上游已验证，无需本地 ffmpeg）
 
-1. 优先：把音频 URL 直接发给云端 paraformer-v2 ASR（上游已验证可行，更快）
-2. 失败回退：
-   - ffmpeg -i <m3u8|mp4_url> -vn -c:a copy <tempfile.m4a>
-   - 喂给 paraformer-v2 ASR
+1. 从 DashScope 获取临时 OSS 上传凭证（GET /api/v1/uploads?action=getPolicy）
+2. 边下载音频流（带 Referer header）边上传到 DashScope 临时 OSS bucket
+3. 得到 oss:// 路径，喂给 ASR 模型
+4. 短音频（≤300s）用 qwen3-asr-flash（SDK 同步调用）
+   长音频（>300s）用 qwen3-asr-flash-filetrans（REST 异步提交 + 轮询）
+   短模型失败自动回退到长模型
+
+失败回退：
+   - ffmpeg -i <mp4_url> -vn -c:a copy <tempfile.m4a>
+   - 上传后喂给 ASR
    - 用完即删
+
+注：小红书视频 masterUrl 是 MP4 直链（非 m3u8），B 站音频是 .m4s 直链（DASH 格式）
 ```
 
 ---
@@ -331,7 +353,7 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | 部署 | 单进程 uvicorn，禁 --workers | 多 worker | asyncio.Queue 不跨进程 |
 | MCP 入口 | ~~保留不动~~ 不存在（参考移植） | fork 上游 | 从零写无 MCP 入口，P2 按需新建 |
 | Pipeline 抽象 | P0 不做 | 一开始就分层 | 过度抽象，先验证可行性 |
-| 模型抽象 | P1e 最后做 | 早期抽象 | dashscope 不是 OpenAI 兼容，工作量大 |
+| 模型抽象 | P1e 最后做 | 早期抽象 | P0 锁定百炼，VLM/LLM 走 OpenAI 兼容 HTTP，仅短音频 ASR 用 dashscope SDK |
 | 文件下载 | 经 job_id 反查 | 直接传 path | 防路径穿越 |
 
 ---
@@ -344,4 +366,5 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | v2 | 改 WebUI + CLI 双入口；明确本地 Markdown 主存储；加飞书同步、远程访问 |
 | v3 | 砍 MCP 入口；模型抽象推到 P1；图文笔记走 VLM；分 P0/P1/P2 |
 | v3.1 | 接受外部审阅：P0 砍到极简 / 不删 MCP / 安全 API / 单进程约束 / 失败持久化 / 文件名 sanitize |
-| v3.2（当前） | 项目命名为 Red Blue CP（红蓝CP）；CLI 命令 spx → rbcp；包名 red-blue-cp |
+| v3.2 | 项目命名为 Red Blue CP（红蓝CP）；CLI 命令 spx → rbcp；包名 red-blue-cp |
+| v3.3（当前） | M0 调研修正：ASR 走 OSS 流式中转而非直传 URL；小红书视频是 MP4 非 m3u8；VLM/LLM 走 OpenAI 兼容 HTTP，仅短音频 ASR 用 dashscope SDK |
