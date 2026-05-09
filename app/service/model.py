@@ -183,22 +183,25 @@ class DashscopeProvider:
             "X-DashScope-Async": "enable",
             "X-DashScope-OssResourceResolve": "enable",
         }
+        body = {
+            "model": self.asr_model,
+            "input": {"file_urls": [oss_url]},
+            "parameters": {
+                "channel_id": [0],
+                "language_hints": ["zh"],
+            },
+        }
         response = requests.post(
             TRANSCRIPTION_URL,
             headers=headers,
-            json={
-                "model": self.asr_model,
-                "input": {"file_url": oss_url},
-                "parameters": {
-                    "language": "zh",
-                    "enable_itn": False,
-                    "enable_words": True,
-                    "channel_id": [0],
-                },
-            },
+            json=body,
             timeout=60,
         )
-        response.raise_for_status()
+        if response.status_code >= 400:
+            raise RuntimeError(
+                f"DashScope transcription submit {response.status_code}: "
+                f"body={body!r} resp={response.text}"
+            )
         payload = response.json()
         task_id = (payload.get("output") or {}).get("task_id")
         if not task_id:
