@@ -3,3 +3,7 @@ _reference/
 __pycache__/
 *.pyc
 .venv/
+dist/
+*.egg-info/
+build/
+.DS_STORE

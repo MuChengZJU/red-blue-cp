@@ -239,7 +239,7 @@ fetched_at: 2026-MM-DD
 duration_sec: 600          # 视频特有
 image_count: 9             # 图文特有
 asr_model: <RBCP_ASR_MODEL 配置值>
-vision_model: qwen3-vl-flash
+vision_model: <RBCP_VLM_MODEL 配置值>
 status: subtitle | asr | vision | asr_force
 tags: []
 ---

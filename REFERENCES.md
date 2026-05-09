@@ -96,7 +96,7 @@ mcp >= 1.0.0       # MCP 协议层（fork 后保留入口不动）
 requests           # HTTP 抓取
 ffmpeg-python      # 音视频处理
 tqdm               # 进度条
-dashscope          # 阿里云百炼 SDK（ASR + 视觉 + 清理 LLM 都靠它）
+dashscope          # 阿里云百炼 SDK（上游用，本项目 P0 不依赖，改用 requests 直调 REST/OpenAI HTTP）
 fastapi            # HTTP 服务器（本项目继承复用）
 uvicorn            # ASGI 服务器（本项目继承复用）
 jinja2             # 模板引擎（本项目继承复用）
@@ -107,7 +107,7 @@ python-socks       # SOCKS 代理
 **关键事实**：
 1. 它**不依赖** bilibili-cli / xiaohongshu-cli，是用 requests 自己实现的抓取
 2. 唯一对外 CLI 依赖在 README 写明：`social_analyze_owner_posts`（自己账号复盘）需要 opencli/bb-browser
-3. 模型层硬绑 `dashscope` SDK；不是 OpenAI 兼容，要换模型必须重写适配（P1e 任务）
+3. 上游模型层硬绑 `dashscope` SDK；M0 确认 VLM/LLM 实际走 OpenAI 兼容 HTTP，ASR 走 REST 异步。本项目 P0 全部用 requests 直调，不依赖 SDK
 4. 没有传统 OCR 库，"OCR" 实际是 qwen3-vl-flash 视觉模型
 
 ---
@@ -124,8 +124,8 @@ python-socks       # SOCKS 代理
 
 ---
 
-## 与上游同步策略
+## 与上游关系
 
-- 不主动从上游 `git pull`，避免破坏改造
-- 重大上游修复（小红书签名更新等）按需 cherry-pick
-- 自己的改动只放在 `app/` 目录下，不混入 `social_post_extractor_mcp/`，方便上游同步
+- **参考移植，不 fork**：只读参考上游代码逻辑，自主实现
+- 上游代码 clone 在 `_reference/` 目录（gitignored），仅供开发时对照
+- 重大上游修复（小红书签名更新等）手动对照参考，不走 git merge/cherry-pick

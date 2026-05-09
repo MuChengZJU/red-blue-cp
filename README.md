@@ -35,7 +35,8 @@ P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 ├── app/
 │   ├── service/
 │   │   ├── model.py            # ModelProvider Protocol + DashscopeProvider
-│   │   ├── extractor.py        # 自实现内容提取（参考上游逻辑）
+│   │   ├── extractor.py        # 编排：调 fetcher + model
+│   │   ├── fetcher.py          # HTTP 爬取 B站/小红书 API + 解析
 │   │   ├── markdown.py         # frontmatter + sanitize + 原子写入
 │   │   └── storage.py          # SQLite jobs CRUD
 │   ├── web/
@@ -81,7 +82,7 @@ rbcp run <url>
 
 ## 技术栈
 
-FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + dashscope SDK
+FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + requests（REST/OpenAI 兼容 HTTP 直调百炼）
 
 ## 部署位置
 

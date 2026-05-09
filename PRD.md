@@ -96,7 +96,7 @@ tags: []                   # 远期手动/自动加
 
 | 关注点 | MVP | 后期 |
 |---|---|---|
-| 模型 | ModelProvider Protocol + DashscopeProvider（百炼 paraformer-v2 / qwen3-vl-flash / qwen-flash） | OpenAI 兼容适配层 |
+| 模型 | ModelProvider Protocol + DashscopeProvider（百炼 paraformer-v2 / qwen3-vl-flash / qwen-plus） | OpenAI 兼容适配层 |
 | 内容存储 | 本地 Markdown + frontmatter | — |
 | 索引存储 | SQLite（任务状态） | + FTS5 全文 |
 | 中间媒体 | tempfile 临时目录，跑完即删 | — |
@@ -149,7 +149,7 @@ P1e · 模型抽象层（最后做）       (1.5 天)
 P1f · 远程访问 tailscale         (0.5 天)
 ```
 
-模型抽象（P1e）单独排足时间，**不要与 P1a-d 并行**——dashscope SDK 不是 OpenAI 兼容，三种调用形态（ASR/VLM/LLM）差异大，会拆乱代码。
+模型抽象（P1e）单独排足时间，**不要与 P1a-d 并行**——ASR（REST 异步转写）和 VLM/LLM（OpenAI 兼容 HTTP）两种调用模式差异大，要统一到多 Provider 接口需要独立时间。
 
 ### P2 · 完善（按需）
 
@@ -165,7 +165,7 @@ P1f · 远程访问 tailscale         (0.5 天)
 
 ## 关键决策回顾
 
-- 形态从三入口（WebUI + CLI + MCP）砍到双入口；MCP fork 后保留入口不维护
+- 形态从三入口（WebUI + CLI + MCP）砍到双入口；参考移植不 fork，无 MCP 入口
 - 小红书图文 MVP 走 VLM，OCR 是 P2 备选不是 P0 必需
 - 远期 LLM Wiki 不进需求文档，本项目交付 Markdown 文件库即可
 - 飞书移到 P2

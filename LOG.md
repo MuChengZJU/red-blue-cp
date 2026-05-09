@@ -30,7 +30,7 @@
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R2：ASR 统一异步/去 SDK/加 dotenv/配置简化，Codex 20 findings | PLAN.md §Eng Review 决议（第二轮） |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R1：extractor 拆分、to_thread、restart 清理、配置发现链、输出路径可配 | PLAN.md §Eng Review 决议 |
 | 2026-05-09 | 🟡 中 | 业务 | 多图笔记全量处理（去掉 max_images 限制），VLM 并发调用 | — |
-| 2026-05-09 | 🟡 中 | 业务 | ASR 走音频 URL 优先直发云端，失败回退 ffmpeg 下载 | — |
+| 2026-05-09 | 🟡 中 | 业务 | ~~ASR 走音频 URL 优先直发云端~~ → R2 修正：统一走 OSS 流式中转 + 异步文件转写 | — |
 | 2026-05-09 | 🔴 高 | 架构 | CEO review：参考移植取代 fork，P0 加 ModelProvider，Queue/status/auth 推 P1 | [CEO plan](docs/gstack/ceo-plans/2026-05-09-p0-from-scratch.md) |
 | 2026-05-09 | 🔴 高 | 架构 | 目录结构 ~/knowledge-vault/ → ~/transcript/ 扁平结构 | — |
 | 2026-05-09 | 🔴 高 | 部署 | uvicorn 绑定 0.0.0.0，兼容 WSL2 mirrored networking | — |
@@ -108,7 +108,7 @@
 
 实际开发遇到这些情况时：
 - 踩了一个意料之外的坑（如小红书风控触发条件）
-- 某个工具/库的非显然行为（如 dashscope SDK 的某个怪癖）
+- 某个工具/库的非显然行为（如百炼 API 的某个怪癖）
 - 验证了某个怀疑（如"VLM 直接吃 URL 失败率多高"）
 - 完成一个里程碑后值得复盘的事
 

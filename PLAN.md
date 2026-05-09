@@ -27,12 +27,12 @@ P2 = M3，按需
 - [ ] clone [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp)（只读参考，不 fork）
 - [ ] 研读上游代码，重点理解三件事：
   - [x] ~~dashscope SDK 调用方式~~ → M0 确认：ASR 走 REST 异步，VLM/LLM 走 OpenAI 兼容 HTTP，不用 SDK
-  - [ ] 小红书爬取签名逻辑（cookie、headers、防盗链）
-  - [ ] B 站视频字幕/音频获取逻辑
+  - [x] 小红书爬取签名逻辑（cookie、headers、防盗链）
+  - [x] B 站视频字幕/音频获取逻辑
 - [ ] 评估自实现复杂度：
   - 某单项预估超过 2 天 → 退回方案 A（fork + 旁路包装）
   - 可控 → 继续参考移植
-- [ ] 配置百炼 API Key 到 `.env`，验证 SDK 调用通路
+- [ ] 配置百炼 API Key 到 `.env`，验证 API 调用通路
 
 ### 不做的事
 

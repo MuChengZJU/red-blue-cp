@@ -112,7 +112,7 @@ FastAPI 自带的 `/docs` 已经足够，不要单独写 OpenAPI YAML 或者 red
 | 小红书风控 | API 返回 captcha / 403 / IP block | 检查 cookie，重启时间间隔，不要重试猛烈 |
 | B 站字幕格式不一致 | UP 主字幕 / 自动字幕 / 无字幕三种状态 | 调用层判断 + 落到 frontmatter `status` 字段 |
 | VLM 调用图片防盗链 | qwen3-vl-flash 报 403 / 图片下载失败 | 走 tempfile 兜底，加 `referer: https://www.xiaohongshu.com/` |
-| ffmpeg 抽流被中断 | m3u8 链接过期 / 网络抖动 | 不要长任务无限重试，3 次失败标 failed |
+| ffmpeg 抽流被中断 | 音频直链过期 / 网络抖动（B 站 .m4s / 小红书 MP4） | 不要长任务无限重试，3 次失败标 failed |
 | SQLite WAL 模式下并发 | 多 worker 写同一个 db | P0 单进程不会发生；P1 引入 worker 时再处理 |
 | Markdown 模板渲染失败 | 标题含 `}` `{` 等 Jinja2 字符 | sanitize 阶段就 escape，不要让脏数据进 Jinja2 |
 
