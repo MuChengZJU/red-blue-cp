@@ -72,7 +72,7 @@ class DashscopeProvider:
             CHAT_COMPLETIONS_URL,
             headers=self._json_auth_headers(),
             json=payload,
-            timeout=60,
+            timeout=(10, 180),
         )
         response.raise_for_status()
         return _extract_chat_text(response.json())
@@ -94,7 +94,7 @@ class DashscopeProvider:
             CHAT_COMPLETIONS_URL,
             headers=self._json_auth_headers(),
             json=payload,
-            timeout=60,
+            timeout=(10, 180),
         )
         response.raise_for_status()
         return _extract_chat_text(response.json())

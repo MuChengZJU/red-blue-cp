@@ -52,4 +52,5 @@ def run(url: str) -> None:
 
 @app.command("serve")
 def serve() -> None:
+    load_dotenv()
     uvicorn.run("app.web.routes:app", host="0.0.0.0", port=8000, workers=1)
