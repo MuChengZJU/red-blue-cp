@@ -16,6 +16,7 @@
 | 2026-05-09 | 需求收敛 + 文档冻结 v3.1 | Claude.ai | _(填本次对话链接)_ |
 | 2026-05-09 | CEO review + 文档同步 | Claude Code | /plan-ceo-review |
 | 2026-05-09 | Eng review + 架构决议 | Claude Code | /plan-eng-review |
+| 2026-05-09 | M1a + M1b + QA 实施 | Claude Code | TDD + Codex 并行 |
 
 ---
 
@@ -27,6 +28,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
+| 2026-05-09 | 🟡 中 | 业务 | 失败任务加"重试"按钮提前到 P0（成本极低，POST 同 url 复用即可），不等 M2d | [P0 交付](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R2：ASR 统一异步/去 SDK/加 dotenv/配置简化，Codex 20 findings | PLAN.md §Eng Review 决议（第二轮） |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R1：extractor 拆分、to_thread、restart 清理、配置发现链、输出路径可配 | PLAN.md §Eng Review 决议 |
 | 2026-05-09 | 🟡 中 | 业务 | 多图笔记全量处理（去掉 max_images 限制），VLM 并发调用 | — |
@@ -70,9 +72,10 @@
 | 2026-05-09 | Eng review 完成 | done | 9 条架构决议（extractor 拆分、to_thread、config 发现等），Codex 审查通过 |
 | 2026-05-09 | M0 完成 | done | 研读上游代码 + 云端模型调研完成，确认自实现可行。[详情](docs/devlog/2026-05-09-m0-upstream-analysis.md) |
 | 2026-05-09 | Eng review R2 完成 | done | M0 后修正：ASR 统一异步转写、去 dashscope SDK、加 python-dotenv、依赖 7 个 |
-| 待定 | M1a 完成 | pending | CLI 极简闭环：rbcp run \<url\> 出 MD |
-| 待定 | M1b 完成 | pending | WebUI 最小页 |
-| 待定 | P0 收尾 | pending | 三类链接均能稳定出 Markdown |
+| 2026-05-09 | M1a 完成 | done | TDD + Codex 并行：7 轮调度，106 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
+| 2026-05-09 | M1b 完成 | done | FastAPI + 5 API + HTMX 模板，路径穿越防御，135 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
+| 2026-05-09 | QA + 接线 bug 修复 | done | 真链接跑通 3/3，修了 5 个接线层 bug（serve/job_id/metadata/timeout/file_urls）。137 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
+| 2026-05-09 | P0 收尾 | done | 三类链接均能稳定出 Markdown：xhs 图文 / B 站视频 / xhs 视频笔记 |
 | 待定 | P1 启动（M2） | pending | 下阶段后再说 |
 
 ---
@@ -83,7 +86,11 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
-| — | — | _(空)_ | — |
+| 2026-05-09 | 🔴 高 | 架构审阅 + 单测都抓不到"接线层"bug，必须靠端到端实测 | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
+| 2026-05-09 | 🔴 高 | 外部 API 字段名查官方文档，不能信引用代码（`_reference/` 也是错的） | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
+| 2026-05-09 | 🟡 中 | smoke test 必须跑到外部 API 那一步，否则等于零（YouTube 假 URL 在 detect_platform 第一步就 ValueError） | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
+| 2026-05-09 | 🟡 中 | 配置加载（load_dotenv 等横切关注点）放进程入口，别埋进业务函数体内 | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
+| 2026-05-09 | 🟡 中 | TDD + Codex 并行：CC 写测试定接口契约 + Codex 写实现，10+ 轮调度只 1 次返工 | [P0 交付](docs/devlog/2026-05-09-p0-delivery.md) |
 
 ---
 

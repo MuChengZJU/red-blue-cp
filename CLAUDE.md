@@ -83,6 +83,22 @@ feat(extractor): 实现 extract_url 包装上游 extract 函数
 fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 ```
 
+### 里程碑收尾必须真链路实测
+
+不要把"测试全过 + 审阅通过"等同于"完工"。完工 = 用户视角真链路跑得通。
+
+- 每个里程碑 commit 前必须跑一次 `/qa`（或等价的端到端实测）
+- smoke test 必须打到外部 API 那一步，不能用会被前置校验拦下的假 URL
+- 测试要验证用户视角输出（HTML 真渲染出值 / DB 真写入业务字段），不只是状态码或函数返回值
+
+教训详见 [docs/devlog/2026-05-09-integration-layer-bugs.md](docs/devlog/2026-05-09-integration-layer-bugs.md)。
+
+### 外部 API 调用查官方文档
+
+不能信引用代码（包括 `_reference/` 目录里的上游）。上游的字段名可能是错的、过期的、或他们自己也没跑通过那条路径。外部 API（DashScope、B 站、小红书）的 body schema 必须查官方文档。
+
+调用失败时的错误处理要打印 response body，不要只 raise_for_status 让 HTTPError 吞掉细节。
+
 ## 不要做的事（防止 Claude 自作主张）
 
 ### 不要自己加依赖

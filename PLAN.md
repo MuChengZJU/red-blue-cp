@@ -46,9 +46,11 @@ P2 = M3，按需
 
 ---
 
-## M1a · CLI 极简闭环（1 天）
+## M1a · CLI 极简闭环（1 天）✅ 完成 2026-05-09
 
 > 目标：终端跑 `rbcp run <url>`，桌面多一个 Markdown 文件。
+>
+> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](docs/devlog/2026-05-09-p0-delivery.md)。
 
 ### 执行策略：TDD + Codex 并行
 
@@ -114,9 +116,12 @@ P2 = M3，按需
 
 ---
 
-## M1b · WebUI 最小页（0.5 天）
+## M1b · WebUI 最小页（0.5 天）✅ 完成 2026-05-09
 
 > 目标：浏览器粘 URL，看到结果。
+>
+> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](docs/devlog/2026-05-09-p0-delivery.md)。
+> QA 实战 + 接线 bug 复盘见 [docs/devlog/2026-05-09-integration-layer-bugs.md](docs/devlog/2026-05-09-integration-layer-bugs.md)。
 
 ### 任务清单
 
