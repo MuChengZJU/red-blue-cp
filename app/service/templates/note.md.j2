@@ -1,0 +1,32 @@
+---
+platform: {{ platform }}
+type: {{ content_type }}
+url: {{ url }}
+author: {{ author }}
+author_id: {{ author_id }}
+title: {{ title }}
+published_at: {{ published_at }}
+fetched_at: {{ fetched_at }}
+{% if duration_sec is not none -%}
+duration_sec: {{ duration_sec }}
+{% endif -%}
+{% if image_count is not none -%}
+image_count: {{ image_count }}
+{% endif -%}
+{% if asr_model -%}
+asr_model: {{ asr_model }}
+{% endif -%}
+{% if vision_model -%}
+vision_model: {{ vision_model }}
+{% endif -%}
+status: {{ status }}
+tags: []
+---
+
+# {{ title }}
+
+> [{{ author }}](https://{{ author_url }}) · {{ published_at }} · [原链接]({{ url }})
+
+## 转录文本 / 图文 OCR
+
+{{ text }}
