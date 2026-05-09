@@ -76,6 +76,9 @@
       const error = status === "failed" && job.error_message
         ? `<div class="error-box">${escapeHtml(job.error_message)}</div>`
         : "";
+      const retryBtn = status === "failed" && url
+        ? `<button type="button" class="button small secondary retry-btn" data-url="${escapeHtml(url)}">重试</button>`
+        : "";
 
       return `
         <article class="job-item">
@@ -90,6 +93,7 @@
             </div>
             <div class="job-actions">
               <span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span>
+              ${retryBtn}
               <a href="${detailUrl}">详情</a>
             </div>
           </div>
@@ -138,6 +142,32 @@
       notice.textContent = `提交失败：${error.message}`;
     } finally {
       button.disabled = false;
+    }
+  });
+
+  // 重试按钮（事件委托：列表是动态渲染的）
+  list.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".retry-btn");
+    if (!btn) return;
+    const retryUrl = btn.dataset.url;
+    if (!retryUrl) return;
+    btn.disabled = true;
+    btn.textContent = "提交中...";
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: retryUrl })
+      });
+      if (!response.ok) {
+        throw new Error(await response.text() || `HTTP ${response.status}`);
+      }
+      notice.textContent = "已重新提交";
+      await refreshJobs();
+    } catch (error) {
+      notice.textContent = `重试失败：${error.message}`;
+      btn.disabled = false;
+      btn.textContent = "重试";
     }
   });
 

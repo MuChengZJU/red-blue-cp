@@ -155,6 +155,13 @@
       color: var(--text);
     }
 
+    .button.small {
+      min-height: 28px;
+      padding: 0 10px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
     .job-list {
       display: grid;
       gap: 10px;
@@ -186,6 +193,12 @@
       color: var(--muted);
       font-size: 13px;
       line-height: 1.7;
+      overflow-wrap: anywhere;
+      word-break: break-all;
+    }
+
+    .job-meta a {
+      color: var(--muted);
     }
 
     .job-meta span + span::before {
