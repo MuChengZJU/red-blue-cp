@@ -10,3 +10,4 @@ build/
 .pytest_cache/
 uv.lock
 .gstack/
+.leak-patterns.local

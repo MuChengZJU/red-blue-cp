@@ -1,0 +1,26 @@
+# 复制本文件为 .leak-patterns.local（已 gitignored），把"YOUR_*"替换成实际敏感词。
+# 一行一个。空行和 # 开头的行会被忽略。
+# scripts/check-leaks.sh 会按这里列的关键词扫描所有 tracked 文档。
+
+# === 个人身份 ===
+YOUR_REAL_NAME
+YOUR_NICKNAME_OR_ALIAS
+YOUR_EMAIL_HANDLE
+YOUR_DEVICE_NAME
+
+# === 学术 / 工作环境 ===
+YOUR_SCHOOL_NAME
+YOUR_LAB_NAME
+YOUR_ADVISOR_NAME
+YOUR_COWORKER_NAME
+YOUR_EMPLOYER_NAME
+YOUR_SIDE_PROJECT_NAME
+
+# === 时间盘 / 进度 ===
+# 任何能反推个人时间表的具体短语，比如重大日期、考试名、结业相关
+# YOUR_MILESTONE_KEYWORD
+
+# === 路径 ===
+# 含家目录用户名的路径
+/Users/YOUR_USERNAME
+/home/YOUR_USERNAME

@@ -1,56 +1,47 @@
 #!/usr/bin/env bash
 # 扫描仓库文档里是否泄漏作者个人 / 环境信息。
-# 用法：bash scripts/check-leaks.sh
+#
+# 用法：
+#   bash scripts/check-leaks.sh
+#
 # Exit 0 = 无残留；Exit 1 = 有残留（适合接 pre-commit hook）。
+#
+# 敏感词清单维护在 .leak-patterns.local（不进 git）。
+# 模板见 .leak-patterns.example：复制 .example 为 .local 后填实际敏感词。
 
 set -e
 
-# 敏感关键词清单。新踩坑往这里加。
-PATTERNS=(
-  # 个人身份
-  "作者"
-  "muchengzju"
-  "MCMBA"
-  # 学术 / 工作环境
-  "研究"
-  "某高校"
-  "导师"
-  "合作者"
-  "某实验室"
-  "本地服务器"
-  "***"
-  # 时间 / 进度
-  "下阶段"
-  "结业"
-  "近期"
-  "近期"
-  # 路径
-  "~"
-  "~"
-)
-
-EXCLUDE_DIRS=(
-  "_reference"
-  ".git"
-  ".venv"
-  ".pytest_cache"
-  ".gstack"
-  "node_modules"
-  "scripts"  # 排除本脚本自己
-)
-
 cd "$(git rev-parse --show-toplevel 2>/dev/null || pwd)"
 
-# 拼 grep 排除参数
+PATTERN_FILE=".leak-patterns.local"
+
+if [ ! -f "$PATTERN_FILE" ]; then
+  echo "⚠ 未找到 $PATTERN_FILE"
+  echo "  请复制模板：cp .leak-patterns.example $PATTERN_FILE"
+  echo "  然后编辑 $PATTERN_FILE 填入实际要屏蔽的敏感词。"
+  exit 0  # 不强制，避免新 clone 用户必须配
+fi
+
+# 读取非空、非注释行（bash 3.2 兼容写法，不用 mapfile）
+PATTERNS=()
+while IFS= read -r line; do
+  PATTERNS+=("$line")
+done < <(grep -v '^[[:space:]]*#' "$PATTERN_FILE" | grep -v '^[[:space:]]*$')
+
+if [ ${#PATTERNS[@]} -eq 0 ]; then
+  echo "⚠ $PATTERN_FILE 里没有敏感词，跳过扫描"
+  exit 0
+fi
+
+EXCLUDE_DIRS=(_reference .git .venv .pytest_cache .gstack node_modules scripts)
+
 exclude_args=()
 for d in "${EXCLUDE_DIRS[@]}"; do
   exclude_args+=(--exclude-dir="$d")
 done
 
-# 拼正则
 regex=$(IFS='|'; echo "${PATTERNS[*]}")
 
-# 扫描
 found=$(grep -rnE "$regex" \
   --include="*.md" \
   --include="*.toml" \
@@ -60,6 +51,7 @@ found=$(grep -rnE "$regex" \
   --include="*.txt" \
   --include="*.yaml" \
   --include="*.yml" \
+  --exclude=".leak-patterns*" \
   "${exclude_args[@]}" \
   . 2>/dev/null || true)
 
@@ -68,7 +60,7 @@ if [ -n "$found" ]; then
   echo ""
   echo "$found"
   echo ""
-  echo "如需新增到白名单或扩展敏感词，编辑 scripts/check-leaks.sh"
+  echo "维护敏感词清单：编辑 $PATTERN_FILE"
   exit 1
 fi
 
