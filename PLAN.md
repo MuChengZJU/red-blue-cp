@@ -6,63 +6,60 @@
 
 | 阶段 | 天数 | 目标 |
 |---|---|---|
-| M0 | 1 | 上游能力验证，**保留 MCP 不动** |
-| M1a | 1.5 | CLI 极简闭环 |
-| M1b | 1.5 | WebUI 最小页 |
+| M0 | 0.5-1 | 研读上游 + 评估复杂度（参考移植） |
+| M1a | 1 | CLI 极简闭环 + ModelProvider |
+| M1b | 0.5 | WebUI 最小页 |
 | M2 | 3-5 | P1 规模化（按子优先级串行） |
 | M3 | 按需 | P2 完善 |
 
-P0 = M0 + M1a + M1b ≈ 4 天
+P0 = M0 + M1a + M1b ≈ 2-2.5 天（CC 辅助开发）
 P1 = M2 ≈ 3-5 天
 P2 = M3，按需
 
 ---
 
-## M0 · 上游能力验证（1 天）
+## M0 · 研读上游 + 评估复杂度（0.5-1 天）
 
-> **不删 MCP**，只验证上游能力，决定 M1 形态是"轻包装"还是"改造 service"。
+> **参考移植**：研读上游 social-post-extractor-mcp 的代码，理解 SDK 调用和爬取逻辑，评估自实现复杂度。
 
 ### 任务清单
 
-- [ ] fork [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp)
-- [ ] `uv sync`
-- [ ] 配置百炼 API Key 到 `config/social-post-extractor.env`
-- [ ] 跑通 mcporter 调用：
-  - [ ] B 站视频链接 → script.md + info.json
-  - [ ] 小红书视频链接 → script.md + info.json
-  - [ ] 小红书图文链接 → script.md + info.json
-- [ ] 记录每种链接的真实输出：
-  - [ ] script.md / info.json 的字段完整度
-  - [ ] **是否真的用了 tempfile**（如果落盘了，需要 M1 修）
-  - [ ] 标题/作者/发布时间是否拿得到
-  - [ ] 图文笔记的图片处理实际行为（URL 还是 tempfile？是否处理防盗链？）
-- [ ] 决定 M1 形态：
-  - 上游业务函数清晰可 import → **轻包装**
-  - 业务函数与 MCP decorator 耦合严重 → **改造 service**
+- [ ] clone [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp)（只读参考，不 fork）
+- [ ] 研读上游代码，重点理解三件事：
+  - [ ] dashscope SDK 调用方式（ASR / VLM / LLM 三种形态）
+  - [ ] 小红书爬取签名逻辑（cookie、headers、防盗链）
+  - [ ] B 站视频字幕/音频获取逻辑
+- [ ] 评估自实现复杂度：
+  - 某单项预估超过 2 天 → 退回方案 A（fork + 旁路包装）
+  - 可控 → 继续参考移植
+- [ ] 配置百炼 API Key 到 `.env`，验证 SDK 调用通路
 
 ### 不做的事
 
+- [ ] ~~fork 上游~~（只读参考）
 - [ ] ~~装 bilibili-cli / xiaohongshu-cli~~（P1 才用）
-- [ ] ~~删除 MCP entrypoint~~（P0 完成后再说）
 - [ ] ~~抽 PlatformAdapter / Pipeline~~（M1 不需要）
 
 ### 出口
 
-能演示一条 URL 进、一份 script.md + info.json 出。决定 M1 形态。
+理解上游核心逻辑，确认自实现可行性。决定是继续参考移植还是退回 fork。
 
 ---
 
-## M1a · CLI 极简闭环（1.5 天）
+## M1a · CLI 极简闭环（1 天）
 
 > 目标：终端跑 `rbcp run <url>`，桌面多一个 Markdown 文件。
 
 ### 任务清单
 
+- [ ] **service/model.py**
+  - [ ] `ModelProvider` Protocol（asr / vlm / llm_clean 三个方法）
+  - [ ] `DashscopeProvider` 实现（调用 dashscope SDK）
 - [ ] **service/extractor.py**
-  - [ ] 新增 `extract_url(url) -> ExtractResult`
+  - [ ] 新增 `extract_url(url, provider) -> ExtractResult`
   - [ ] `ExtractResult` dataclass 包含：platform / content_type / title / author / author_id / published_at / url / text / metadata / raw_info
   - [ ] 内部 if/elif 分发 B 站视频 / 小红书视频 / 小红书图文（不抽 Pipeline）
-  - [ ] 调用上游业务函数，绕开 MCP entrypoint 直接 import
+  - [ ] 自实现内容提取逻辑（参考上游，直接调 dashscope SDK + requests）
 - [ ] **service/markdown.py**
   - [ ] `sanitize_filename(title, author, date, suffix_id) -> str`（按 SPEC §6.2）
   - [ ] Jinja2 模板渲染 frontmatter + 正文（按 SPEC §6.4）
@@ -73,8 +70,15 @@ P2 = M3，按需
   - [ ] 失败时持久化 error_message + log_excerpt
 - [ ] **cli.py**
   - [ ] `rbcp run <url>` 同步阻塞
-  - [ ] 跑完输出 `Done: ~/knowledge-vault/...`
+  - [ ] 跑完输出 `Done: ~/transcript/...`
   - [ ] 失败输出 `Failed: <error_message>`，并把 traceback 写进 SQLite
+- [ ] **pyproject.toml**
+  - [ ] `[project.scripts]` entry point：`rbcp = "app.cli:app"`
+  - [ ] 依赖列表（不含 mcp）
+- [ ] **启动检测**
+  - [ ] 检测 DASHSCOPE_API_KEY + ffmpeg，缺失给清晰提示
+- [ ] **URL 自动检测**
+  - [ ] 正则匹配 bilibili.com / b23.tv / xiaohongshu.com / xhslink.com
 
 ### 验收
 
@@ -86,7 +90,7 @@ P2 = M3，按需
 
 ---
 
-## M1b · WebUI 最小页（1.5 天）
+## M1b · WebUI 最小页（0.5 天）
 
 > 目标：浏览器粘 URL，看到结果。
 
@@ -100,9 +104,9 @@ P2 = M3，按需
   - [ ] `GET /api/jobs/{id}/download` MD 下载（带 Content-Disposition）
   - [ ] **不暴露 file path**，所有文件接口走 job_id
 - [ ] **templates/**
-  - [ ] index.html：输入框 + 任务列表（HTMX 轮询 2s 一次）
+  - [ ] index.html：输入框 + 任务列表（轮询 2s 一次）
   - [ ] detail.html：标题 + frontmatter 摘要 + 正文渲染 + 复制按钮 + 下载按钮
-- [ ] 启动命令：`uv run uvicorn app.web.routes:app`（**不用 --workers**）
+- [ ] 启动命令：`rbcp serve`（内部 `uvicorn --host 0.0.0.0`，**不用 --workers**）
 
 ### 验收
 
@@ -200,10 +204,10 @@ P2 = M3，按需
 | B 站字幕质量参差 | 高 | 不自动判断；M2d 提供手动"重抽 ASR"按钮 |
 | VLM 图片 token 成本失控（10+ 图笔记） | 中 | 加 `max_images` 软限制（默认 9），超限拒绝 |
 | dashscope 不是 OpenAI 兼容，模型抽象工作量低估 | 中 | M2e 单独排足 1.5 天，不与 M2a-d 并行 |
-| 上游仓库小红书图文行为跟需求不符 | 中 | M0 阶段先验证，不符则 M1.4 中改造 |
+| 小红书爬取自实现复杂度超预期 | 中 | M0 研读上游逻辑，超 2 天预估则退回 fork |
 | asyncio.Queue 在多 worker 部署下状态混乱 | 高 | SPEC 强制单进程 uvicorn，禁用 --workers |
 | 文件下载接口路径穿越 | 高 | 所有文件接口走 job_id 反查，不接受用户 path |
-| MCP 入口删除带坏业务函数 | 中 | P0 不删 MCP；P0 完成后再清理 |
+| ~~MCP 入口删除带坏业务函数~~ | — | 参考移植，无 MCP 入口，风险不存在 |
 | 上游图片防盗链 | 中 | VLM 调用走"URL 优先 + tempfile 兜底"双轨 |
 
 ---
@@ -214,8 +218,7 @@ P2 = M3，按需
 
 | 阶段 | 建议时间窗 |
 |---|---|
-| M0 + M1a | 5 月内（一个完整周末或两个晚上） |
-| M1b | 5 月内（半个周末） |
+| M0 + M1a + M1b | 5 月内（一个完整周末，CC 辅助） |
 | M2 | **下阶段后**再做 |
 | M3 | 长期可选 |
 

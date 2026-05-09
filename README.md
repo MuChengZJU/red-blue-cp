@@ -6,7 +6,7 @@
 
 ## 状态
 
-P0 实施中。基于 [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp) fork 改造。
+P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp) 逻辑，自主架构实现。
 
 仓库名：`red-blue-cp` ｜ PyPI 包名：`red-blue-cp` ｜ CLI 命令：`rbcp` ｜ 内部代号：`rbcp`
 
@@ -34,14 +34,14 @@ P0 实施中。基于 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 .
 ├── app/
 │   ├── service/
-│   │   ├── extractor.py        # 包装上游 extract 函数
+│   │   ├── model.py            # ModelProvider Protocol + DashscopeProvider
+│   │   ├── extractor.py        # 自实现内容提取（参考上游逻辑）
 │   │   ├── markdown.py         # frontmatter + sanitize + 原子写入
 │   │   └── storage.py          # SQLite jobs CRUD
 │   ├── web/
 │   │   └── routes.py           # WebUI + REST API
 │   └── cli.py                  # rbcp 命令
-├── config/
-│   └── social-post-extractor.env  # 百炼 API Key（gitignored）
+├── .env                        # 百炼 API Key + 小红书 cookie（gitignored）
 ├── PRD.md
 ├── SPEC.md
 ├── PLAN.md
@@ -54,27 +54,27 @@ P0 实施中。基于 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 └── README.md
 ```
 
-知识库默认输出位置：`~/knowledge-vault/`
+知识库默认输出位置：`~/transcript/`
 
 ## 快速开始（占位，P0 完成后填）
 
 ```bash
 # 1. 克隆
 git clone <repo-url>
-cd social-post-extractor
+cd red-blue-cp
 
 # 2. 装依赖
 uv sync
 
 # 3. 配 API Key
-cp .env.example config/social-post-extractor.env
-# 编辑填入 BAILIAN_API_KEY
+cp .env.example .env
+# 编辑填入 DASHSCOPE_API_KEY
 
 # 4. 启 WebUI
-uv run uvicorn app.web.routes:app
+rbcp serve
 
 # 或 CLI
-uv run rbcp run <url>
+rbcp run <url>
 ```
 
 ## 技术栈
@@ -83,15 +83,15 @@ FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + dashscope SDK
 
 ## 部署位置
 
-本地服务器（国内 IP，避免小红书海外风控）。手机访问走 tailscale 私有网络或 frp 中转。
+自部署工具。推荐部署在国内 IP 机器（避免小红书海外风控）。支持 WSL2 mirrored networking。手机访问走 tailscale 私有网络或 frp 中转。
 
 ## 范围外
 
 - 抖音平台
-- MCP server（fork 后保留入口但不维护）
+- MCP server（P0 不含，P2 按需新建）
 - Get 笔记历史数据迁移（独立项目）
 - 远期 LLM Wiki 主题索引（本项目只产 Markdown 原料）
 
 ## License
 
-继承上游 Apache-2.0。
+MIT 或 Apache-2.0（待定）。

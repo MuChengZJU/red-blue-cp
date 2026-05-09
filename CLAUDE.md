@@ -19,12 +19,12 @@
 ### 安全
 
 1. **文件下载/读取接口必须走 `job_id`**，不允许用户传任意 file path。任何 `GET /api/files/{path}` 这类设计都是路径穿越漏洞，禁止。
-2. **百炼 API Key 不进 Git**。配置文件 `config/social-post-extractor.env` 必须在 `.gitignore` 里，继承上游约定。
+2. **敏感配置不进 Git**。百炼 API Key 和小红书 cookie 存放在 `.env` 文件中，必须在 `.gitignore` 里。
 
 ### 部署
 
 3. **MVP 仅支持单进程 uvicorn**。启动命令禁止 `--workers > 1`。asyncio.Queue / create_task 是进程内的，多 worker 会让任务状态混乱。
-4. **不允许把数据库或日志写到 `~/knowledge-vault/`**。知识库目录只放 Markdown 文件。SQLite 索引文件 `_index.sqlite` 是唯一例外。
+4. **不允许把数据库或日志写到 `~/transcript/`**。知识库目录只放 Markdown 文件。SQLite 索引文件 `_index.sqlite` 是唯一例外。
 
 ### 持久化
 
@@ -34,7 +34,7 @@
 
 ### 业务
 
-8. **不删 MCP 入口**（P0 阶段）。上游 server.py 的 MCP entrypoint 保留不动，新增 WebUI 和 CLI 旁路调用业务函数。P0 完成后再讨论是否清理。
+8. ~~不删 MCP 入口~~（**已废除**）。P0 采用参考移植方案，不 fork 上游，无 MCP 入口。如未来需要 MCP 能力，作为 P2 新建。
 9. **不引入 bilibili-cli / xiaohongshu-cli 到 P0**。这两个 CLI 是 P1 博主全量和评论用的，P0 不依赖。
 10. **不自动判断 B 站字幕质量**。字幕优先是默认行为，"切 ASR" 是 P1 的手动按钮。不要写"如果字幕长度小于 X 就走 ASR"这种启发式。
 11. **小红书图文图片处理走双轨**：URL 优先喂 VLM，失败回退到 tempfile 下载（保留 `referer` 等 headers），喂完即删。不要把 URL 当唯一稳定路径。
@@ -51,8 +51,9 @@
 P0 阶段**只用三个文件夹**：`service/` `web/` `cli.py`。**不要引入**以下抽象（即使你觉得"以后会用到"）：
 - `PlatformAdapter` / `BiliAdapter` / `XhsAdapter` 类
 - `Pipeline` 接口和 `BiliVideoPipeline` 等实现
-- `IModelProvider` 接口
 - `JobQueue` 类（P0 用 `asyncio.create_task`，P1 才引入 `asyncio.Queue`）
+
+**P0 允许的抽象**：`ModelProvider` Protocol + `DashscopeProvider`（参考移植的初始设计，不是提前抽象）。
 
 P0 内部分发用 `if/elif platform == 'bilibili':` 就够了。看起来"丑"但这是 P0 应该的样子。
 
@@ -84,19 +85,11 @@ fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 
 ## 不要做的事（防止 Claude 自作主张）
 
-### 不要"顺手"重构上游代码
-
-上游 `social_post_extractor_mcp/` 目录下的代码**不要改**，除非：
-- M0 验证发现行为与需求不符（必须改）
-- 业务函数与 MCP decorator 耦合无法旁路（必须改）
-
-任何"代码风格不好"、"加点类型注解"、"逻辑可以更清晰"都不是改的理由。P0 阶段保持上游代码原样，最大化兼容性。
-
 ### 不要自己加依赖
 
-`pyproject.toml` 已经有的：mcp / requests / ffmpeg-python / tqdm / dashscope / fastapi / uvicorn / jinja2 / websockets / python-socks。
+P0 依赖（参考移植，从零写）：requests / ffmpeg-python / dashscope / fastapi / uvicorn / jinja2 / typer / aiosqlite（或 sqlite3 标准库）。
 
-P0 新增的依赖**仅限**：typer（CLI 框架）。其他任何包（celery / redis / paddleocr / openai-sdk）都属于过早引入，禁止 install。
+P0 新增的依赖**仅限**上述列表。其他任何包（celery / redis / paddleocr / openai-sdk / mcp）都属于过早引入，禁止 install。
 
 ### 不要扩大 P0 范围
 

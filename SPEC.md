@@ -10,13 +10,13 @@
 │  CLI  (typer)                                     │
 │  ↓ 共享同一组业务函数                             │
 ├─ 业务层 (P0) ─────────────────────────────────────┤
-│  service/extractor.py    包装上游 extract 函数    │
+│  service/extractor.py    自实现内容提取（参考上游）│
 │  service/markdown.py     frontmatter + 模板 + 写入 │
 │  service/storage.py      SQLite jobs CRUD         │
 ├─ 适配层 (P1 引入) ────────────────────────────────┤
 │  PlatformAdapter   ModelAdapter   CliSubprocess  │
 ├─ 存储层 ──────────────────────────────────────────┤
-│  Filesystem      (~/knowledge-vault/)            │
+│  Filesystem      (~/transcript/)                 │
 │  SQLite Index    (jobs / 后续 fts5)              │
 └──────────────────────────────────────────────────┘
 ```
@@ -30,7 +30,7 @@
 ```
 app/
   service/
-    extractor.py        # 包装上游 social_post_extractor_mcp 的 extract 函数
+    extractor.py        # 自实现内容提取逻辑（参考上游 social-post-extractor-mcp）
                         # 输入 URL，输出 ExtractResult
     markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
     storage.py          # SQLite jobs CRUD
@@ -56,8 +56,8 @@ P0 走捷径：
 URL ──→ Job (status=pending)
      ↓
 service.extractor.extract_url(url)
-     ├─ 调上游业务函数（绕开 MCP entrypoint，直接 import）
-     ├─ 拿到 script.md / info.json 内容
+     ├─ 自实现内容提取，直接调用 dashscope SDK + requests 爬取
+     ├─ 通过 ModelProvider 接口调 ASR/VLM/LLM
      └─ 转换成 ExtractResult dataclass
      ↓
 service.markdown.render_and_write(result)
@@ -172,10 +172,10 @@ CREATE VIRTUAL TABLE jobs_fts USING fts5(title, author, content='jobs');
 ### 6.1 命名
 
 ```
-~/knowledge-vault/
-├── bili/{up_name}/{YYYY-MM-DD}_{safe_title}_{BV_id}.md
-├── xhs/{author}/{YYYY-MM-DD}_{safe_title}_{note_id}.md
-└── xhs/{author}/{YYYY-MM-DD}_{safe_title}_{note_id}.comments.md
+~/transcript/
+├── bili/{YYYY-MM-DD}-{up_name}-{safe_title}-{BV_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{safe_title}-{note_id}.md
+└── xhs/{YYYY-MM-DD}-{author}-{safe_title}-{note_id}.comments.md
 ```
 
 ### 6.2 文件名 sanitize 规则
@@ -233,10 +233,16 @@ tags: []
 
 ```
 MVP 仅支持单进程：
-  uvicorn app.web.routes:app    （不用 --workers）
+  uvicorn app.web.routes:app --host 0.0.0.0    （不用 --workers）
+
+绑定 0.0.0.0 而非 127.0.0.1，兼容 WSL2 mirrored networking + tailscale 等外部访问场景。
 
 任务队列是进程内：P0 用 asyncio.create_task，P1 引入 asyncio.Queue + N worker。
 P0 阶段没有真队列，重启即丢失运行中任务。
+
+P0 安全已知限制（局域网/tailscale 部署下可接受）：
+- WebUI 无认证（P1 加 basic auth）
+- 无 SSRF 防护（用户提交 URL 后端直接抓取）
 
 P1 引入持久化前不要做多进程部署。
 ```
@@ -304,7 +310,7 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | 图片 VLM | URL 优先 + tempfile 兜底 | 单一路径 | 防盗链、签名过期 |
 | 远程访问 | tailscale | 公网 frp | 私有网络更安全、零配置 |
 | 部署 | 单进程 uvicorn，禁 --workers | 多 worker | asyncio.Queue 不跨进程 |
-| MCP 入口 | 保留不动 | M0 删除 | 业务函数耦合风险，删除留 P0 后期 |
+| MCP 入口 | ~~保留不动~~ 不存在（参考移植） | fork 上游 | 从零写无 MCP 入口，P2 按需新建 |
 | Pipeline 抽象 | P0 不做 | 一开始就分层 | 过度抽象，先验证可行性 |
 | 模型抽象 | P1e 最后做 | 早期抽象 | dashscope 不是 OpenAI 兼容，工作量大 |
 | 文件下载 | 经 job_id 反查 | 直接传 path | 防路径穿越 |

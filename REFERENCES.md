@@ -8,7 +8,8 @@
 
 | 仓库 | 能干什么 | 不能/不适合干什么 | 项目里的定位 |
 |---|---|---|---|
-| **JNHFlow21/social-post-extractor-mcp** | 直接把 B 站/小红书链接转成文本；支持视频转写、小红书图文图片理解、输出 `script.md` / `info.json` | 原本是 MCP，不是 WebUI/CLI 产品；项目较新（5⭐ 21 commits Alpha），需要 fork 改造 | **P0 主体骨架**，改成 WebUI + CLI |
+| **JNHFlow21/social-post-extractor-mcp** | 直接把 B 站/小红书链接转成文本；支持视频转写、小红书图文图片理解、输出 `script.md` / `info.json` | 原本是 MCP，不是 WebUI/CLI 产品；项目较新（5⭐ 21 commits Alpha） | **P0 参考源**，研读其 SDK 调用和爬取逻辑，自主架构实现 |
+| **runesleo/x-reader** | 覆盖 7+ 平台的通用内容读取器 | **无法提取小红书内容** | **竞品参考**，Red Blue CP 是唯一覆盖 B站+小红书的开源项目 |
 | **public-clis/bilibili-cli** | B 站字幕、音频提取、评论、UP 主视频列表、JSON 输出 | 不负责整体知识库入库；不是 WebUI | **P1 接入**，用于 B 站博主全量、字幕兜底、强制 ASR |
 | **jackwener/xiaohongshu-cli** | 小红书读笔记、搜索、评论、用户主页、博主笔记列表 | **不能下载图片/视频**，所以不能直接做小红书视频转写/图文 OCR | **P1 接入**，用于小红书博主全量和评论提取 |
 | **jackwener/xhs-cli** | 浏览器自动化版小红书 CLI，可能更抗风控 | 更重、更慢，需要浏览器环境 | **P2 备胎**，API 版失效时再用 |
@@ -21,7 +22,7 @@
 
 ## 一句话决策
 
-- **真正进入主项目的是 `social-post-extractor-mcp`**
+- **P0 参考 `social-post-extractor-mcp` 逻辑，自主实现**（不 fork）
 - **P1 再接 `bilibili-cli` 和 `xiaohongshu-cli`**
 - 其他仓库都是兜底、参考或过度工程化，先不要引入
 
@@ -32,9 +33,8 @@
 ```
 P0:
   social-post-extractor-mcp
-    → fork
-    → 保留 MCP 入口（不删）
-    → 旁路新增 WebUI + CLI + Markdown exporter + SQLite
+    → 参考其逻辑（不 fork）
+    → 自主实现 WebUI + CLI + Markdown exporter + SQLite + ModelProvider
 
 P1:
   bilibili-cli

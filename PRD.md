@@ -25,7 +25,7 @@
 | 小红书 | 视频 | 流式音频 → 云 ASR | — |
 | 小红书 | 图文 | 图片 URL 优先喂 VLM；失败回退 tempfile 下载（保留 referer headers）→ VLM | 后期可加 PaddleOCR 备选 |
 
-每条流水线最终持久化的产物只有 Markdown、纯文本和元数据。媒体文件（音频流、图片）允许存在于 tempfile 临时目录，任务结束后自动清理，**不进入 `~/knowledge-vault/`**。
+每条流水线最终持久化的产物只有 Markdown、纯文本和元数据。媒体文件（音频流、图片）允许存在于 tempfile 临时目录，任务结束后自动清理，**不进入 `~/transcript/`**。
 
 B 站不自动判断字幕质量，由用户在 UI 手动触发"重抽 ASR"。
 
@@ -51,10 +51,10 @@ B 站不自动判断字幕质量，由用户在 UI 手动触发"重抽 ASR"。
 #### 5.1 本地 Markdown 落盘（主存储）
 
 ```
-~/knowledge-vault/
-├── bili/{up_name}/{YYYY-MM-DD}_{title}_{BV_id}.md
-├── xhs/{author}/{YYYY-MM-DD}_{title}_{note_id}.md
-├── xhs/{author}/{YYYY-MM-DD}_{title}_{note_id}.comments.md
+~/transcript/
+├── bili/{YYYY-MM-DD}-{up_name}-{title}-{BV_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{title}-{note_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{title}-{note_id}.comments.md
 └── _index.sqlite
 ```
 
@@ -96,7 +96,7 @@ tags: []                   # 远期手动/自动加
 
 | 关注点 | MVP | 后期 |
 |---|---|---|
-| 模型 | 百炼硬编码（paraformer-v2 / qwen3-vl-flash / qwen-flash） | OpenAI 兼容适配层 |
+| 模型 | ModelProvider Protocol + DashscopeProvider（百炼 paraformer-v2 / qwen3-vl-flash / qwen-flash） | OpenAI 兼容适配层 |
 | 内容存储 | 本地 Markdown + frontmatter | — |
 | 索引存储 | SQLite（任务状态） | + FTS5 全文 |
 | 中间媒体 | tempfile 临时目录，跑完即删 | — |
@@ -109,7 +109,7 @@ tags: []                   # 远期手动/自动加
 ## 范围外
 
 - 抖音平台
-- MCP server（fork 后保留入口但不维护）
+- MCP server（P0 参考移植不 fork，无 MCP 入口；P2 按需新建）
 - Get 笔记历史数据迁移（独立项目）
 - DreameClaw skill 形态
 - 复杂字幕时间戳 / 视频播放器嵌入
@@ -127,7 +127,7 @@ tags: []                   # 远期手动/自动加
 | 模块 | 内容 |
 |---|---|
 | 流水线 | B 站视频 / 小红书视频 / 小红书图文，三条全跑通 |
-| 模型 | 百炼硬编码，不抽象 |
+| 模型 | ModelProvider Protocol + DashscopeProvider（唯一实现） |
 | 存储 | 本地 Markdown 落盘 + frontmatter，目录结构定死 |
 | 索引 | SQLite jobs 表（schema 见 SPEC） |
 | WebUI | 单页：输入框 + 任务列表 + 详情查看 + 下载（轮询，无 SSE） |
