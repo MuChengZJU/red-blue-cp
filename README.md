@@ -19,7 +19,7 @@ P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 | [PLAN.md](./PLAN.md) | 开发计划：里程碑、P0 Checklist、风险 |
 | [CLAUDE.md](./CLAUDE.md) | Claude Code 工作规则、项目不变量、红线 |
 | [REFERENCES.md](./REFERENCES.md) | 外部仓库选型记录 |
-| [LOG.md](./LOG.md) | 项目演进日志：决策纲要 + 开发纲要 + 经验沉淀（详情在 [logs/](./logs/)） |
+| [LOG.md](./LOG.md) | 项目演进日志：决策纲要 + 开发纲要 + 经验沉淀（详情在 [docs/devlog/](./docs/devlog/)） |
 
 ## 形态
 
@@ -48,9 +48,11 @@ P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 ├── CLAUDE.md
 ├── REFERENCES.md
 ├── LOG.md
-├── logs/
-│   ├── TEMPLATE.md
-│   └── YYYY-MM-DD-{slug}.md     # 决策/里程碑/经验详情
+├── docs/
+│   ├── devlog/
+│   │   ├── TEMPLATE.md
+│   │   └── YYYY-MM-DD-{slug}.md  # 决策/里程碑/经验详情
+│   └── gstack/                    # gstack skill 产出物
 └── README.md
 ```
 

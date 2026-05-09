@@ -21,9 +21,9 @@
 
 | 平台 | 内容类型 | 主路径 | 兜底 |
 |---|---|---|---|
-| B 站 | 视频 | 平台字幕 | UI 手动按钮切 ASR |
-| 小红书 | 视频 | 流式音频 → 云 ASR | — |
-| 小红书 | 图文 | 图片 URL 优先喂 VLM；失败回退 tempfile 下载（保留 referer headers）→ VLM | 后期可加 PaddleOCR 备选 |
+| B 站 | 视频 | 平台字幕；无字幕时自动 ASR | UI 手动按钮切 ASR（P1） |
+| 小红书 | 视频 | 音频 URL 直发云 ASR；失败回退 ffmpeg 下载后 ASR | — |
+| 小红书 | 图文 | 全量图片并发 VLM（URL 优先 + tempfile 兜底） | 后期可加 PaddleOCR 备选 |
 
 每条流水线最终持久化的产物只有 Markdown、纯文本和元数据。媒体文件（音频流、图片）允许存在于 tempfile 临时目录，任务结束后自动清理，**不进入 `~/transcript/`**。
 

@@ -123,12 +123,12 @@ FastAPI 自带的 `/docs` 已经足够，不要单独写 OpenAPI YAML 或者 red
 - **调整阶段** → 改 PLAN.md
 - **改文档前先在对话里说一句**，不要静默改
 
-## 日志体系（LOG.md + logs/）
+## 日志体系（LOG.md + docs/devlog/）
 
 项目维护两层日志：
 
 - **LOG.md**：纲要索引，分三条线（决策 / 开发 / 经验）。每条新事件加一行索引。
-- **logs/YYYY-MM-DD-{slug}.md**：详情文档，按需写。模板见 [logs/TEMPLATE.md](logs/TEMPLATE.md)。
+- **docs/devlog/YYYY-MM-DD-{slug}.md**：详情文档，按需写。模板见 [docs/devlog/TEMPLATE.md](docs/devlog/TEMPLATE.md)。
 
 ### 何时新增 LOG.md 索引
 
@@ -138,16 +138,16 @@ FastAPI 自带的 `/docs` 已经足够，不要单独写 OpenAPI YAML 或者 red
 | 开发 | 完成里程碑（M0/M1a/M1b/...）或阶段切换 |
 | 经验 | 踩坑后总结、工具非显然行为、值得复用的 lesson |
 
-### 何时新增 logs/ 详情文档
+### 何时新增 docs/devlog/ 详情文档
 
 不强制。判断标准：
 - 🔴 高优先级决策：建议写详情
 - 🟡 中优先级：可写可不写
 - 🟢 低优先级：通常只在 LOG.md 留索引
 
-### 写新 logs/ 文档的流程
+### 写新 docs/devlog/ 文档的流程
 
-1. 复制 `logs/TEMPLATE.md` → `logs/YYYY-MM-DD-{slug}.md`（slug 用小写连字符）
+1. 复制 `docs/devlog/TEMPLATE.md` → `docs/devlog/YYYY-MM-DD-{slug}.md`（slug 用小写连字符）
 2. 填 frontmatter（type / priority / related / status）
 3. 写正文
 4. **回到 LOG.md 对应纲要表格加一行索引**

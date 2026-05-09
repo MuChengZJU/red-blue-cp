@@ -47,7 +47,7 @@ status: active | superseded | deprecated
 
 ## 模板使用提示
 
-写完一个新 logs/ 详情文档后：
+写完一个新 docs/devlog/ 详情文档后：
 1. 文件名用 `YYYY-MM-DD-{slug}.md`，slug 用小写连字符，如 `p0-keep-it-simple`
 2. 在 LOG.md 对应的纲要表格里新增一行索引
 3. 如果这个决策让其他文档过时，在那些文档里加注释指向本文件

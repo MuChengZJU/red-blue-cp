@@ -10,7 +10,9 @@
 │  CLI  (typer)                                     │
 │  ↓ 共享同一组业务函数                             │
 ├─ 业务层 (P0) ─────────────────────────────────────┤
-│  service/extractor.py    自实现内容提取（参考上游）│
+│  service/model.py        ModelProvider + Dashscope │
+│  service/extractor.py    编排：调 fetcher + model  │
+│  service/fetcher.py      HTTP 爬取 + 解析响应     │
 │  service/markdown.py     frontmatter + 模板 + 写入 │
 │  service/storage.py      SQLite jobs CRUD         │
 ├─ 适配层 (P1 引入) ────────────────────────────────┤
@@ -30,20 +32,26 @@
 ```
 app/
   service/
-    extractor.py        # 自实现内容提取逻辑（参考上游 social-post-extractor-mcp）
+    model.py            # ModelProvider Protocol + DashscopeProvider
+    extractor.py        # 编排：调 fetcher 获取数据 + 调 model 转文字
                         # 输入 URL，输出 ExtractResult
+    fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应
     markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
-    storage.py          # SQLite jobs CRUD
+    storage.py          # SQLite jobs CRUD（sqlite3 标准库）
   web/
     routes.py           # 输入页 + 任务列表 + 详情 + 下载
     templates/          # Jinja2 模板
   cli.py                # rbcp run <url>
-config/
-  social-post-extractor.env  # 百炼 API Key（gitignored，继承上游）
+.env                    # DASHSCOPE_API_KEY + XHS_COOKIE + RBCP_OUTPUT_DIR（gitignored）
+.env.example            # 配置模板
 ```
 
+配置发现顺序：环境变量 > `~/.config/rbcp/.env` > 当前目录 `.env`。
+
 P0 走捷径：
-- 提交 URL → `asyncio.create_task(extract_and_save(url))` 后台跑
+- 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
+- 所有阻塞操作（requests / sqlite3 / ffmpeg / dashscope）通过 `to_thread` 避免阻塞事件循环
+- 后台任务用 try/except 包装，异常时 `mark_failed`，防止任务静默卡在 running
 - CLI 同步阻塞，跑完返回路径
 - WebUI 任务列表用轮询（2s 拉一次 `/api/jobs`）
 - 不抽 Pipeline 接口，三种内容类型在 `extractor.py` 内部用 if/elif 分发
@@ -55,9 +63,12 @@ P0 走捷径：
 ```
 URL ──→ Job (status=pending)
      ↓
-service.extractor.extract_url(url)
-     ├─ 自实现内容提取，直接调用 dashscope SDK + requests 爬取
-     ├─ 通过 ModelProvider 接口调 ASR/VLM/LLM
+service.extractor.extract_url(url, provider)
+     ├─ fetcher 爬取平台数据（requests + cookie）
+     ├─ B 站视频：有字幕 → 用字幕；无字幕 → provider.asr()（自动，status=asr）
+     ├─ 小红书视频：音频 URL 优先发 ASR；失败 → ffmpeg 下载后发 ASR
+     ├─ 小红书图文：所有图片并发调 provider.vlm()（URL 优先 + tempfile 兜底）
+     ├─ provider.llm_clean() 清理文本
      └─ 转换成 ExtractResult dataclass
      ↓
 service.markdown.render_and_write(result)
@@ -171,6 +182,8 @@ CREATE VIRTUAL TABLE jobs_fts USING fts5(title, author, content='jobs');
 
 ### 6.1 命名
 
+输出路径可通过环境变量 `RBCP_OUTPUT_DIR` 配置，默认 `~/transcript/`。
+
 ```
 ~/transcript/
 ├── bili/{YYYY-MM-DD}-{up_name}-{safe_title}-{BV_id}.md
@@ -237,8 +250,8 @@ MVP 仅支持单进程：
 
 绑定 0.0.0.0 而非 127.0.0.1，兼容 WSL2 mirrored networking + tailscale 等外部访问场景。
 
-任务队列是进程内：P0 用 asyncio.create_task，P1 引入 asyncio.Queue + N worker。
-P0 阶段没有真队列，重启即丢失运行中任务。
+任务队列是进程内：P0 用 asyncio.create_task + asyncio.to_thread，P1 引入 asyncio.Queue + N worker。
+P0 阶段没有真队列。启动时把所有 status=running 的任务改为 failed（进程重启清理）。
 
 P0 安全已知限制（局域网/tailscale 部署下可接受）：
 - WebUI 无认证（P1 加 basic auth）
@@ -260,8 +273,10 @@ P1 引入持久化前不要做多进程部署。
 ### 8.2 小红书图片 VLM 调用
 
 ```
-1. 优先：把图片 URL 直接喂给 qwen3-vl-flash
-2. 失败回退：
+多图笔记全量处理，不设 max_images 上限。VLM 调用可并发（成本低、速度快）。
+
+1. 优先：把图片 URL 直接喂给 qwen3-vl-flash（可并发）
+2. 失败回退（单张）：
    - 用 requests.get 下载到 tempfile
    - 必须保留 referer / user-agent headers（小红书图片有防盗链）
    - 喂给 VLM 后立即删除
@@ -269,12 +284,16 @@ P1 引入持久化前不要做多进程部署。
 
 不要把"URL 直接喂模型"当作稳定主路径，必须做双轨。
 
-### 8.3 视频音频流抽取
+### 8.3 视频音频 ASR 调用
 
 ```
-ffmpeg -i <m3u8|mp4_url> -vn -c:a copy <tempfile.m4a>
-→ 喂给 paraformer-v2 ASR
-→ 用完即删
+双轨策略（与 VLM 图片处理同理）：
+
+1. 优先：把音频 URL 直接发给云端 paraformer-v2 ASR（上游已验证可行，更快）
+2. 失败回退：
+   - ffmpeg -i <m3u8|mp4_url> -vn -c:a copy <tempfile.m4a>
+   - 喂给 paraformer-v2 ASR
+   - 用完即删
 ```
 
 ---

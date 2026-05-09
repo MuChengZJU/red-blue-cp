@@ -1,0 +1,2905 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Red Blue CP · Project Overview</title>
+  <style>
+:root {
+  --red: #FF6B6B;
+  --red-soft: #fff1f1;
+  --red-ink: #8f1f1f;
+  --blue: #00A1D6;
+  --blue-soft: #eaf8fd;
+  --blue-ink: #075875;
+  --ink: #172033;
+  --muted: #637083;
+  --line: #dde4ee;
+  --panel: #ffffff;
+  --panel-soft: #f7f9fc;
+  --bg: #eef2f7;
+  --code-bg: #101827;
+  --shadow: 0 18px 45px rgba(24, 38, 66, 0.10);
+  --radius: 8px;
+}
+* { box-sizing: border-box; }
+html { scroll-behavior: smooth; }
+body {
+  margin: 0;
+  color: var(--ink);
+  background:
+    linear-gradient(180deg, rgba(255,255,255,0.8), rgba(238,242,247,0.94) 380px),
+    var(--bg);
+  font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", "Noto Sans CJK SC", "Source Han Sans SC", "Segoe UI", sans-serif;
+  line-height: 1.72;
+  letter-spacing: 0;
+}
+a { color: var(--blue); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.layout { display: grid; grid-template-columns: 280px minmax(0, 1fr); min-height: 100vh; }
+.sidebar {
+  position: sticky;
+  top: 0;
+  height: 100vh;
+  padding: 28px 18px;
+  background: rgba(255,255,255,0.86);
+  border-right: 1px solid var(--line);
+  backdrop-filter: blur(18px);
+  overflow-y: auto;
+}
+.brand { padding: 4px 8px 20px; border-bottom: 1px solid var(--line); margin-bottom: 18px; }
+.brand-mark { display: flex; align-items: center; gap: 8px; font-weight: 800; font-size: 18px; }
+.brand-mark::before, .brand-mark::after { content: ""; display: block; width: 13px; height: 13px; border-radius: 50%; }
+.brand-mark::before { background: var(--red); }
+.brand-mark::after { background: var(--blue); }
+.brand small { display: block; margin-top: 8px; color: var(--muted); line-height: 1.45; }
+.nav { display: grid; gap: 4px; }
+.nav a {
+  display: flex;
+  align-items: center;
+  min-height: 36px;
+  padding: 7px 10px;
+  color: #263247;
+  border-radius: 8px;
+  font-size: 14px;
+}
+.nav a:hover { background: var(--panel-soft); text-decoration: none; }
+.nav .nav-primary { font-weight: 700; }
+.legend { margin-top: 22px; padding: 12px; background: var(--panel-soft); border: 1px solid var(--line); border-radius: var(--radius); }
+.legend div { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: 13px; }
+.swatch { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+.content { min-width: 0; padding: 32px clamp(20px, 4vw, 58px) 64px; }
+.page-top { max-width: 1180px; margin: 0 auto 18px; color: var(--muted); font-size: 14px; }
+.section-card {
+  max-width: 1180px;
+  margin: 0 auto 22px;
+  padding: clamp(20px, 3vw, 34px);
+  background: var(--panel);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow);
+}
+.hero { position: relative; overflow: hidden; }
+.hero::before { content: ""; position: absolute; inset: 0 0 auto 0; height: 5px; background: linear-gradient(90deg, var(--red), var(--blue)); }
+.hero h1 { margin: 8px 0 10px; font-size: clamp(32px, 5vw, 58px); line-height: 1.08; letter-spacing: 0; }
+.lead { max-width: 900px; font-size: 18px; color: #445066; margin: 0 0 24px; }
+.kicker { display: inline-flex; align-items: center; gap: 8px; color: var(--muted); font-size: 12px; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.section-head { margin-bottom: 16px; }
+.section-head h2, .source-bar h2 { margin: 5px 0 4px; line-height: 1.22; font-size: clamp(24px, 3vw, 34px); letter-spacing: 0; }
+.section-head p, .source-bar p, .note { margin: 0; color: var(--muted); }
+.decision-grid { display: grid; grid-template-columns: 1.35fr 1fr 1fr; gap: 16px; }
+.decision-card { border: 1px solid var(--line); border-radius: var(--radius); padding: 18px; background: var(--panel-soft); }
+.decision-card h3 { margin: 12px 0 8px; font-size: 19px; }
+.decision-card p, .decision-card ul { margin: 0; color: #344057; }
+.decision-card ul { padding-left: 1.2em; }
+.red-card { background: var(--red-soft); border-color: rgba(255,107,107,.38); }
+.blue-card { background: var(--blue-soft); border-color: rgba(0,161,214,.34); }
+.neutral-card { background: #f8fafc; }
+.pill { display: inline-flex; padding: 3px 8px; border-radius: 999px; font-size: 12px; font-weight: 800; }
+.red-pill { color: var(--red-ink); background: rgba(255,107,107,.18); }
+.blue-pill { color: var(--blue-ink); background: rgba(0,161,214,.15); }
+.neutral-pill { color: #334155; background: #e8edf4; }
+.toc-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 10px; }
+.toc-grid a { display: flex; align-items: center; gap: 10px; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-soft); color: var(--ink); font-weight: 700; }
+.toc-grid a:hover { border-color: var(--blue); text-decoration: none; }
+.toc-grid span { color: var(--muted); font-variant-numeric: tabular-nums; font-size: 12px; }
+.source-bar { display: flex; justify-content: space-between; gap: 18px; align-items: flex-start; border-bottom: 1px solid var(--line); padding-bottom: 16px; margin-bottom: 22px; }
+.source-link { white-space: nowrap; padding: 7px 10px; border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); background: var(--panel-soft); font-size: 13px; font-weight: 700; }
+.source-link:hover { border-color: var(--blue); text-decoration: none; }
+.table-wrap { width: 100%; overflow-x: auto; border: 1px solid var(--line); border-radius: var(--radius); }
+table { border-collapse: collapse; width: 100%; min-width: 720px; font-size: 14px; }
+th, td { padding: 11px 13px; border-bottom: 1px solid var(--line); vertical-align: top; text-align: left; }
+th { background: #f1f5f9; color: #334155; font-weight: 800; }
+tr:last-child td { border-bottom: 0; }
+.status-token { display: inline-flex; white-space: nowrap; padding: 2px 8px; border-radius: 999px; font-weight: 800; font-size: 12px; }
+.status-token.ok { background: #e9f8ef; color: #17633a; }
+.status-token.later { background: #fff4dd; color: #8a5200; }
+.decision-list { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; list-style: none; counter-reset: decision; }
+.decision-list li { counter-increment: decision; position: relative; padding: 14px 14px 14px 52px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--panel-soft); min-height: 86px; }
+.decision-list li::before { content: counter(decision); position: absolute; left: 14px; top: 16px; width: 25px; height: 25px; border-radius: 50%; background: linear-gradient(135deg, var(--red), var(--blue)); color: white; display: grid; place-items: center; font-size: 12px; font-weight: 900; }
+.decision-list strong { display: block; margin-bottom: 4px; }
+.decision-list span { color: var(--muted); }
+.markdown-body { font-size: 16px; }
+.markdown-body > *:first-child { margin-top: 0; }
+.markdown-body h1, .markdown-body h2, .markdown-body h3, .markdown-body h4 { line-height: 1.3; letter-spacing: 0; scroll-margin-top: 20px; }
+.markdown-body h1 { font-size: 30px; padding-bottom: 10px; border-bottom: 1px solid var(--line); }
+.markdown-body h2 { font-size: 24px; margin-top: 34px; padding-left: 12px; border-left: 4px solid #b9c4d3; }
+.markdown-body h3 { font-size: 19px; margin-top: 24px; }
+.markdown-body p, .markdown-body li { color: #273449; }
+.markdown-body blockquote { margin: 18px 0; padding: 12px 16px; border-left: 4px solid var(--line); background: var(--panel-soft); color: #4a5568; }
+.markdown-body pre { overflow-x: auto; padding: 16px; background: var(--code-bg); color: #e5edf7; border-radius: var(--radius); line-height: 1.55; }
+.markdown-body code { font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", monospace; font-size: .92em; }
+.markdown-body :not(pre) > code { padding: 2px 5px; background: #edf2f7; color: #24415f; border-radius: 5px; }
+.markdown-body table { margin: 14px 0 22px; }
+.markdown-body .task-list-item { list-style: none; }
+.markdown-body input[type="checkbox"] { margin-right: 8px; }
+.markdown-body hr { border: 0; border-top: 1px solid var(--line); margin: 28px 0; }
+.markdown-body img { max-width: 100%; height: auto; border-radius: var(--radius); }
+.markdown-body a[href*="bilibili"], .markdown-body a[href*="b23.tv"] { color: var(--blue); }
+.markdown-body a[href*="xiaohongshu"], .markdown-body a[href*="xhslink"] { color: var(--red); }
+.markdown-body h2:has(+ table), .markdown-body h3:has(+ table) { border-left-color: var(--blue); }
+.doc-section:has(.markdown-body :is(p, li, td):where(:not(:empty))) { overflow: hidden; }
+@supports selector(:has(*)) {
+  .doc-section:has(.markdown-body :is(p, li, td):not(:empty)) .markdown-body :is(p, li, td) { }
+  .doc-section:has(.markdown-body :is(p, li, td):not(:empty)) .markdown-body :is(h2, h3):has(+ p) { }
+}
+@media (max-width: 980px) {
+  .layout { display: block; }
+  .sidebar { position: sticky; top: 0; z-index: 5; height: auto; max-height: 46vh; padding: 14px; border-right: 0; border-bottom: 1px solid var(--line); }
+  .brand { padding-bottom: 12px; margin-bottom: 10px; }
+  .nav { display: flex; overflow-x: auto; gap: 6px; padding-bottom: 4px; }
+  .nav a { flex: 0 0 auto; border: 1px solid var(--line); background: rgba(255,255,255,.72); }
+  .legend { display: none; }
+  .content { padding: 20px 14px 42px; }
+  .decision-grid, .decision-list, .toc-grid { grid-template-columns: 1fr; }
+  .source-bar { display: block; }
+  .source-link { display: inline-flex; margin-top: 12px; }
+}
+@media (max-width: 560px) {
+  .section-card { padding: 18px 14px; }
+  .hero h1 { font-size: 32px; }
+  .lead { font-size: 16px; }
+  table { min-width: 620px; }
+  .markdown-body { font-size: 15px; }
+  .markdown-body h1 { font-size: 25px; }
+  .markdown-body h2 { font-size: 21px; }
+}
+@media print {
+  body { background: white; }
+  .layout { display: block; }
+  .sidebar { display: none; }
+  .section-card { box-shadow: none; break-inside: avoid; }
+  a { color: inherit; }
+}
+</style>
+</head>
+<body>
+  <div class="layout">
+    <aside class="sidebar" aria-label="文档导航">
+      <div class="brand">
+        <div class="brand-mark">Red Blue CP</div>
+        <small>自古红蓝出 CP · B 站小红书 Content Pipeline</small>
+      </div>
+      <nav class="nav">
+        <a class="nav-primary" href="#p0-summary">P0 决议汇总</a><a class="nav-primary" href="#ceo-scope-decisions">CEO 范围决议</a><a class="nav-primary" href="#eng-review-decisions">Eng Review 决议</a><a class="" href="#readme">README</a><a class="" href="#prd">PRD</a><a class="" href="#spec">SPEC</a><a class="" href="#plan">PLAN</a><a class="" href="#claude">CLAUDE</a><a class="" href="#log">LOG</a><a class="" href="#references">REFERENCES</a><a class="" href="#ceo-plan">CEO Plan</a>
+      </nav>
+      <div class="legend">
+        <div><span class="swatch" style="background: var(--red)"></span> 小红书重点</div>
+        <div><span class="swatch" style="background: var(--blue)"></span> B 站重点</div>
+        <div><span class="swatch" style="background: #94a3b8"></span> 共享约束</div>
+      </div>
+    </aside>
+    <main class="content">
+      <div class="page-top">Generated from repository Markdown docs on 2026-05-09. Self-contained HTML, CSS only.</div>
+      
+<section id="p0-summary" class="hero section-card neutral-section">
+  <div class="kicker">P0 决议汇总</div>
+  <h1>Red Blue CP 文档总览</h1>
+  <p class="lead">本页汇总 README / PRD / SPEC / PLAN / CLAUDE / LOG / REFERENCES / CEO Plan 的完整内容，并把 P0 范围、架构约束、红蓝平台差异放在同一处审阅。</p>
+  <div class="decision-grid">
+    <article class="decision-card neutral-card">
+      <span class="pill neutral-pill">共享</span>
+      <h3>P0 交付边界</h3>
+      <ul><li>ModelProvider Protocol + DashscopeProvider 是 P0 范围内的唯一模型实现边界。</li><li>P0 任务调度使用 asyncio.create_task，不引入 Queue、worker 重建或 step 进度。</li><li>P0 交付 rbcp run、rbcp serve、URL 自动检测、pyproject entry point、启动检查。</li><li>WebUI 无认证、SSRF 不处理被显式记录为 P0 局域网部署下的已知限制。</li><li>uvicorn 绑定 0.0.0.0，输出路径默认 ~/transcript/ 且允许 RBCP_OUTPUT_DIR 覆盖。</li></ul>
+    </article>
+    <article class="decision-card blue-card">
+      <span class="pill blue-pill">B 站 #00A1D6</span>
+      <h3>B 站主路径</h3>
+      <p>视频优先使用平台字幕；无字幕自动 ASR。P1 再提供手动“重抽 ASR”，不在 P0 自动判断字幕质量。</p>
+    </article>
+    <article class="decision-card red-card">
+      <span class="pill red-pill">小红书 #FF6B6B</span>
+      <h3>小红书主路径</h3>
+      <p>视频走流式音频到云 ASR；图文走图片 URL 优先喂 VLM，失败后 tempfile 下载并保留 referer headers。</p>
+    </article>
+  </div>
+</section>
+<section id="ceo-scope-decisions" class="section-card neutral-section">
+  <div class="section-head">
+    <span class="kicker">CEO Plan Scope Decisions</span>
+    <h2>CEO plan 范围决议</h2>
+  </div>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>提案</th><th>决议</th><th>理由摘要</th></tr></thead>
+      <tbody>
+        <tr><td>模型接口抽象</td><td><span class="status-token ok">P0 ACCEPTED</span></td><td>ModelProvider + DashscopeProvider；从零写时是自然边界。</td></tr><tr><td>asyncio.Queue 任务队列</td><td><span class="status-token later">P1</span></td><td>P0 用 create_task 先跑通；Queue 复杂度推后。</td></tr><tr><td>任务进度跟踪 step 字段</td><td><span class="status-token later">P1</span></td><td>与 Queue 配合更有意义。</td></tr><tr><td>pyproject.toml + entry point</td><td><span class="status-token ok">P0 ACCEPTED</span></td><td>从零建项目的必须步骤。</td></tr><tr><td>首次使用引导</td><td><span class="status-token ok">P0 ACCEPTED</span></td><td>检查 DASHSCOPE_API_KEY + ffmpeg，降低启动失败成本。</td></tr><tr><td>CLI rbcp status</td><td><span class="status-token later">P1</span></td><td>P0 只保留 rbcp run + rbcp serve。</td></tr><tr><td>URL 自动检测平台</td><td><span class="status-token ok">P0 ACCEPTED</span></td><td>粘链接即识别 B 站 / 小红书。</td></tr><tr><td>WebUI basic auth</td><td><span class="status-token later">P1</span></td><td>P0 局域网部署，认证延后。</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+<section id="eng-review-decisions" class="section-card neutral-section">
+  <div class="section-head">
+    <span class="kicker">PLAN.md · Eng Review 决议</span>
+    <h2>Eng Review 决议</h2>
+    <p class="note">PLAN.md 底部列出 11 条工程决议；这里全部纳入，避免遗漏第 9 条“输出路径可配”等实现前置约束。</p>
+  </div>
+  <ol class="decision-list">
+    <li><strong>extractor.py 拆分</strong><span>service/extractor.py 负责编排和模型调用，service/fetcher.py 负责 HTTP 爬取和解析。</span></li><li><strong>新增 model.py</strong><span>service/model.py 放 ModelProvider Protocol 与 DashscopeProvider。</span></li><li><strong>目录与配置</strong><span>SPEC §2 删除 config/，改为根目录 .env + .env.example。</span></li><li><strong>B 站无字幕处理</strong><span>无字幕时自动走 ASR，frontmatter status 标为 asr。</span></li><li><strong>DB driver</strong><span>P0 使用 sqlite3 标准库，不用 aiosqlite。</span></li><li><strong>event loop 保护</strong><span>阻塞操作用 asyncio.create_task(asyncio.to_thread(sync_fn)) 包装。</span></li><li><strong>后台任务异常捕获</strong><span>try/except + mark_failed，避免任务静默停在 running。</span></li><li><strong>进程重启清理</strong><span>启动时把 status=running 的任务改为 failed。</span></li><li><strong>输出路径可配</strong><span>RBCP_OUTPUT_DIR 可配置，默认 ~/transcript/。</span></li><li><strong>配置发现顺序</strong><span>环境变量 &gt; ~/.config/rbcp/.env &gt; 当前目录 .env。</span></li><li><strong>分发方式</strong><span>继续 if/elif 分发，遵循反过度抽象原则。</span></li>
+  </ol>
+</section>
+
+      
+<section id="toc" class="section-card toc-card">
+  <div class="section-head">
+    <span class="kicker">Table of Contents</span>
+    <h2>目录</h2>
+  </div>
+  <div class="toc-grid">
+    <a href="#p0-summary"><span>01</span>P0 决议汇总</a><a href="#ceo-scope-decisions"><span>02</span>CEO 范围决议</a><a href="#eng-review-decisions"><span>03</span>Eng Review 决议</a><a href="#readme"><span>04</span>README</a><a href="#prd"><span>05</span>PRD</a><a href="#spec"><span>06</span>SPEC</a><a href="#plan"><span>07</span>PLAN</a><a href="#claude"><span>08</span>CLAUDE</a><a href="#log"><span>09</span>LOG</a><a href="#references"><span>10</span>REFERENCES</a><a href="#ceo-plan"><span>11</span>CEO Plan</a>
+  </div>
+</section>
+
+      
+<section id="readme" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">README.md</span>
+      <h2>README</h2>
+      <p>项目入口与总体说明</p>
+    </div>
+    <a class="source-link" href="../README.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="red-blue-cp--红蓝cp">Red Blue CP · 红蓝CP</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<p>把 B 站和小红书的视频/图文内容转成纯文本，沉淀成本地 Markdown
+知识库。</p>
+<h2 id="状态">状态</h2>
+<p>P0 实施中。参考 <a
+href="https://github.com/JNHFlow21/social-post-extractor-mcp">JNHFlow21/social-post-extractor-mcp</a>
+逻辑，自主架构实现。</p>
+<p>仓库名：<code>red-blue-cp</code> ｜ PyPI
+包名：<code>red-blue-cp</code> ｜ CLI 命令：<code>rbcp</code> ｜
+内部代号：<code>rbcp</code></p>
+<h2 id="文档导航">文档导航</h2>
+<table>
+<thead>
+<tr>
+<th>文档</th>
+<th>用途</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><a href="../PRD.md">PRD.md</a></td>
+<td>产品需求：项目定位、五层功能架构、优先级排期</td>
+</tr>
+<tr>
+<td><a href="../SPEC.md">SPEC.md</a></td>
+<td>技术规格：架构、API、数据模型、决策记录</td>
+</tr>
+<tr>
+<td><a href="../PLAN.md">PLAN.md</a></td>
+<td>开发计划：里程碑、P0 Checklist、风险</td>
+</tr>
+<tr>
+<td><a href="../CLAUDE.md">CLAUDE.md</a></td>
+<td>Claude Code 工作规则、项目不变量、红线</td>
+</tr>
+<tr>
+<td><a href="../REFERENCES.md">REFERENCES.md</a></td>
+<td>外部仓库选型记录</td>
+</tr>
+<tr>
+<td><a href="../LOG.md">LOG.md</a></td>
+<td>项目演进日志：决策纲要 + 开发纲要 + 经验沉淀（详情在 <a
+href="../logs/">logs/</a>）</td>
+</tr>
+</tbody>
+</table>
+<h2 id="形态">形态</h2>
+<ul>
+<li><strong>WebUI</strong>：手机 + 电脑浏览器</li>
+<li><strong>CLI</strong>：AI Agent + 脚本调用</li>
+</ul>
+<p>两者共享同一组业务函数。</p>
+<h2 id="目录结构预期">目录结构（预期）</h2>
+<pre><code>.
+├── app/
+│   ├── service/
+│   │   ├── model.py            # ModelProvider Protocol + DashscopeProvider
+│   │   ├── extractor.py        # 自实现内容提取（参考上游逻辑）
+│   │   ├── markdown.py         # frontmatter + sanitize + 原子写入
+│   │   └── storage.py          # SQLite jobs CRUD
+│   ├── web/
+│   │   └── routes.py           # WebUI + REST API
+│   └── cli.py                  # rbcp 命令
+├── .env                        # 百炼 API Key + 小红书 cookie（gitignored）
+├── PRD.md
+├── SPEC.md
+├── PLAN.md
+├── CLAUDE.md
+├── REFERENCES.md
+├── LOG.md
+├── logs/
+│   ├── TEMPLATE.md
+│   └── YYYY-MM-DD-{slug}.md     # 决策/里程碑/经验详情
+└── README.md</code></pre>
+<p>知识库默认输出位置：<code>~/transcript/</code></p>
+<h2 id="快速开始占位p0-完成后填">快速开始（占位，P0 完成后填）</h2>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode bash"><code class="sourceCode bash"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="co"># 1. 克隆</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">git</span> clone <span class="op">&lt;</span>repo-url<span class="op">&gt;</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="bu">cd</span> red-blue-cp</span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="co"># 2. 装依赖</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="ex">uv</span> sync</span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="co"># 3. 配 API Key</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">cp</span> .env.example .env</span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="co"># 编辑填入 DASHSCOPE_API_KEY</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="co"># 4. 启 WebUI</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="ex">rbcp</span> serve</span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="co"># 或 CLI</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="ex">rbcp</span> run <span class="op">&lt;</span>url<span class="op">&gt;</span></span></code></pre></div>
+<h2 id="技术栈">技术栈</h2>
+<p>FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + dashscope
+SDK</p>
+<h2 id="部署位置">部署位置</h2>
+<p>自部署工具。推荐部署在国内 IP 机器（避免小红书海外风控）。支持 WSL2
+mirrored networking。手机访问走 tailscale 私有网络或 frp 中转。</p>
+<h2 id="范围外">范围外</h2>
+<ul>
+<li>抖音平台</li>
+<li>MCP server（P0 不含，P2 按需新建）</li>
+<li>Get 笔记历史数据迁移（独立项目）</li>
+<li>远期 LLM Wiki 主题索引（本项目只产 Markdown 原料）</li>
+</ul>
+<h2 id="license">License</h2>
+<p>MIT 或 Apache-2.0（待定）。</p>
+
+  </div>
+</section>
+
+<section id="prd" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">PRD.md</span>
+      <h2>PRD</h2>
+      <p>产品需求与范围</p>
+    </div>
+    <a class="source-link" href="../PRD.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="prd--red-blue-cp">PRD · Red Blue CP</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<h2 id="项目定位">项目定位</h2>
+<p>把 B 站和小红书的视频/图文内容转成纯文本，沉淀成本地 Markdown
+知识库。模型默认百炼，开源后期可换。</p>
+<hr />
+<h2 id="功能架构五层">功能架构（五层）</h2>
+<h3 id="第一层--形态">第一层 · 形态</h3>
+<ul>
+<li><strong>WebUI</strong>：手机 + 电脑浏览器</li>
+<li><strong>CLI</strong>：AI Agent 接入 + 脚本调用</li>
+</ul>
+<p>两个入口共享同一组业务函数。</p>
+<h3 id="第二层--核心流水线">第二层 · 核心流水线</h3>
+<table>
+<thead>
+<tr>
+<th>平台</th>
+<th>内容类型</th>
+<th>主路径</th>
+<th>兜底</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>B 站</td>
+<td>视频</td>
+<td>平台字幕</td>
+<td>UI 手动按钮切 ASR</td>
+</tr>
+<tr>
+<td>小红书</td>
+<td>视频</td>
+<td>流式音频 → 云 ASR</td>
+<td>—</td>
+</tr>
+<tr>
+<td>小红书</td>
+<td>图文</td>
+<td>图片 URL 优先喂 VLM；失败回退 tempfile 下载（保留 referer headers）→
+VLM</td>
+<td>后期可加 PaddleOCR 备选</td>
+</tr>
+</tbody>
+</table>
+<p>每条流水线最终持久化的产物只有
+Markdown、纯文本和元数据。媒体文件（音频流、图片）允许存在于 tempfile
+临时目录，任务结束后自动清理，<strong>不进入
+<code>~/transcript/</code></strong>。</p>
+<p>B 站不自动判断字幕质量，由用户在 UI 手动触发"重抽 ASR"。</p>
+<h3 id="第三层--任务调度">第三层 · 任务调度</h3>
+<ol type="1">
+<li><strong>单链接</strong>：即时处理</li>
+<li><strong>批量链接</strong>：粘贴一批 URL，串行 + 限流</li>
+<li><strong>博主全量</strong>：拉取 → 过滤 → 勾选 → 入队
+<ul>
+<li>拉取实现：<code>bili user-videos</code> /
+<code>xhs user-posts</code></li>
+<li>过滤维度：时长 / 发布日期 / 关键词</li>
+<li>勾选交互：单选 + 全选</li>
+</ul></li>
+</ol>
+<h3 id="第四层--辅助功能独立模块">第四层 · 辅助功能（独立模块）</h3>
+<p><strong>小红书评论提取</strong></p>
+<ul>
+<li>独立入口，输入笔记链接</li>
+<li>输出：JSON / Markdown</li>
+<li>实现：subprocess 调 <code>xhs comments --all --json</code></li>
+<li>不做可视化树形 UI</li>
+</ul>
+<h3 id="第五层--出口">第五层 · 出口</h3>
+<h4 id="51-本地-markdown-落盘主存储">5.1 本地 Markdown
+落盘（主存储）</h4>
+<pre><code>~/transcript/
+├── bili/{YYYY-MM-DD}-{up_name}-{title}-{BV_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{title}-{note_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{title}-{note_id}.comments.md
+└── _index.sqlite</code></pre>
+<p>frontmatter 字段：</p>
+<div class="sourceCode" id="cb2"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb2-1"><a href="#cb2-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb2-2"><a href="#cb2-2" aria-hidden="true" tabindex="-1"></a><span class="fu">platform</span><span class="kw">:</span><span class="at"> bilibili | xiaohongshu</span></span>
+<span id="cb2-3"><a href="#cb2-3" aria-hidden="true" tabindex="-1"></a><span class="fu">type</span><span class="kw">:</span><span class="at"> video | image_note</span></span>
+<span id="cb2-4"><a href="#cb2-4" aria-hidden="true" tabindex="-1"></a><span class="fu">url</span><span class="kw">:</span><span class="at"> &lt;原链接&gt;</span></span>
+<span id="cb2-5"><a href="#cb2-5" aria-hidden="true" tabindex="-1"></a><span class="fu">author</span><span class="kw">:</span><span class="at"> &lt;作者名&gt;</span></span>
+<span id="cb2-6"><a href="#cb2-6" aria-hidden="true" tabindex="-1"></a><span class="fu">author_id</span><span class="kw">:</span><span class="at"> &lt;作者 ID&gt;</span></span>
+<span id="cb2-7"><a href="#cb2-7" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span><span class="kw">:</span><span class="at"> &lt;原标题&gt;</span></span>
+<span id="cb2-8"><a href="#cb2-8" aria-hidden="true" tabindex="-1"></a><span class="fu">published_at</span><span class="kw">:</span><span class="at"> 2025-MM-DD</span></span>
+<span id="cb2-9"><a href="#cb2-9" aria-hidden="true" tabindex="-1"></a><span class="fu">fetched_at</span><span class="kw">:</span><span class="at"> 2026-MM-DD</span></span>
+<span id="cb2-10"><a href="#cb2-10" aria-hidden="true" tabindex="-1"></a><span class="fu">duration_sec</span><span class="kw">:</span><span class="at"> </span><span class="dv">600</span><span class="co">          # 视频特有</span></span>
+<span id="cb2-11"><a href="#cb2-11" aria-hidden="true" tabindex="-1"></a><span class="fu">image_count</span><span class="kw">:</span><span class="at"> </span><span class="dv">9</span><span class="co">             # 图文特有</span></span>
+<span id="cb2-12"><a href="#cb2-12" aria-hidden="true" tabindex="-1"></a><span class="fu">asr_model</span><span class="kw">:</span><span class="at"> paraformer-v2</span></span>
+<span id="cb2-13"><a href="#cb2-13" aria-hidden="true" tabindex="-1"></a><span class="fu">vision_model</span><span class="kw">:</span><span class="at"> qwen3-vl-flash</span></span>
+<span id="cb2-14"><a href="#cb2-14" aria-hidden="true" tabindex="-1"></a><span class="fu">status</span><span class="kw">:</span><span class="at"> subtitle | asr | vision | asr_force</span></span>
+<span id="cb2-15"><a href="#cb2-15" aria-hidden="true" tabindex="-1"></a><span class="fu">tags</span><span class="kw">:</span><span class="at"> </span><span class="kw">[]</span><span class="co">                   # 远期手动/自动加</span></span>
+<span id="cb2-16"><a href="#cb2-16" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span></code></pre></div>
+<h4 id="52-webui-出口">5.2 WebUI 出口</h4>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>形态</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>渲染</td>
+<td>服务端 Jinja2 + 前端 markdown 库实时渲染</td>
+</tr>
+<tr>
+<td>复制</td>
+<td>三种粒度：全文 / 仅正文 / 仅 frontmatter</td>
+</tr>
+<tr>
+<td>下载</td>
+<td>单 <code>.md</code> 下载、批量打包 zip</td>
+</tr>
+<tr>
+<td>手机分享</td>
+<td>Web Share API</td>
+</tr>
+</tbody>
+</table>
+<h4 id="53-飞书多维表格同步">5.3 飞书多维表格同步</h4>
+<p>放在 P2，本阶段不做。</p>
+<h3 id="第六层--基础设施">第六层 · 基础设施</h3>
+<table>
+<thead>
+<tr>
+<th>关注点</th>
+<th>MVP</th>
+<th>后期</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>模型</td>
+<td>ModelProvider Protocol + DashscopeProvider（百炼 paraformer-v2 /
+qwen3-vl-flash / qwen-flash）</td>
+<td>OpenAI 兼容适配层</td>
+</tr>
+<tr>
+<td>内容存储</td>
+<td>本地 Markdown + frontmatter</td>
+<td>—</td>
+</tr>
+<tr>
+<td>索引存储</td>
+<td>SQLite（任务状态）</td>
+<td>+ FTS5 全文</td>
+</tr>
+<tr>
+<td>中间媒体</td>
+<td>tempfile 临时目录，跑完即删</td>
+<td>—</td>
+</tr>
+<tr>
+<td>部署位置</td>
+<td>本地服务器（国内 IP，避免小红书海外风控）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>远程访问</td>
+<td>tailscale 私有网络（首选）或 frp 中转阿里云日本</td>
+<td>—</td>
+</tr>
+<tr>
+<td>失败任务持久化</td>
+<td>url / platform / error_type / error_message / log_excerpt /
+created_at / updated_at / retry_count</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="范围外">范围外</h2>
+<ul>
+<li>抖音平台</li>
+<li>MCP server（P0 参考移植不 fork，无 MCP 入口；P2 按需新建）</li>
+<li>Get 笔记历史数据迁移（独立项目）</li>
+<li>DreameClaw skill 形态</li>
+<li>复杂字幕时间戳 / 视频播放器嵌入</li>
+<li>评论可视化树形 UI</li>
+<li>MVP 阶段的主题索引知识库（远期愿景）</li>
+</ul>
+<hr />
+<h2 id="实施优先级">实施优先级</h2>
+<h3 id="p0--跑通-url--md核心闭环">P0 · 跑通 URL → MD（核心闭环）</h3>
+<blockquote>
+<p>目标：从前端粘一个链接，几分钟后桌面多一个 Markdown 文件。</p>
+</blockquote>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>内容</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>流水线</td>
+<td>B 站视频 / 小红书视频 / 小红书图文，三条全跑通</td>
+</tr>
+<tr>
+<td>模型</td>
+<td>ModelProvider Protocol + DashscopeProvider（唯一实现）</td>
+</tr>
+<tr>
+<td>存储</td>
+<td>本地 Markdown 落盘 + frontmatter，目录结构定死</td>
+</tr>
+<tr>
+<td>索引</td>
+<td>SQLite jobs 表（schema 见 SPEC）</td>
+</tr>
+<tr>
+<td>WebUI</td>
+<td>单页：输入框 + 任务列表 + 详情查看 + 下载（轮询，无 SSE）</td>
+</tr>
+<tr>
+<td>CLI</td>
+<td><code>rbcp run &lt;url&gt;</code> 同步阻塞，吐 MD 路径</td>
+</tr>
+<tr>
+<td>部署</td>
+<td>本地服务器本地访问，不上公网</td>
+</tr>
+</tbody>
+</table>
+<p><strong>P0 不包含</strong>：批量、博主全量、评论、手动 ASR
+切换、模型抽象、远程访问、飞书、SSE、FTS5、Pipeline 类抽象、外部 CLI
+依赖。</p>
+<h3 id="p1--能用--好用">P1 · 能用 → 好用</h3>
+<p>按子优先级<strong>串行</strong>进行（不并行）：</p>
+<pre><code>P1a · 批量 + 限流              (1 天)
+P1b · 博主全量（装 bili/xhs cli）(1.5 天)
+P1c · 评论提取                  (0.5 天)
+P1d · B 站手动 ASR 切换         (0.5 天)
+P1e · 模型抽象层（最后做）       (1.5 天)
+P1f · 远程访问 tailscale         (0.5 天)</code></pre>
+<p>模型抽象（P1e）单独排足时间，<strong>不要与 P1a-d
+并行</strong>——dashscope SDK 不是 OpenAI
+兼容，三种调用形态（ASR/VLM/LLM）差异大，会拆乱代码。</p>
+<h3 id="p2--完善按需">P2 · 完善（按需）</h3>
+<table>
+<thead>
+<tr>
+<th>模块</th>
+<th>触发条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>飞书多维表格同步</td>
+<td>多端同步真实痛了再做</td>
+</tr>
+<tr>
+<td>移动端响应式深度适配</td>
+<td>手机用得多了</td>
+</tr>
+<tr>
+<td>图片 OCR 备选（PaddleOCR）</td>
+<td>VLM 出问题或成本太高</td>
+</tr>
+<tr>
+<td>SQLite FTS5 全文检索</td>
+<td>文档量过百再做</td>
+</tr>
+<tr>
+<td>任务失败重试 / 断点续抓 / 自动 cooldown</td>
+<td>风控经常踩坑了再做</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="关键决策回顾">关键决策回顾</h2>
+<ul>
+<li>形态从三入口（WebUI + CLI + MCP）砍到双入口；MCP fork
+后保留入口不维护</li>
+<li>小红书图文 MVP 走 VLM，OCR 是 P2 备选不是 P0 必需</li>
+<li>远期 LLM Wiki 不进需求文档，本项目交付 Markdown 文件库即可</li>
+<li>飞书移到 P2</li>
+<li>P0 原则："产物正确"，不要"架构优雅"</li>
+</ul>
+
+  </div>
+</section>
+
+<section id="spec" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">SPEC.md</span>
+      <h2>SPEC</h2>
+      <p>技术规格与约束</p>
+    </div>
+    <a class="source-link" href="../SPEC.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="spec--red-blue-cp">SPEC · Red Blue CP</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<h2 id="1-模块分层运行时架构">1. 模块分层（运行时架构）</h2>
+<pre><code>┌─ 入口层 ──────────────────────────────────────────┐
+│  WebUI (FastAPI + Jinja2 + HTMX)                 │
+│  CLI  (typer)                                     │
+│  ↓ 共享同一组业务函数                             │
+├─ 业务层 (P0) ─────────────────────────────────────┤
+│  service/extractor.py    自实现内容提取（参考上游）│
+│  service/markdown.py     frontmatter + 模板 + 写入 │
+│  service/storage.py      SQLite jobs CRUD         │
+├─ 适配层 (P1 引入) ────────────────────────────────┤
+│  PlatformAdapter   ModelAdapter   CliSubprocess  │
+├─ 存储层 ──────────────────────────────────────────┤
+│  Filesystem      (~/transcript/)                 │
+│  SQLite Index    (jobs / 后续 fts5)              │
+└──────────────────────────────────────────────────┘</code></pre>
+<p><strong>P0 阶段不引入</strong>：PlatformAdapter / ModelAdapter /
+CliSubprocess / Pipeline 类体系 / asyncio.Queue / SSE / FTS5。</p>
+<hr />
+<h2 id="2-p0-代码组织">2. P0 代码组织</h2>
+<pre><code>app/
+  service/
+    extractor.py        # 自实现内容提取逻辑（参考上游 social-post-extractor-mcp）
+                        # 输入 URL，输出 ExtractResult
+    markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
+    storage.py          # SQLite jobs CRUD
+  web/
+    routes.py           # 输入页 + 任务列表 + 详情 + 下载
+    templates/          # Jinja2 模板
+  cli.py                # rbcp run &lt;url&gt;
+config/
+  social-post-extractor.env  # 百炼 API Key（gitignored，继承上游）</code></pre>
+<p>P0 走捷径：</p>
+<ul>
+<li>提交 URL → <code>asyncio.create_task(extract_and_save(url))</code>
+后台跑</li>
+<li>CLI 同步阻塞，跑完返回路径</li>
+<li>WebUI 任务列表用轮询（2s 拉一次 <code>/api/jobs</code>）</li>
+<li>不抽 Pipeline 接口，三种内容类型在 <code>extractor.py</code> 内部用
+if/elif 分发</li>
+</ul>
+<hr />
+<h2 id="3-数据流">3. 数据流</h2>
+<pre><code>URL ──→ Job (status=pending)
+     ↓
+service.extractor.extract_url(url)
+     ├─ 自实现内容提取，直接调用 dashscope SDK + requests 爬取
+     ├─ 通过 ModelProvider 接口调 ASR/VLM/LLM
+     └─ 转换成 ExtractResult dataclass
+     ↓
+service.markdown.render_and_write(result)
+     ├─ sanitize 文件名
+     ├─ Jinja2 渲染 frontmatter + 正文
+     ├─ 写 .tmp 文件
+     └─ os.replace 原子替换
+     ↓
+service.storage.mark_done(job_id, md_path)
+     ↓
+WebUI / CLI 读 SQLite + 文件返回给用户</code></pre>
+<hr />
+<h2 id="4-接口约定">4. 接口约定</h2>
+<h3 id="41-rest-apiwebui--backend">4.1 REST API（WebUI ↔︎ Backend）</h3>
+<p>P0 必备：</p>
+<pre><code>POST /api/jobs                      # 提交单条 URL，返回 job_id
+GET  /api/jobs?limit=20&amp;offset=0    # 任务列表，前端轮询
+GET  /api/jobs/{id}                 # 任务详情
+GET  /api/jobs/{id}/markdown        # 渲染 MD 内容（用于详情页展示）
+GET  /api/jobs/{id}/download        # 下载 .md（带 Content-Disposition）</code></pre>
+<p>P1 增加：</p>
+<pre><code>POST /api/jobs/batch                # 批量提交
+POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR）
+POST /api/uploaders/{platform}/{uid}/posts  # 拉博主作品列表
+POST /api/comments                  # 评论提取
+GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）</code></pre>
+<p><strong>安全约束</strong>：所有文件接口必须通过 <code>job_id</code>
+反查 <code>md_path</code>，<strong>不允许</strong>用户传任意
+path（防路径穿越）。</p>
+<h3 id="42-cli-命令">4.2 CLI 命令</h3>
+<p>P0 必备：</p>
+<pre><code>rbcp run &lt;url&gt;                  # 单条，同步阻塞，输出 md_path
+rbcp serve                      # 启 WebUI</code></pre>
+<p>P1 增加：</p>
+<pre><code>rbcp batch &lt;file&gt;               # 批量，每行一个 URL
+rbcp uploader &lt;platform&gt; &lt;uid&gt;  # 拉博主作品列表（不自动跑）
+rbcp comments &lt;url&gt;             # 评论提取</code></pre>
+<p>CLI 内部直接
+<code>from app.service import extractor</code>，<strong>不走
+HTTP</strong>。</p>
+<hr />
+<h2 id="5-sqlite-schema">5. SQLite Schema</h2>
+<h3 id="51-jobs-表p0-完整版">5.1 jobs 表（P0 完整版）</h3>
+<div class="sourceCode" id="cb8"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb8-1"><a href="#cb8-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">TABLE</span> jobs (</span>
+<span id="cb8-2"><a href="#cb8-2" aria-hidden="true" tabindex="-1"></a>  <span class="kw">id</span>            <span class="dt">INTEGER</span> <span class="kw">PRIMARY</span> <span class="kw">KEY</span>,</span>
+<span id="cb8-3"><a href="#cb8-3" aria-hidden="true" tabindex="-1"></a>  url           TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb8-4"><a href="#cb8-4" aria-hidden="true" tabindex="-1"></a>  platform      TEXT,           <span class="co">-- bilibili | xiaohongshu</span></span>
+<span id="cb8-5"><a href="#cb8-5" aria-hidden="true" tabindex="-1"></a>  content_type  TEXT,           <span class="co">-- video | image_note</span></span>
+<span id="cb8-6"><a href="#cb8-6" aria-hidden="true" tabindex="-1"></a>  status        TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,  <span class="co">-- pending | running | done | failed</span></span>
+<span id="cb8-7"><a href="#cb8-7" aria-hidden="true" tabindex="-1"></a>  md_path       TEXT,</span>
+<span id="cb8-8"><a href="#cb8-8" aria-hidden="true" tabindex="-1"></a>  title         TEXT,</span>
+<span id="cb8-9"><a href="#cb8-9" aria-hidden="true" tabindex="-1"></a>  author        TEXT,</span>
+<span id="cb8-10"><a href="#cb8-10" aria-hidden="true" tabindex="-1"></a>  error_message TEXT,</span>
+<span id="cb8-11"><a href="#cb8-11" aria-hidden="true" tabindex="-1"></a>  log_excerpt   TEXT,</span>
+<span id="cb8-12"><a href="#cb8-12" aria-hidden="true" tabindex="-1"></a>  retry_count   <span class="dt">INTEGER</span> <span class="kw">DEFAULT</span> <span class="dv">0</span>,</span>
+<span id="cb8-13"><a href="#cb8-13" aria-hidden="true" tabindex="-1"></a>  created_at    TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb8-14"><a href="#cb8-14" aria-hidden="true" tabindex="-1"></a>  updated_at    TEXT <span class="kw">NOT</span> <span class="kw">NULL</span>,</span>
+<span id="cb8-15"><a href="#cb8-15" aria-hidden="true" tabindex="-1"></a>  started_at    TEXT,</span>
+<span id="cb8-16"><a href="#cb8-16" aria-hidden="true" tabindex="-1"></a>  finished_at   TEXT</span>
+<span id="cb8-17"><a href="#cb8-17" aria-hidden="true" tabindex="-1"></a>);</span>
+<span id="cb8-18"><a href="#cb8-18" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb8-19"><a href="#cb8-19" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_jobs_status <span class="kw">ON</span> jobs(status);</span>
+<span id="cb8-20"><a href="#cb8-20" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> <span class="kw">INDEX</span> idx_jobs_created_at <span class="kw">ON</span> jobs(created_at <span class="kw">DESC</span>);</span></code></pre></div>
+<h3 id="52-p1-加字段">5.2 P1 加字段</h3>
+<div class="sourceCode" id="cb9"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb9-1"><a href="#cb9-1" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> source_uid    TEXT;   <span class="co">-- 博主 uid（来自博主全量任务）</span></span>
+<span id="cb9-2"><a href="#cb9-2" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> published_at  TEXT;</span>
+<span id="cb9-3"><a href="#cb9-3" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> duration_sec  <span class="dt">INTEGER</span>;</span>
+<span id="cb9-4"><a href="#cb9-4" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> image_count   <span class="dt">INTEGER</span>;</span>
+<span id="cb9-5"><a href="#cb9-5" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> asr_model     TEXT;</span>
+<span id="cb9-6"><a href="#cb9-6" aria-hidden="true" tabindex="-1"></a><span class="kw">ALTER</span> <span class="kw">TABLE</span> jobs <span class="kw">ADD</span> <span class="kw">COLUMN</span> vision_model  TEXT;</span></code></pre></div>
+<h3 id="53-p2-加-fts5">5.3 P2 加 FTS5</h3>
+<div class="sourceCode" id="cb10"><pre
+class="sourceCode sql"><code class="sourceCode sql"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true" tabindex="-1"></a><span class="kw">CREATE</span> VIRTUAL <span class="kw">TABLE</span> jobs_fts <span class="kw">USING</span> fts5(title, author, content<span class="op">=</span><span class="st">&#39;jobs&#39;</span>);</span>
+<span id="cb10-2"><a href="#cb10-2" aria-hidden="true" tabindex="-1"></a><span class="co">-- 触发器同步，省略</span></span></code></pre></div>
+<hr />
+<h2 id="6-markdown-文件规范">6. Markdown 文件规范</h2>
+<h3 id="61-命名">6.1 命名</h3>
+<pre><code>~/transcript/
+├── bili/{YYYY-MM-DD}-{up_name}-{safe_title}-{BV_id}.md
+├── xhs/{YYYY-MM-DD}-{author}-{safe_title}-{note_id}.md
+└── xhs/{YYYY-MM-DD}-{author}-{safe_title}-{note_id}.comments.md</code></pre>
+<h3 id="62-文件名-sanitize-规则">6.2 文件名 sanitize 规则</h3>
+<pre><code>safe_title  = 去除 / \ : * ? &quot; &lt; &gt; | + 控制字符 + emoji
+            + 压缩连续空白
+            + 中英文空格统一
+            + 截断到 60 字符
+safe_author = 缺失 → &quot;unknown_author&quot;
+date        = published_at 缺失 → fetched_at
+suffix      = 始终拼 BV_id / note_id 防冲突</code></pre>
+<h3 id="63-原子写入">6.3 原子写入</h3>
+<pre><code>1. 写入 {final_path}.tmp
+2. os.replace({tmp_path}, {final_path})
+3. 失败时清理 tmp</code></pre>
+<h3 id="64-frontmatter-模板">6.4 frontmatter 模板</h3>
+<div class="sourceCode" id="cb14"><pre
+class="sourceCode yaml"><code class="sourceCode yaml"><span id="cb14-1"><a href="#cb14-1" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb14-2"><a href="#cb14-2" aria-hidden="true" tabindex="-1"></a><span class="fu">platform</span><span class="kw">:</span><span class="at"> bilibili | xiaohongshu</span></span>
+<span id="cb14-3"><a href="#cb14-3" aria-hidden="true" tabindex="-1"></a><span class="fu">type</span><span class="kw">:</span><span class="at"> video | image_note</span></span>
+<span id="cb14-4"><a href="#cb14-4" aria-hidden="true" tabindex="-1"></a><span class="fu">url</span><span class="kw">:</span><span class="at"> &lt;原链接&gt;</span></span>
+<span id="cb14-5"><a href="#cb14-5" aria-hidden="true" tabindex="-1"></a><span class="fu">author</span><span class="kw">:</span><span class="at"> &lt;作者名&gt;</span></span>
+<span id="cb14-6"><a href="#cb14-6" aria-hidden="true" tabindex="-1"></a><span class="fu">author_id</span><span class="kw">:</span><span class="at"> &lt;作者 ID&gt;</span></span>
+<span id="cb14-7"><a href="#cb14-7" aria-hidden="true" tabindex="-1"></a><span class="fu">title</span><span class="kw">:</span><span class="at"> &lt;原标题&gt;</span></span>
+<span id="cb14-8"><a href="#cb14-8" aria-hidden="true" tabindex="-1"></a><span class="fu">published_at</span><span class="kw">:</span><span class="at"> 2025-MM-DD</span></span>
+<span id="cb14-9"><a href="#cb14-9" aria-hidden="true" tabindex="-1"></a><span class="fu">fetched_at</span><span class="kw">:</span><span class="at"> 2026-MM-DD</span></span>
+<span id="cb14-10"><a href="#cb14-10" aria-hidden="true" tabindex="-1"></a><span class="fu">duration_sec</span><span class="kw">:</span><span class="at"> </span><span class="dv">600</span><span class="co">          # 视频特有</span></span>
+<span id="cb14-11"><a href="#cb14-11" aria-hidden="true" tabindex="-1"></a><span class="fu">image_count</span><span class="kw">:</span><span class="at"> </span><span class="dv">9</span><span class="co">             # 图文特有</span></span>
+<span id="cb14-12"><a href="#cb14-12" aria-hidden="true" tabindex="-1"></a><span class="fu">asr_model</span><span class="kw">:</span><span class="at"> paraformer-v2</span></span>
+<span id="cb14-13"><a href="#cb14-13" aria-hidden="true" tabindex="-1"></a><span class="fu">vision_model</span><span class="kw">:</span><span class="at"> qwen3-vl-flash</span></span>
+<span id="cb14-14"><a href="#cb14-14" aria-hidden="true" tabindex="-1"></a><span class="fu">status</span><span class="kw">:</span><span class="at"> subtitle | asr | vision | asr_force</span></span>
+<span id="cb14-15"><a href="#cb14-15" aria-hidden="true" tabindex="-1"></a><span class="fu">tags</span><span class="kw">:</span><span class="at"> </span><span class="kw">[]</span></span>
+<span id="cb14-16"><a href="#cb14-16" aria-hidden="true" tabindex="-1"></a><span class="pp">---</span></span>
+<span id="cb14-17"><a href="#cb14-17" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-18"><a href="#cb14-18" aria-hidden="true" tabindex="-1"></a><span class="co"># {title}</span></span>
+<span id="cb14-19"><a href="#cb14-19" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-20"><a href="#cb14-20" aria-hidden="true" tabindex="-1"></a><span class="at">&gt; [{author}]({author_url}) · {published_at} · [原链接]({url})</span></span>
+<span id="cb14-21"><a href="#cb14-21" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-22"><a href="#cb14-22" aria-hidden="true" tabindex="-1"></a><span class="co">## 转录文本 / 图文 OCR</span></span>
+<span id="cb14-23"><a href="#cb14-23" aria-hidden="true" tabindex="-1"></a></span>
+<span id="cb14-24"><a href="#cb14-24" aria-hidden="true" tabindex="-1"></a><span class="kw">{</span><span class="at">text</span><span class="kw">}</span></span></code></pre></div>
+<hr />
+<h2 id="7-部署约束必须执行">7. 部署约束（必须执行）</h2>
+<pre><code>MVP 仅支持单进程：
+  uvicorn app.web.routes:app --host 0.0.0.0    （不用 --workers）
+
+绑定 0.0.0.0 而非 127.0.0.1，兼容 WSL2 mirrored networking + tailscale 等外部访问场景。
+
+任务队列是进程内：P0 用 asyncio.create_task，P1 引入 asyncio.Queue + N worker。
+P0 阶段没有真队列，重启即丢失运行中任务。
+
+P0 安全已知限制（局域网/tailscale 部署下可接受）：
+- WebUI 无认证（P1 加 basic auth）
+- 无 SSRF 防护（用户提交 URL 后端直接抓取）
+
+P1 引入持久化前不要做多进程部署。</code></pre>
+<hr />
+<h2 id="8-媒体文件处理">8. 媒体文件处理</h2>
+<h3 id="81-原则">8.1 原则</h3>
+<ul>
+<li><strong>持久化产物只有</strong>：Markdown / 纯文本 / 元数据</li>
+<li><strong>允许临时存在</strong>：tempfile.TemporaryDirectory
+内的音频流、图片</li>
+<li><strong>任务结束后自动清理</strong>：通过 context manager 保证</li>
+</ul>
+<h3 id="82-小红书图片-vlm-调用">8.2 小红书图片 VLM 调用</h3>
+<pre><code>1. 优先：把图片 URL 直接喂给 qwen3-vl-flash
+2. 失败回退：
+   - 用 requests.get 下载到 tempfile
+   - 必须保留 referer / user-agent headers（小红书图片有防盗链）
+   - 喂给 VLM 后立即删除</code></pre>
+<p>不要把"URL 直接喂模型"当作稳定主路径，必须做双轨。</p>
+<h3 id="83-视频音频流抽取">8.3 视频音频流抽取</h3>
+<pre><code>ffmpeg -i &lt;m3u8|mp4_url&gt; -vn -c:a copy &lt;tempfile.m4a&gt;
+→ 喂给 paraformer-v2 ASR
+→ 用完即删</code></pre>
+<hr />
+<h2 id="9-失败任务持久化">9. 失败任务持久化</h2>
+<p>每条失败任务必须在 SQLite 留下：</p>
+<pre><code>url
+platform
+content_type           可选
+status = failed
+error_message          单行错误摘要
+log_excerpt            最后 50 行日志或异常 traceback
+retry_count
+created_at
+updated_at</code></pre>
+<p>WebUI 任务列表必须能区分 <code>done</code> 和
+<code>failed</code>，并展示 <code>error_message</code>
+让用户知道为什么失败（小红书风控场景下尤其重要）。</p>
+<hr />
+<h2 id="10-关键决策记录">10. 关键决策记录</h2>
+<table>
+<thead>
+<tr>
+<th>决策</th>
+<th>选</th>
+<th>不选</th>
+<th>理由</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>队列</td>
+<td>asyncio.Queue (P1) / create_task (P0)</td>
+<td>celery / rq</td>
+<td>单机、单进程、零依赖</td>
+</tr>
+<tr>
+<td>前端</td>
+<td>HTMX + Jinja2 服务端渲染</td>
+<td>React</td>
+<td>无 build step</td>
+</tr>
+<tr>
+<td>索引</td>
+<td>SQLite</td>
+<td>Postgres</td>
+<td>单文件、无运维</td>
+</tr>
+<tr>
+<td>中间媒体</td>
+<td>tempfile，跑完即删</td>
+<td>落盘缓存</td>
+<td>需求明确"无中间媒体进知识库"</td>
+</tr>
+<tr>
+<td>图片 VLM</td>
+<td>URL 优先 + tempfile 兜底</td>
+<td>单一路径</td>
+<td>防盗链、签名过期</td>
+</tr>
+<tr>
+<td>远程访问</td>
+<td>tailscale</td>
+<td>公网 frp</td>
+<td>私有网络更安全、零配置</td>
+</tr>
+<tr>
+<td>部署</td>
+<td>单进程 uvicorn，禁 --workers</td>
+<td>多 worker</td>
+<td>asyncio.Queue 不跨进程</td>
+</tr>
+<tr>
+<td>MCP 入口</td>
+<td><del>保留不动</del> 不存在（参考移植）</td>
+<td>fork 上游</td>
+<td>从零写无 MCP 入口，P2 按需新建</td>
+</tr>
+<tr>
+<td>Pipeline 抽象</td>
+<td>P0 不做</td>
+<td>一开始就分层</td>
+<td>过度抽象，先验证可行性</td>
+</tr>
+<tr>
+<td>模型抽象</td>
+<td>P1e 最后做</td>
+<td>早期抽象</td>
+<td>dashscope 不是 OpenAI 兼容，工作量大</td>
+</tr>
+<tr>
+<td>文件下载</td>
+<td>经 job_id 反查</td>
+<td>直接传 path</td>
+<td>防路径穿越</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="11-修订记录">11. 修订记录</h2>
+<table>
+<thead>
+<tr>
+<th>版本</th>
+<th>改动</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>v1</td>
+<td>初稿：CLI + skill 范式</td>
+</tr>
+<tr>
+<td>v2</td>
+<td>改 WebUI + CLI 双入口；明确本地 Markdown
+主存储；加飞书同步、远程访问</td>
+</tr>
+<tr>
+<td>v3</td>
+<td>砍 MCP 入口；模型抽象推到 P1；图文笔记走 VLM；分 P0/P1/P2</td>
+</tr>
+<tr>
+<td>v3.1</td>
+<td>接受外部审阅：P0 砍到极简 / 不删 MCP / 安全 API / 单进程约束 /
+失败持久化 / 文件名 sanitize</td>
+</tr>
+<tr>
+<td>v3.2（当前）</td>
+<td>项目命名为 Red Blue CP（红蓝CP）；CLI 命令 spx → rbcp；包名
+red-blue-cp</td>
+</tr>
+</tbody>
+</table>
+
+  </div>
+</section>
+
+<section id="plan" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">PLAN.md</span>
+      <h2>PLAN</h2>
+      <p>开发计划与 Review 决议</p>
+    </div>
+    <a class="source-link" href="../PLAN.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="plan--red-blue-cp">PLAN · Red Blue CP</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<h2 id="里程碑总览">里程碑总览</h2>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>天数</th>
+<th>目标</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M0</td>
+<td>0.5-1</td>
+<td>研读上游 + 评估复杂度（参考移植）</td>
+</tr>
+<tr>
+<td>M1a</td>
+<td>1</td>
+<td>CLI 极简闭环 + ModelProvider</td>
+</tr>
+<tr>
+<td>M1b</td>
+<td>0.5</td>
+<td>WebUI 最小页</td>
+</tr>
+<tr>
+<td>M2</td>
+<td>3-5</td>
+<td>P1 规模化（按子优先级串行）</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>按需</td>
+<td>P2 完善</td>
+</tr>
+</tbody>
+</table>
+<p>P0 = M0 + M1a + M1b ≈ 2-2.5 天（CC 辅助开发） P1 = M2 ≈ 3-5 天 P2 =
+M3，按需</p>
+<hr />
+<h2 id="m0--研读上游--评估复杂度05-1-天">M0 · 研读上游 +
+评估复杂度（0.5-1 天）</h2>
+<blockquote>
+<p><strong>参考移植</strong>：研读上游 social-post-extractor-mcp
+的代码，理解 SDK 调用和爬取逻辑，评估自实现复杂度。</p>
+</blockquote>
+<h3 id="任务清单">任务清单</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />clone <a
+href="https://github.com/JNHFlow21/social-post-extractor-mcp">JNHFlow21/social-post-extractor-mcp</a>（只读参考，不
+fork）</label></li>
+<li><label><input
+type="checkbox" />研读上游代码，重点理解三件事：</label>
+<ul class="task-list">
+<li><label><input type="checkbox" />dashscope SDK 调用方式（ASR / VLM /
+LLM 三种形态）</label></li>
+<li><label><input
+type="checkbox" />小红书爬取签名逻辑（cookie、headers、防盗链）</label></li>
+<li><label><input type="checkbox" />B
+站视频字幕/音频获取逻辑</label></li>
+</ul></li>
+<li><label><input type="checkbox" />评估自实现复杂度：</label>
+<ul>
+<li>某单项预估超过 2 天 → 退回方案 A（fork + 旁路包装）</li>
+<li>可控 → 继续参考移植</li>
+</ul></li>
+<li><label><input type="checkbox" />配置百炼 API Key 到
+<code>.env</code>，验证 SDK 调用通路</label></li>
+</ul>
+<h3 id="不做的事">不做的事</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><del>fork
+上游</del>（只读参考）</label></li>
+<li><label><input type="checkbox" /><del>装 bilibili-cli /
+xiaohongshu-cli</del>（P1 才用）</label></li>
+<li><label><input type="checkbox" /><del>抽 PlatformAdapter /
+Pipeline</del>（M1 不需要）</label></li>
+</ul>
+<h3 id="出口">出口</h3>
+<p>理解上游核心逻辑，确认自实现可行性。决定是继续参考移植还是退回
+fork。</p>
+<hr />
+<h2 id="m1a--cli-极简闭环1-天">M1a · CLI 极简闭环（1 天）</h2>
+<blockquote>
+<p>目标：终端跑 <code>rbcp run &lt;url&gt;</code>，桌面多一个 Markdown
+文件。</p>
+</blockquote>
+<h3 id="任务清单-1">任务清单</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><strong>service/model.py</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" /><code>ModelProvider</code>
+Protocol（asr / vlm / llm_clean 三个方法）</label></li>
+<li><label><input type="checkbox" /><code>DashscopeProvider</code>
+实现（调用 dashscope SDK）</label></li>
+</ul></li>
+<li><label><input
+type="checkbox" /><strong>service/extractor.py</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />新增
+<code>extract_url(url, provider) -&gt; ExtractResult</code></label></li>
+<li><label><input type="checkbox" /><code>ExtractResult</code> dataclass
+包含：platform / content_type / title / author / author_id /
+published_at / url / text / metadata / raw_info</label></li>
+<li><label><input type="checkbox" />内部 if/elif 分发 B 站视频 /
+小红书视频 / 小红书图文（不抽 Pipeline）</label></li>
+<li><label><input type="checkbox" />自实现内容提取逻辑（参考上游，直接调
+dashscope SDK + requests）</label></li>
+</ul></li>
+<li><label><input
+type="checkbox" /><strong>service/markdown.py</strong></label>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>sanitize_filename(title, author, date, suffix_id) -&gt; str</code>（按
+SPEC §6.2）</label></li>
+<li><label><input type="checkbox" />Jinja2 模板渲染 frontmatter +
+正文（按 SPEC §6.4）</label></li>
+<li><label><input
+type="checkbox" /><code>render_and_write(result) -&gt; Path</code>，写
+.tmp + os.replace 原子替换</label></li>
+</ul></li>
+<li><label><input
+type="checkbox" /><strong>service/storage.py</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />SQLite schema 初始化（按 SPEC
+§5.1，P0 完整版）</label></li>
+<li><label><input
+type="checkbox" /><code>create_job / mark_running / mark_done / mark_failed / get_job / list_jobs</code></label></li>
+<li><label><input type="checkbox" />失败时持久化 error_message +
+log_excerpt</label></li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>cli.py</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" /><code>rbcp run &lt;url&gt;</code>
+同步阻塞</label></li>
+<li><label><input type="checkbox" />跑完输出
+<code>Done: ~/transcript/...</code></label></li>
+<li><label><input type="checkbox" />失败输出
+<code>Failed: &lt;error_message&gt;</code>，并把 traceback 写进
+SQLite</label></li>
+</ul></li>
+<li><label><input
+type="checkbox" /><strong>pyproject.toml</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" /><code>[project.scripts]</code> entry
+point：<code>rbcp = "app.cli:app"</code></label></li>
+<li><label><input type="checkbox" />依赖列表（不含 mcp）</label></li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>启动检测</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />检测 DASHSCOPE_API_KEY +
+ffmpeg，缺失给清晰提示</label></li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>URL
+自动检测</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />正则匹配 bilibili.com / b23.tv /
+xiaohongshu.com / xhslink.com</label></li>
+</ul></li>
+</ul>
+<h3 id="验收">验收</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />B 站视频链接 → 正确路径下的
+.md，frontmatter 完整</label></li>
+<li><label><input type="checkbox" />小红书视频链接 → 同上</label></li>
+<li><label><input type="checkbox" />小红书图文链接 → 同上</label></li>
+<li><label><input type="checkbox" />失败链接（故意造）→ SQLite 留下
+failed 记录</label></li>
+<li><label><input type="checkbox" />tempfile 跑完已清理（任务后
+<code>ls /tmp</code> 看一眼）</label></li>
+</ul>
+<hr />
+<h2 id="m1b--webui-最小页05-天">M1b · WebUI 最小页（0.5 天）</h2>
+<blockquote>
+<p>目标：浏览器粘 URL，看到结果。</p>
+</blockquote>
+<h3 id="任务清单-2">任务清单</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><strong>web/routes.py</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" /><code>POST /api/jobs</code> 提交单
+URL，返回 job_id；后端 <code>asyncio.create_task</code> 跑</label></li>
+<li><label><input
+type="checkbox" /><code>GET /api/jobs?limit=20&amp;offset=0</code>
+任务列表</label></li>
+<li><label><input type="checkbox" /><code>GET /api/jobs/{id}</code>
+任务详情</label></li>
+<li><label><input
+type="checkbox" /><code>GET /api/jobs/{id}/markdown</code> MD
+内容</label></li>
+<li><label><input
+type="checkbox" /><code>GET /api/jobs/{id}/download</code> MD 下载（带
+Content-Disposition）</label></li>
+<li><label><input type="checkbox" /><strong>不暴露 file
+path</strong>，所有文件接口走 job_id</label></li>
+</ul></li>
+<li><label><input type="checkbox" /><strong>templates/</strong></label>
+<ul class="task-list">
+<li><label><input type="checkbox" />index.html：输入框 + 任务列表（轮询
+2s 一次）</label></li>
+<li><label><input type="checkbox" />detail.html：标题 + frontmatter 摘要
++ 正文渲染 + 复制按钮 + 下载按钮</label></li>
+</ul></li>
+<li><label><input
+type="checkbox" />启动命令：<code>rbcp serve</code>（内部
+<code>uvicorn --host 0.0.0.0</code>，<strong>不用
+--workers</strong>）</label></li>
+</ul>
+<h3 id="验收-1">验收</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />浏览器粘 URL → 任务列表出现 →
+几分钟后 status=done</label></li>
+<li><label><input type="checkbox" />点击进详情 → MD
+正确渲染</label></li>
+<li><label><input type="checkbox" />复制按钮工作（三粒度可后期再做，P0
+只要"复制全文"）</label></li>
+<li><label><input type="checkbox" />下载按钮拿到正确文件</label></li>
+<li><label><input type="checkbox" />失败任务列表显示
+error_message</label></li>
+<li><label><input
+type="checkbox" />路径穿越测试：<code>GET /api/jobs/abc/../../etc/passwd</code>
+返回 404</label></li>
+</ul>
+<h3 id="不做的事-1">不做的事</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" /><del>SSE
+实时进度</del>（轮询够用）</label></li>
+<li><label><input type="checkbox" /><del>批量提交</del></label></li>
+<li><label><input type="checkbox" /><del>博主拉取</del></label></li>
+<li><label><input type="checkbox" /><del>评论提取</del></label></li>
+<li><label><input
+type="checkbox" /><del>移动端深度适配</del>（响应式基础布局即可）</label></li>
+</ul>
+<hr />
+<h2 id="m2--p1-规模化3-5-天子任务串行不并行">M2 · P1 规模化（3-5
+天，子任务串行不并行）</h2>
+<h3 id="m2a--批量--限流1-天">M2a · 批量 + 限流（1 天）</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>service/queue.py</code>：asyncio.Queue + N
+worker</label></li>
+<li><label><input type="checkbox" />启动时从 SQLite
+重建（pending/running 任务回到 pending）</label></li>
+<li><label><input type="checkbox" />限流配置：</label>
+<ul>
+<li>小红书 worker = 1，间隔 ≥ 2s</li>
+<li>B 站 worker = 2-4</li>
+</ul></li>
+<li><label><input type="checkbox" /><code>POST /api/jobs/batch</code>
+接受 URL 数组</label></li>
+<li><label><input type="checkbox" />CLI
+<code>rbcp batch &lt;file&gt;</code></label></li>
+</ul>
+<h3 id="m2b--博主全量15-天">M2b · 博主全量（1.5 天）</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>uv tool install bilibili-cli[audio] xiaohongshu-cli</code></label></li>
+<li><label><input
+type="checkbox" /><code>service/uploader.py</code>：subprocess 调
+<code>bili user-videos</code> / <code>xhs user-posts</code></label></li>
+<li><label><input
+type="checkbox" /><code>POST /api/uploaders/{platform}/{uid}/posts</code>
+拉列表</label></li>
+<li><label><input type="checkbox" />WebUI 列表页 + 过滤（时长 / 发布日期
+/ 关键词）+ 勾选（全选 + 单选）+ 入队按钮</label></li>
+<li><label><input type="checkbox" />CLI
+<code>rbcp uploader &lt;platform&gt; &lt;uid&gt;</code>
+输出列表（不自动跑）</label></li>
+</ul>
+<h3 id="m2c--评论提取05-天">M2c · 评论提取（0.5 天）</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>service/comments.py</code>：subprocess 调
+<code>xhs comments URL --all --json</code></label></li>
+<li><label><input type="checkbox" /><code>POST /api/comments</code>
+单笔记</label></li>
+<li><label><input type="checkbox" />输出 JSON + Markdown
+伴生文件（<code>{note_id}.comments.md</code>）</label></li>
+<li><label><input type="checkbox" />CLI
+<code>rbcp comments &lt;url&gt;</code></label></li>
+</ul>
+<h3 id="m2d--b-站手动-asr-切换05-天">M2d · B 站手动 ASR 切换（0.5
+天）</h3>
+<ul class="task-list">
+<li><label><input
+type="checkbox" /><code>POST /api/jobs/{id}/rerun?force_asr=true</code>
+强制走 ASR 路径</label></li>
+<li><label><input type="checkbox" />WebUI 详情页加"重抽
+ASR"按钮</label></li>
+<li><label><input type="checkbox" />frontmatter status 改为
+<code>asr_force</code> 标记</label></li>
+</ul>
+<h3 id="m2e--模型抽象层15-天单独排足时间">M2e · 模型抽象层（1.5
+天，单独排足时间）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />抽 <code>IModelProvider</code>
+接口：</label>
+<pre><code>asr(audio) -&gt; text
+vlm(images) -&gt; text
+llm_clean(text) -&gt; text</code></pre></li>
+<li><label><input type="checkbox" /><code>DashscopeProvider</code>
+实现（MVP 现状）</label></li>
+<li><label><input type="checkbox" /><code>OpenAICompatProvider</code>
+实现（base_url + api_key + model 三件套）</label></li>
+<li><label><input
+type="checkbox" />配置切换：<code>config/social-post-extractor.env</code>
+加 <code>MODEL_PROVIDER</code> 字段</label></li>
+</ul>
+<p><strong>重点</strong>：不要与 M2a-d
+并行。三种调用形态差异大，会拆乱代码。</p>
+<h3 id="m2f--远程访问05-天运维任务">M2f · 远程访问（0.5
+天，运维任务）</h3>
+<ul class="task-list">
+<li><label><input type="checkbox" />tailscale 部署：本地服务器 +
+手机加入同一 tailnet</label></li>
+<li><label><input type="checkbox" />文档化访问方式</label></li>
+<li><label><input type="checkbox" />备选方案：frp
+中转阿里云日本（如果已有）</label></li>
+</ul>
+<hr />
+<h2 id="m3--p2-完善按需">M3 · P2 完善（按需）</h2>
+<table>
+<thead>
+<tr>
+<th>子任务</th>
+<th>触发条件</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>飞书多维表格同步</td>
+<td>手机查看真实痛了</td>
+</tr>
+<tr>
+<td>移动端响应式深度适配 + Web Share API</td>
+<td>手机用得多了</td>
+</tr>
+<tr>
+<td>PaddleOCR 备选通路</td>
+<td>VLM 出问题或成本太高</td>
+</tr>
+<tr>
+<td>SQLite FTS5 全文检索 + WebUI 搜索框</td>
+<td>文档量过百</td>
+</tr>
+<tr>
+<td>任务失败重试 / 断点续抓 / cooldown 自动调整</td>
+<td>风控经常踩坑了</td>
+</tr>
+</tbody>
+</table>
+<p>不进时间盘。</p>
+<hr />
+<h2 id="风险与缓解">风险与缓解</h2>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>概率</th>
+<th>缓解</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小红书风控触发（即使国内 IP）</td>
+<td>中</td>
+<td>保留 cookie 配置；串行限流强制；UA 伪装</td>
+</tr>
+<tr>
+<td>B 站字幕质量参差</td>
+<td>高</td>
+<td>不自动判断；M2d 提供手动"重抽 ASR"按钮</td>
+</tr>
+<tr>
+<td>VLM 图片 token 成本失控（10+ 图笔记）</td>
+<td>中</td>
+<td>加 <code>max_images</code> 软限制（默认 9），超限拒绝</td>
+</tr>
+<tr>
+<td>dashscope 不是 OpenAI 兼容，模型抽象工作量低估</td>
+<td>中</td>
+<td>M2e 单独排足 1.5 天，不与 M2a-d 并行</td>
+</tr>
+<tr>
+<td>小红书爬取自实现复杂度超预期</td>
+<td>中</td>
+<td>M0 研读上游逻辑，超 2 天预估则退回 fork</td>
+</tr>
+<tr>
+<td>asyncio.Queue 在多 worker 部署下状态混乱</td>
+<td>高</td>
+<td>SPEC 强制单进程 uvicorn，禁用 --workers</td>
+</tr>
+<tr>
+<td>文件下载接口路径穿越</td>
+<td>高</td>
+<td>所有文件接口走 job_id 反查，不接受用户 path</td>
+</tr>
+<tr>
+<td><del>MCP 入口删除带坏业务函数</del></td>
+<td>—</td>
+<td>参考移植，无 MCP 入口，风险不存在</td>
+</tr>
+<tr>
+<td>上游图片防盗链</td>
+<td>中</td>
+<td>VLM 调用走"URL 优先 + tempfile 兜底"双轨</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="时间盘建议">时间盘建议</h2>
+<p>考虑到本职工作 + ***一周一天 + 近期结业下阶段：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>建议时间窗</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M0 + M1a + M1b</td>
+<td>5 月内（一个完整周末，CC 辅助）</td>
+</tr>
+<tr>
+<td>M2</td>
+<td><strong>下阶段后</strong>再做</td>
+</tr>
+<tr>
+<td>M3</td>
+<td>长期可选</td>
+</tr>
+</tbody>
+</table>
+<p><strong>P0（M0 + M1a + M1b）应当在结业下阶段前完成</strong>，让本地
+Markdown 知识库的核心闭环可用。 <strong>P1
+在下阶段后启动</strong>，避开关键期。</p>
+<hr />
+<h2 id="eng-review-决议2026-05-09">Eng Review 决议（2026-05-09）</h2>
+<p>/plan-eng-review 产出的 P0 架构补充决议，需要在写代码前同步到
+SPEC.md：</p>
+<ol type="1">
+<li><strong>extractor.py
+拆分</strong>：<code>service/extractor.py</code>（编排 + 调 model）+
+<code>service/fetcher.py</code>（HTTP 爬取 + 解析）</li>
+<li><strong>新增 model.py</strong>：<code>service/model.py</code> 包含
+ModelProvider Protocol + DashscopeProvider</li>
+<li><strong>SPEC §2 目录更新</strong>：删除 <code>config/</code>
+目录，改为根目录 <code>.env</code> + <code>.env.example</code></li>
+<li><strong>B 站无字幕处理</strong>：API 返回无字幕时自动走
+ASR，frontmatter status 标 <code>asr</code>（不违反红线 #10）</li>
+<li><strong>DB driver</strong>：sqlite3 标准库（不用 aiosqlite），P0
+单进程阻塞影响可忽略</li>
+<li><strong>event loop
+保护</strong>：<code>asyncio.create_task(asyncio.to_thread(sync_fn))</code>
+包装阻塞操作</li>
+<li><strong>后台任务异常捕获</strong>：try/except 包装 +
+mark_failed，防止任务静默卡在 running</li>
+<li><strong>进程重启清理</strong>：启动时把所有 status=running
+的任务改为 failed</li>
+<li><strong>输出路径可配</strong>：环境变量
+<code>RBCP_OUTPUT_DIR</code>，默认 <code>~/transcript/</code></li>
+<li><strong>配置发现顺序</strong>：环境变量 &gt;
+<code>~/.config/rbcp/.env</code> &gt; 当前目录 <code>.env</code></li>
+<li><strong>分发方式（dispatch）</strong>：if/elif 分发，遵循 CLAUDE.md
+反过度抽象原则</li>
+</ol>
+<h2 id="gstack-review-report">GSTACK REVIEW REPORT</h2>
+<table>
+<thead>
+<tr>
+<th>Review</th>
+<th>Trigger</th>
+<th>Why</th>
+<th>Runs</th>
+<th>Status</th>
+<th>Findings</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CEO Review</td>
+<td><code>/plan-ceo-review</code></td>
+<td>Scope &amp; strategy</td>
+<td>1</td>
+<td>CLEAR</td>
+<td>8 proposals, 4 accepted, 4 deferred</td>
+</tr>
+<tr>
+<td>Outside Voice</td>
+<td><code>codex</code></td>
+<td>Independent 2nd opinion</td>
+<td>1</td>
+<td>issues_found</td>
+<td>4 findings adopted (event loop, restart, config)</td>
+</tr>
+<tr>
+<td>Eng Review</td>
+<td><code>/plan-eng-review</code></td>
+<td>Architecture &amp; tests (required)</td>
+<td>1</td>
+<td>CLEAR</td>
+<td>6 issues, 0 critical gaps</td>
+</tr>
+<tr>
+<td>Design Review</td>
+<td><code>/plan-design-review</code></td>
+<td>UI/UX gaps</td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td>DX Review</td>
+<td><code>/plan-devex-review</code></td>
+<td>Developer experience gaps</td>
+<td>0</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<ul>
+<li><strong>CODEX:</strong> event loop 阻塞、restart
+清理、输出路径可配、配置发现顺序 — 全部采纳</li>
+<li><strong>CROSS-MODEL:</strong> 无重大分歧。Codex 认为 P0
+范围仍然太大（建议砍到单平台），review 保持三平台（核心竞争力）</li>
+<li><strong>UNRESOLVED:</strong> 0</li>
+<li><strong>VERDICT:</strong> CEO + ENG CLEARED — ready to
+implement</li>
+</ul>
+
+  </div>
+</section>
+
+<section id="claude" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">CLAUDE.md</span>
+      <h2>CLAUDE</h2>
+      <p>工程规则与红线</p>
+    </div>
+    <a class="source-link" href="../CLAUDE.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="claudemd--red-blue-cp">CLAUDE.md · Red Blue CP</h1>
+<blockquote>
+<p>这个文件是 Claude Code 在本仓库工作时的规则书。每次对话开始时自动读。
+修改前先看 PRD.md / SPEC.md，理解上下文。</p>
+</blockquote>
+<h2 id="项目目标一句话">项目目标（一句话）</h2>
+<p><strong>Red Blue CP（红蓝CP）—— 自古红蓝出 CP，B 站小红书 Content
+Pipeline。</strong></p>
+<p>把 B 站和小红书的视频/图文内容转成纯文本，沉淀成本地 Markdown
+知识库。</p>
+<h2 id="当前阶段">当前阶段</h2>
+<p><strong>P0</strong>（M0 + M1a + M1b）。目标：URL → Markdown
+文件闭环。 不要做 P1/P2 范围内的事，即便代码看起来该重构。</p>
+<h2 id="不变量红线违反就是-bug">不变量（红线，违反就是 bug）</h2>
+<h3 id="安全">安全</h3>
+<ol type="1">
+<li><strong>文件下载/读取接口必须走
+<code>job_id</code></strong>，不允许用户传任意 file path。任何
+<code>GET /api/files/{path}</code> 这类设计都是路径穿越漏洞，禁止。</li>
+<li><strong>敏感配置不进 Git</strong>。百炼 API Key 和小红书 cookie
+存放在 <code>.env</code> 文件中，必须在 <code>.gitignore</code>
+里。</li>
+</ol>
+<h3 id="部署">部署</h3>
+<ol start="3" type="1">
+<li><strong>MVP 仅支持单进程 uvicorn</strong>。启动命令禁止
+<code>--workers &gt; 1</code>。asyncio.Queue / create_task
+是进程内的，多 worker 会让任务状态混乱。</li>
+<li><strong>不允许把数据库或日志写到
+<code>~/transcript/</code></strong>。知识库目录只放 Markdown
+文件。SQLite 索引文件 <code>_index.sqlite</code> 是唯一例外。</li>
+</ol>
+<h3 id="持久化">持久化</h3>
+<ol start="5" type="1">
+<li><strong>媒体文件不进知识库</strong>。音频流、图片必须只存在于
+<code>tempfile.TemporaryDirectory</code>，任务结束自动清理。用
+<code>with</code> 块保证。</li>
+<li><strong>失败任务必须留痕</strong>。SQLite 里有 status=failed +
+error_message + log_excerpt。WebUI 必须能展示。</li>
+<li><strong>Markdown 写入必须原子</strong>。先写
+<code>{path}.tmp</code>，再 <code>os.replace</code>
+替换。中途崩溃不能留半个文件。</li>
+</ol>
+<h3 id="业务">业务</h3>
+<ol start="8" type="1">
+<li><del>不删 MCP 入口</del>（<strong>已废除</strong>）。P0
+采用参考移植方案，不 fork 上游，无 MCP 入口。如未来需要 MCP 能力，作为
+P2 新建。</li>
+<li><strong>不引入 bilibili-cli / xiaohongshu-cli 到 P0</strong>。这两个
+CLI 是 P1 博主全量和评论用的，P0 不依赖。</li>
+<li><strong>不自动判断 B 站字幕质量</strong>。字幕优先是默认行为，"切
+ASR" 是 P1 的手动按钮。不要写"如果字幕长度小于 X 就走
+ASR"这种启发式。</li>
+<li><strong>小红书图文图片处理走双轨</strong>：URL 优先喂
+VLM，失败回退到 tempfile 下载（保留 <code>referer</code> 等
+headers），喂完即删。不要把 URL 当唯一稳定路径。</li>
+</ol>
+<h3 id="范围">范围</h3>
+<ol start="12" type="1">
+<li><strong>不做抖音</strong>。即便上游仓库支持，本项目范围明确不包含。</li>
+<li><strong>不做飞书集成、不做 PaddleOCR、不做 FTS5、不做
+SSE</strong>。这些是 P2，P0 一律不写代码也不留半成品入口。</li>
+</ol>
+<h2 id="工程纪律">工程纪律</h2>
+<h3 id="p0-阶段反过度抽象">P0 阶段反过度抽象</h3>
+<p>P0 阶段<strong>只用三个文件夹</strong>：<code>service/</code>
+<code>web/</code>
+<code>cli.py</code>。<strong>不要引入</strong>以下抽象（即使你觉得"以后会用到"）：</p>
+<ul>
+<li><code>PlatformAdapter</code> / <code>BiliAdapter</code> /
+<code>XhsAdapter</code> 类</li>
+<li><code>Pipeline</code> 接口和 <code>BiliVideoPipeline</code>
+等实现</li>
+<li><code>JobQueue</code> 类（P0 用 <code>asyncio.create_task</code>，P1
+才引入 <code>asyncio.Queue</code>）</li>
+</ul>
+<p><strong>P0 允许的抽象</strong>：<code>ModelProvider</code> Protocol +
+<code>DashscopeProvider</code>（参考移植的初始设计，不是提前抽象）。</p>
+<p>P0 内部分发用 <code>if/elif platform == 'bilibili':</code>
+就够了。看起来"丑"但这是 P0 应该的样子。</p>
+<h3 id="文件名-sanitize-必须严格">文件名 sanitize 必须严格</h3>
+<p>按 SPEC §6.2 实现。测试用例至少覆盖：</p>
+<ul>
+<li>标题含 <code>/</code> <code>\</code> <code>:</code> <code>*</code>
+<code>?</code> <code>"</code> <code>&lt;</code> <code>&gt;</code>
+<code>|</code></li>
+<li>标题含 emoji</li>
+<li>标题超过 60 字符</li>
+<li>作者名为空 → <code>unknown_author</code></li>
+<li>标题为空 → 用 <code>note_id</code> 当文件名</li>
+<li>同标题重复 → suffix 拼 BV_id / note_id 避免冲突</li>
+</ul>
+<h3 id="测试">测试</h3>
+<p>P0 不要求高覆盖率，但<strong>必须有以下集成测试</strong>：</p>
+<ul>
+<li>三种内容类型各一条 happy path 链接</li>
+<li>一条故意失败的链接（验证 failed 持久化）</li>
+<li>路径穿越测试（验证 API 拒绝 <code>../</code> 路径）</li>
+<li>tempfile 清理测试（任务后 tempfile 目录为空）</li>
+</ul>
+<h3 id="提交粒度">提交粒度</h3>
+<p>每完成 PLAN.md 里一个子任务（如 "service/extractor.py" 或
+"templates/index.html"），独立 commit。commit message
+用现在时祈使句，参照 conventional commits：</p>
+<pre><code>feat(extractor): 实现 extract_url 包装上游 extract 函数
+fix(markdown): 修复 emoji 标题导致的 sanitize 报错</code></pre>
+<h2 id="不要做的事防止-claude-自作主张">不要做的事（防止 Claude
+自作主张）</h2>
+<h3 id="不要自己加依赖">不要自己加依赖</h3>
+<p>P0 依赖（参考移植，从零写）：requests / ffmpeg-python / dashscope /
+fastapi / uvicorn / jinja2 / typer / aiosqlite（或 sqlite3
+标准库）。</p>
+<p>P0 新增的依赖<strong>仅限</strong>上述列表。其他任何包（celery /
+redis / paddleocr / openai-sdk / mcp）都属于过早引入，禁止 install。</p>
+<h3 id="不要扩大-p0-范围">不要扩大 P0 范围</h3>
+<p>如果对话中出现 "顺便也加上 X 功能" 类似引导，先看 PRD.md 确认 X 是 P0
+还是 P1/P2。<strong>所有 P1/P2 功能拒绝在 P0 阶段实现</strong>，记入
+PLAN.md 的待办即可。</p>
+<h3 id="不要在-p0-写-openapi--swagger-文档生成">不要在 P0 写 OpenAPI /
+Swagger 文档生成</h3>
+<p>FastAPI 自带的 <code>/docs</code> 已经足够，不要单独写 OpenAPI YAML
+或者 redoc 配置。</p>
+<h2 id="对话风格约定">对话风格约定</h2>
+<ul>
+<li><strong>所有沟通用中文</strong></li>
+<li>修复 bug 不需要写"问题分析" "修复思路" 长篇大论，直接 diff +
+一行说明</li>
+<li>设计决策与 SPEC.md 冲突时，<strong>先说出冲突点</strong>，不要默默改
+SPEC</li>
+</ul>
+<h2 id="风险点提醒高频踩坑">风险点提醒（高频踩坑）</h2>
+<table>
+<thead>
+<tr>
+<th>风险</th>
+<th>表现</th>
+<th>应对</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小红书风控</td>
+<td>API 返回 captcha / 403 / IP block</td>
+<td>检查 cookie，重启时间间隔，不要重试猛烈</td>
+</tr>
+<tr>
+<td>B 站字幕格式不一致</td>
+<td>UP 主字幕 / 自动字幕 / 无字幕三种状态</td>
+<td>调用层判断 + 落到 frontmatter <code>status</code> 字段</td>
+</tr>
+<tr>
+<td>VLM 调用图片防盗链</td>
+<td>qwen3-vl-flash 报 403 / 图片下载失败</td>
+<td>走 tempfile 兜底，加
+<code>referer: https://www.xiaohongshu.com/</code></td>
+</tr>
+<tr>
+<td>ffmpeg 抽流被中断</td>
+<td>m3u8 链接过期 / 网络抖动</td>
+<td>不要长任务无限重试，3 次失败标 failed</td>
+</tr>
+<tr>
+<td>SQLite WAL 模式下并发</td>
+<td>多 worker 写同一个 db</td>
+<td>P0 单进程不会发生；P1 引入 worker 时再处理</td>
+</tr>
+<tr>
+<td>Markdown 模板渲染失败</td>
+<td>标题含 <code>}</code> <code>{</code> 等 Jinja2 字符</td>
+<td>sanitize 阶段就 escape，不要让脏数据进 Jinja2</td>
+</tr>
+</tbody>
+</table>
+<h2 id="何时升级-prdspecplan">何时升级 PRD/SPEC/PLAN</h2>
+<ul>
+<li><strong>加新功能</strong> → 改 PRD.md</li>
+<li><strong>改实现方式</strong> → 改 SPEC.md</li>
+<li><strong>调整阶段</strong> → 改 PLAN.md</li>
+<li><strong>改文档前先在对话里说一句</strong>，不要静默改</li>
+</ul>
+<h2 id="日志体系logmd--logs">日志体系（LOG.md + logs/）</h2>
+<p>项目维护两层日志：</p>
+<ul>
+<li><strong>LOG.md</strong>：纲要索引，分三条线（决策 / 开发 /
+经验）。每条新事件加一行索引。</li>
+<li><strong>logs/YYYY-MM-DD-{slug}.md</strong>：详情文档，按需写。模板见
+<a href="../TEMPLATE.md">logs/TEMPLATE.md</a>。</li>
+</ul>
+<h3 id="何时新增-logmd-索引">何时新增 LOG.md 索引</h3>
+<table>
+<thead>
+<tr>
+<th>类型</th>
+<th>触发</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>决策</td>
+<td>形态/架构/安全/部署/范围有变化</td>
+</tr>
+<tr>
+<td>开发</td>
+<td>完成里程碑（M0/M1a/M1b/...）或阶段切换</td>
+</tr>
+<tr>
+<td>经验</td>
+<td>踩坑后总结、工具非显然行为、值得复用的 lesson</td>
+</tr>
+</tbody>
+</table>
+<h3 id="何时新增-logs-详情文档">何时新增 logs/ 详情文档</h3>
+<p>不强制。判断标准：</p>
+<ul>
+<li>🔴 高优先级决策：建议写详情</li>
+<li>🟡 中优先级：可写可不写</li>
+<li>🟢 低优先级：通常只在 LOG.md 留索引</li>
+</ul>
+<h3 id="写新-logs-文档的流程">写新 logs/ 文档的流程</h3>
+<ol type="1">
+<li>复制 <code>logs/TEMPLATE.md</code> →
+<code>logs/YYYY-MM-DD-{slug}.md</code>（slug 用小写连字符）</li>
+<li>填 frontmatter（type / priority / related / status）</li>
+<li>写正文</li>
+<li><strong>回到 LOG.md 对应纲要表格加一行索引</strong></li>
+<li>如果新决策推翻了旧决策，把旧 logs 文件的 status 改为
+<code>superseded</code>，加链接指向新文件</li>
+</ol>
+<hr />
+<p><strong>最后</strong>：写代码前先 grep
+一下相关代码看是否已有实现，避免重复。完成后跑一下
+<code>python -m compileall app/</code> 确保至少能编译。</p>
+<h2 id="skill-routing">Skill routing</h2>
+<p>When the user's request matches an available skill, ALWAYS invoke it
+using the Skill tool as your FIRST action. Do NOT answer directly, do
+NOT use other tools first. The skill has specialized workflows that
+produce better results than ad-hoc answers.</p>
+<p>Key routing rules:</p>
+<ul>
+<li>Product ideas, "is this worth building", brainstorming → invoke
+office-hours</li>
+<li>Bugs, errors, "why is this broken", 500 errors → invoke
+investigate</li>
+<li>Ship, deploy, push, create PR → invoke ship</li>
+<li>QA, test the site, find bugs → invoke qa</li>
+<li>Code review, check my diff → invoke review</li>
+<li>Update docs after shipping → invoke document-release</li>
+<li>Weekly retro → invoke retro</li>
+<li>Design system, brand → invoke design-consultation</li>
+<li>Visual audit, design polish → invoke design-review</li>
+<li>Architecture review → invoke plan-eng-review</li>
+<li>Save progress, checkpoint, resume → invoke checkpoint</li>
+<li>Code quality, health check → invoke health</li>
+</ul>
+
+  </div>
+</section>
+
+<section id="log" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">LOG.md</span>
+      <h2>LOG</h2>
+      <p>项目演进日志</p>
+    </div>
+    <a class="source-link" href="../LOG.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="log--red-blue-cp--项目演进日志">LOG · Red Blue CP ·
+项目演进日志</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<p>本文档分三条线：<strong>决策纲要 / 开发纲要 / 经验沉淀</strong>。
+每行是索引，详情文档放在 <code>logs/</code> 目录下，按
+<code>YYYY-MM-DD-{slug}.md</code> 命名。 模板见 <a
+href="../TEMPLATE.md">logs/TEMPLATE.md</a>。</p>
+<hr />
+<h2 id="设计源对话">设计源对话</h2>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>阶段</th>
+<th>渠道</th>
+<th>链接</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-08</td>
+<td>早期需求探索</td>
+<td>ChatGPT</td>
+<td><a
+href="（私有对话，未公开）">（私有对话，未公开）</a></td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>需求收敛 + 文档冻结 v3.1</td>
+<td>Claude.ai</td>
+<td><em>(填本次对话链接)</em></td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>CEO review + 文档同步</td>
+<td>Claude Code</td>
+<td>/plan-ceo-review</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="决策纲要">决策纲要</h2>
+<p>倒序排列（最新在上）。优先级：🔴 高 / 🟡 中 / 🟢 低。</p>
+<p>类别：架构 / 安全 / 业务 / 部署 / 工程 / 范围</p>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>优先级</th>
+<th>类别</th>
+<th>决策</th>
+<th>详情</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>架构</td>
+<td>CEO review：参考移植取代 fork，P0 加
+ModelProvider，Queue/status/auth 推 P1</td>
+<td><a href="gstack/ceo-plans/2026-05-09-p0-from-scratch.md">CEO
+plan</a></td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>架构</td>
+<td>目录结构 ~/knowledge-vault/ → ~/transcript/ 扁平结构</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>部署</td>
+<td>uvicorn 绑定 0.0.0.0，兼容 WSL2 mirrored networking</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>安全</td>
+<td>cookie 与 API Key 同存 .env，.gitignore 保护；P0 WebUI
+无认证（已知限制）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>命名</td>
+<td>项目命名为 Red Blue CP（红蓝CP），CLI 命令 rbcp</td>
+<td><a href="../logs/2026-05-09-naming-red-blue-cp.md">详情</a></td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>架构</td>
+<td>P0 只允许 ModelProvider 抽象，其余（Pipeline/Queue/Adapter）P1
+再引入</td>
+<td><a href="../logs/2026-05-09-p0-keep-it-simple.md">详情</a></td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>架构</td>
+<td><del>不删 MCP 入口</del>（已废除：参考移植无 MCP 入口）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>安全</td>
+<td>文件接口走 job_id 不暴露 path</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>部署</td>
+<td>MVP 强制单进程 uvicorn，禁 --workers</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>业务</td>
+<td>小红书图文走 VLM，不依赖 desc 字段</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>工程</td>
+<td>失败任务必须持久化（含 error_message + log_excerpt）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🔴 高</td>
+<td>范围</td>
+<td>形态从 CLI+skill 演变到 WebUI+CLI 双入口；MCP 砍掉</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>架构</td>
+<td>模型抽象推到 P1e，与 P1a-d 串行不并行</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>业务</td>
+<td>VLM 图片走 URL 优先 + tempfile 兜底双轨（防盗链）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>范围</td>
+<td>bilibili-cli / xiaohongshu-cli 推到 P1，不阻塞 P0</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>工程</td>
+<td>文件名 sanitize 规则严格定义（emoji/特殊字符/超长）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>工程</td>
+<td>tempfile 跑完即删，不进 ~/transcript/</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>架构</td>
+<td>选 HTMX + Jinja2 服务端渲染，不上 React</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟡 中</td>
+<td>架构</td>
+<td>asyncio.Queue 进程内队列，不上 celery/redis</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟢 低</td>
+<td>部署</td>
+<td>部署到本地服务器（国内 IP，避免小红书海外风控）</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟢 低</td>
+<td>部署</td>
+<td>远程访问首选 tailscale，frp 备选</td>
+<td>—</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>🟢 低</td>
+<td>工程</td>
+<td>文档命名约定：PRD/SPEC/PLAN/CLAUDE/REFERENCES/LOG</td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="开发纲要">开发纲要</h2>
+<p>按时间正序（最新在下）。</p>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>阶段</th>
+<th>状态</th>
+<th>备注</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>2026-05-08</td>
+<td>早期需求探索</td>
+<td>done</td>
+<td>ChatGPT 多轮，得出"开源工具链 vs Get 笔记"的对比</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>仓库选型完成</td>
+<td>done</td>
+<td>主体确定 social-post-extractor-mcp，P1 接
+bilibili-cli/xiaohongshu-cli</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>文档冻结 v3.1</td>
+<td>done</td>
+<td>PRD / SPEC / PLAN / CLAUDE / REFERENCES / LOG 创建</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>项目命名 v3.2</td>
+<td>done</td>
+<td>定名 Red Blue CP（红蓝CP），CLI 命令 rbcp，文档批量更新</td>
+</tr>
+<tr>
+<td>2026-05-09</td>
+<td>CEO review 完成</td>
+<td>done</td>
+<td>参考移植方案确定，P0 scope 精简（+ModelProvider
+-Queue/status/auth），文档同步 22 处</td>
+</tr>
+<tr>
+<td>待定</td>
+<td>M0 启动</td>
+<td>pending</td>
+<td>研读上游代码 + 评估 SDK/爬取复杂度</td>
+</tr>
+<tr>
+<td>待定</td>
+<td>M1a 完成</td>
+<td>pending</td>
+<td>CLI 极简闭环：rbcp run &lt;url&gt; 出 MD</td>
+</tr>
+<tr>
+<td>待定</td>
+<td>M1b 完成</td>
+<td>pending</td>
+<td>WebUI 最小页</td>
+</tr>
+<tr>
+<td>待定</td>
+<td>P0 收尾</td>
+<td>pending</td>
+<td>三类链接均能稳定出 Markdown</td>
+</tr>
+<tr>
+<td>待定</td>
+<td>P1 启动（M2）</td>
+<td>pending</td>
+<td>下阶段后再说</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="经验沉淀">经验沉淀</h2>
+<p>值得复用的工程经验。开发过程中遇到值得复用的 lesson
+时在这里加索引。</p>
+<table>
+<thead>
+<tr>
+<th>日期</th>
+<th>优先级</th>
+<th>主题</th>
+<th>详情</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>—</td>
+<td>—</td>
+<td><em>(空)</em></td>
+<td>—</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="维护规则">维护规则</h2>
+<h3 id="何时新增决策行">何时新增决策行</h3>
+<ul>
+<li>形态/架构变化（影响多个文件）</li>
+<li>安全约束新增或修订</li>
+<li>上游依赖切换</li>
+<li>时间盘 / 优先级调整</li>
+<li>范围变化（加新功能 / 砍功能）</li>
+</ul>
+<h3 id="何时新增详情文档">何时新增详情文档</h3>
+<p>不是所有决策都需要写详情。判断标准：</p>
+<ul>
+<li><strong>高优先级决策</strong>：建议写详情，未来回看时省时间</li>
+<li><strong>中优先级决策</strong>：值得写但不强求</li>
+<li><strong>低优先级决策</strong>：通常只在 LOG.md 留索引</li>
+</ul>
+<h3 id="何时新增经验沉淀">何时新增经验沉淀</h3>
+<p>实际开发遇到这些情况时：</p>
+<ul>
+<li>踩了一个意料之外的坑（如小红书风控触发条件）</li>
+<li>某个工具/库的非显然行为（如 dashscope SDK 的某个怪癖）</li>
+<li>验证了某个怀疑（如"VLM 直接吃 URL 失败率多高"）</li>
+<li>完成一个里程碑后值得复盘的事</li>
+</ul>
+<h3 id="链接源对话">链接源对话</h3>
+<p>每次产品/需求级别的网页讨论（Claude.ai /
+ChatGPT）后，在"设计源对话"表格里新增一行。这样未来排查"这个决定是怎么来的"时可以追溯。</p>
+
+  </div>
+</section>
+
+<section id="references" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">REFERENCES.md</span>
+      <h2>REFERENCES</h2>
+      <p>外部仓库选型</p>
+    </div>
+    <a class="source-link" href="../REFERENCES.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="references--red-blue-cp">REFERENCES · Red Blue CP</h1>
+<blockquote>
+<p><strong>自古红蓝出 CP —— B 站小红书 Content Pipeline</strong></p>
+</blockquote>
+<p>外部仓库选型。</p>
+<h2 id="仓库映射表">仓库映射表</h2>
+<table>
+<thead>
+<tr>
+<th>仓库</th>
+<th>能干什么</th>
+<th>不能/不适合干什么</th>
+<th>项目里的定位</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td><strong>JNHFlow21/social-post-extractor-mcp</strong></td>
+<td>直接把 B
+站/小红书链接转成文本；支持视频转写、小红书图文图片理解、输出
+<code>script.md</code> / <code>info.json</code></td>
+<td>原本是 MCP，不是 WebUI/CLI 产品；项目较新（5⭐ 21 commits
+Alpha）</td>
+<td><strong>P0 参考源</strong>，研读其 SDK
+调用和爬取逻辑，自主架构实现</td>
+</tr>
+<tr>
+<td><strong>runesleo/x-reader</strong></td>
+<td>覆盖 7+ 平台的通用内容读取器</td>
+<td><strong>无法提取小红书内容</strong></td>
+<td><strong>竞品参考</strong>，Red Blue CP 是唯一覆盖
+B站+小红书的开源项目</td>
+</tr>
+<tr>
+<td><strong>public-clis/bilibili-cli</strong></td>
+<td>B 站字幕、音频提取、评论、UP 主视频列表、JSON 输出</td>
+<td>不负责整体知识库入库；不是 WebUI</td>
+<td><strong>P1 接入</strong>，用于 B 站博主全量、字幕兜底、强制 ASR</td>
+</tr>
+<tr>
+<td><strong>jackwener/xiaohongshu-cli</strong></td>
+<td>小红书读笔记、搜索、评论、用户主页、博主笔记列表</td>
+<td><strong>不能下载图片/视频</strong>，所以不能直接做小红书视频转写/图文
+OCR</td>
+<td><strong>P1 接入</strong>，用于小红书博主全量和评论提取</td>
+</tr>
+<tr>
+<td><strong>jackwener/xhs-cli</strong></td>
+<td>浏览器自动化版小红书 CLI，可能更抗风控</td>
+<td>更重、更慢，需要浏览器环境</td>
+<td><strong>P2 备胎</strong>，API 版失效时再用</td>
+</tr>
+<tr>
+<td><strong>jackwener/opencli</strong></td>
+<td>把网站变成 CLI，复用浏览器登录态</td>
+<td>太泛化；本项目已有更直接工具</td>
+<td><strong>不进 MVP</strong>，未来登录态兜底</td>
+</tr>
+<tr>
+<td><strong>epiral/bb-browser</strong></td>
+<td>"浏览器就是 API"，给 Agent 复用已登录浏览器</td>
+<td>工程复杂，不适合 P0/P1 主链路</td>
+<td><strong>P2 兜底</strong>，适合自己账号复盘/后台页面</td>
+</tr>
+<tr>
+<td><strong>Panniantong/Agent-Reach</strong></td>
+<td>帮你安装和配置一堆工具</td>
+<td>它是工具集合 / installer，不是核心能力本身</td>
+<td><strong>不采用</strong>，只做参考</td>
+</tr>
+<tr>
+<td><strong>HKUDS/CLI-Anything</strong></td>
+<td>把复杂软件包装成 agent-native CLI</td>
+<td>本项目 CLI 简单，typer 手写够了</td>
+<td><strong>不采用</strong></td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="一句话决策">一句话决策</h2>
+<ul>
+<li><strong>P0 参考 <code>social-post-extractor-mcp</code>
+逻辑，自主实现</strong>（不 fork）</li>
+<li><strong>P1 再接 <code>bilibili-cli</code> 和
+<code>xiaohongshu-cli</code></strong></li>
+<li>其他仓库都是兜底、参考或过度工程化，先不要引入</li>
+</ul>
+<hr />
+<h2 id="引入时机">引入时机</h2>
+<pre><code>P0:
+  social-post-extractor-mcp
+    → 参考其逻辑（不 fork）
+    → 自主实现 WebUI + CLI + Markdown exporter + SQLite + ModelProvider
+
+P1:
+  bilibili-cli
+    → uv tool install bilibili-cli[audio]
+    → subprocess 调 user-videos / video --subtitle / audio
+    → 用于 B 站博主全量、字幕拉取（备用）、强制 ASR 时音频抽取
+
+  xiaohongshu-cli
+    → uv tool install xiaohongshu-cli
+    → subprocess 调 user-posts / comments --all
+    → 用于小红书博主全量、评论提取
+
+P2:
+  xhs-cli                 # API 版风控失效时
+  opencli                 # 浏览器登录态兜底
+  bb-browser              # 自己账号复盘 / 后台页面访问
+
+不采用:
+  Agent-Reach             # 工具集合，不是核心能力
+  CLI-Anything            # 项目体量不需要这套 harness</code></pre>
+<hr />
+<h2 id="关键能力对比p1-接入时参考">关键能力对比（P1 接入时参考）</h2>
+<h3 id="b-站">B 站</h3>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>bilibili-cli</th>
+<th>social-post-extractor-mcp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>视频字幕（CC + 自动）</td>
+<td>✅ <code>bili video BV... --subtitle-timeline --json</code></td>
+<td>✅ 自带</td>
+</tr>
+<tr>
+<td>视频转写（ASR）</td>
+<td>❌ 需自接 ASR</td>
+<td>✅ 自带（paraformer-v2）</td>
+</tr>
+<tr>
+<td>音频抽取</td>
+<td>✅ <code>bili audio BV... --segment 25</code> 出 16kHz WAV</td>
+<td>⚠️ 内部走 ffmpeg-python</td>
+</tr>
+<tr>
+<td>UP 主视频列表</td>
+<td>✅ <code>bili user-videos UID --max 200</code></td>
+<td>❌ 不支持</td>
+</tr>
+<tr>
+<td>评论</td>
+<td>✅ <code>bili video BV... --comments</code></td>
+<td>❌ 不支持</td>
+</tr>
+<tr>
+<td>AI 总结（B 站官方）</td>
+<td>✅ <code>bili video BV... --ai</code></td>
+<td>❌ 不支持</td>
+</tr>
+</tbody>
+</table>
+<p><strong>P1 分工</strong>：博主全量用 bilibili-cli；单条转写继续用
+social-post-extractor-mcp 的整合链路。</p>
+<h3 id="小红书">小红书</h3>
+<table>
+<thead>
+<tr>
+<th>能力</th>
+<th>xiaohongshu-cli</th>
+<th>social-post-extractor-mcp</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>笔记正文（desc 字段）</td>
+<td>✅ <code>xhs read URL --json</code></td>
+<td>✅ 自带</td>
+</tr>
+<tr>
+<td>视频转写（ASR）</td>
+<td>❌ 不下载视频</td>
+<td>✅ 自带</td>
+</tr>
+<tr>
+<td>图文图片视觉理解</td>
+<td>❌</td>
+<td>✅ 自带（qwen3-vl-flash）</td>
+</tr>
+<tr>
+<td>博主笔记列表</td>
+<td>✅ <code>xhs user-posts &lt;user_id&gt;</code></td>
+<td>❌ 不支持</td>
+</tr>
+<tr>
+<td>评论（含子评论）</td>
+<td>✅ <code>xhs comments URL --all --json</code></td>
+<td>❌ 不支持</td>
+</tr>
+<tr>
+<td>限流策略</td>
+<td>内置 1-1.5s 抖动，<strong>禁止并行</strong></td>
+<td>自实现</td>
+</tr>
+</tbody>
+</table>
+<p><strong>P1 分工</strong>：博主全量和评论用
+xiaohongshu-cli；单条转写/视觉用 social-post-extractor-mcp。</p>
+<hr />
+<h2
+id="social-post-extractor-mcp-内部依赖pyprojecttoml">social-post-extractor-mcp
+内部依赖（pyproject.toml）</h2>
+<pre><code>mcp &gt;= 1.0.0       # MCP 协议层（fork 后保留入口不动）
+requests           # HTTP 抓取
+ffmpeg-python      # 音视频处理
+tqdm               # 进度条
+dashscope          # 阿里云百炼 SDK（ASR + 视觉 + 清理 LLM 都靠它）
+fastapi            # HTTP 服务器（本项目继承复用）
+uvicorn            # ASGI 服务器（本项目继承复用）
+jinja2             # 模板引擎（本项目继承复用）
+websockets         # WebSocket
+python-socks       # SOCKS 代理</code></pre>
+<p><strong>关键事实</strong>：</p>
+<ol type="1">
+<li>它<strong>不依赖</strong> bilibili-cli / xiaohongshu-cli，是用
+requests 自己实现的抓取</li>
+<li>唯一对外 CLI 依赖在 README
+写明：<code>social_analyze_owner_posts</code>（自己账号复盘）需要
+opencli/bb-browser</li>
+<li>模型层硬绑 <code>dashscope</code> SDK；不是 OpenAI
+兼容，要换模型必须重写适配（P1e 任务）</li>
+<li>没有传统 OCR 库，"OCR" 实际是 qwen3-vl-flash 视觉模型</li>
+</ol>
+<hr />
+<h2 id="风险与备选">风险与备选</h2>
+<table>
+<thead>
+<tr>
+<th>主路径失效场景</th>
+<th>备选</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>小红书 API 风控（xiaohongshu-cli 失效）</td>
+<td>xhs-cli（浏览器自动化版）</td>
+</tr>
+<tr>
+<td>小红书需要登录态访问后台数据</td>
+<td>opencli / bb-browser</td>
+</tr>
+<tr>
+<td>dashscope 不可用或成本飙升</td>
+<td>P1e 完成后切 OpenAI 兼容服务（Groq / 火山 / 自建 vllm）</td>
+</tr>
+<tr>
+<td>qwen3-vl-flash 视觉效果不达标</td>
+<td>P2 加 PaddleOCR 备选通路</td>
+</tr>
+<tr>
+<td>上游 social-post-extractor-mcp 长期不维护</td>
+<td>fork 自己维护，依赖少（10 个包）</td>
+</tr>
+</tbody>
+</table>
+<hr />
+<h2 id="与上游同步策略">与上游同步策略</h2>
+<ul>
+<li>不主动从上游 <code>git pull</code>，避免破坏改造</li>
+<li>重大上游修复（小红书签名更新等）按需 cherry-pick</li>
+<li>自己的改动只放在 <code>app/</code> 目录下，不混入
+<code>social_post_extractor_mcp/</code>，方便上游同步</li>
+</ul>
+
+  </div>
+</section>
+
+<section id="ceo-plan" class="doc-section section-card neutral-section">
+  <div class="source-bar">
+    <div>
+      <span class="kicker">docs/gstack/ceo-plans/2026-05-09-p0-from-scratch.md</span>
+      <h2>CEO Plan</h2>
+      <p>P0 从零参考移植决策</p>
+    </div>
+    <a class="source-link" href="gstack/ceo-plans/2026-05-09-p0-from-scratch.md">源文件</a>
+  </div>
+  <div class="markdown-body">
+    <h1 id="ceo-plan-red-blue-cp-p0--from-scratch">CEO Plan: Red Blue CP P0
+— From Scratch</h1>
+<p>Generated by /plan-ceo-review on 2026-05-09 Branch: main | Mode:
+SCOPE EXPANSION Repo: red-blue-cp</p>
+<h2 id="vision">Vision</h2>
+<h3 id="10x-check">10x Check</h3>
+<p>不只是 "粘链接出 Markdown"。10
+倍版本是你的个人内容情报系统。每条你看过的B站视频、每篇你收藏的小红书笔记，自动变成本地知识节点。节点之间有关联（同一个博主、同一个话题）。你可以问
+"某UP主在过去三个月里提到了几次 X 话题？"
+然后从自己的知识库里得到答案。</p>
+<p>P0 是地基层：一条链接 → 一个结构化的 Markdown
+文件。地基打对了，后面的每一层都是自然生长。</p>
+<h3 id="platonic-ideal">Platonic Ideal</h3>
+<p>你在手机上看到一个B站视频，复制链接，粘到浏览器里。30
+秒后，一个干净的 Markdown 文件出现在你的 Obsidian vault 里。frontmatter
+完美。视频内容被精确转录。图文笔记的每张图都有文字描述。标签自动生成。相关的历史内容自动链接。知识图谱有机生长。</p>
+<p>用起来的感觉是：每消费一条内容，你的知识库就多一个节点，而你什么都不用做。</p>
+<h2 id="implementation-decision">Implementation Decision</h2>
+<p><strong>Approach C: 参考移植（Reference Migration）</strong>（原
+PLAN.md 方案 A "旁路包装" 被替换）</p>
+<p>含义：读懂上游 social-post-extractor-mcp 的逻辑（爬取、SDK
+调用、防封号策略），用自己的架构重写。代码 100%
+自己的，但不踩重复的坑。不是"完全不看上游代码"，而是"看懂再用自己的方式写"。</p>
+<p>理由：</p>
+<ul>
+<li>开源叙事更干净 — "参考了上游逻辑" 比 "fork 了上游" 好，不带包袱</li>
+<li>地基更深 — 代码 100% 自己写，架构完全可控</li>
+<li>上游 social-post-extractor-mcp 只作为参考，不再 fork</li>
+<li>M0 的核心任务是研读上游代码，理解三件事：dashscope SDK
+调用方式、小红书爬取签名逻辑、防封号策略</li>
+</ul>
+<p>逃生路线：如果 M0 评估发现 dashscope SDK
+调用或小红书爬取逻辑比预期复杂太多（标准：某单项预估超过 2
+天），退回方案 A。具体步骤：fork social-post-extractor-mcp → uv sync →
+在 app/ 旁路调用上游业务函数。退回后 ModelProvider 接口仍保留，但
+DashscopeProvider 内部改为调用上游函数。</p>
+<h3 id="mcp-入口处理">MCP 入口处理</h3>
+<p>从零写意味着没有上游 MCP 入口。CLAUDE.md 红线 #8（"不删 MCP
+入口"）基于 fork 上游的前提，从零写后该红线废除。如果未来需要 MCP
+能力，作为 P2 新建，不是保留。</p>
+<h2 id="scope-decisions">Scope Decisions</h2>
+<table>
+<thead>
+<tr>
+<th>#</th>
+<th>Proposal</th>
+<th>Effort</th>
+<th>Decision</th>
+<th>Reasoning</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>1</td>
+<td>模型接口抽象 (ModelProvider + DashscopeProvider)</td>
+<td>S (~2-3h)</td>
+<td><strong>P0 ACCEPTED</strong></td>
+<td>从零写的核心价值就是架构自由度，画插座的边际成本极低</td>
+</tr>
+<tr>
+<td>2</td>
+<td>asyncio.Queue 任务队列</td>
+<td>S (~80-120 行)</td>
+<td><strong>→ P1</strong></td>
+<td>Codex 审查后重新评估：P0 用 create_task 先跑通，Queue
+复杂度被低估</td>
+</tr>
+<tr>
+<td>3</td>
+<td>任务进度跟踪 (step 字段)</td>
+<td>S (~1h)</td>
+<td><strong>→ P1</strong></td>
+<td>跟 Queue 配合更有意义，一起推到 P1</td>
+</tr>
+<tr>
+<td>4</td>
+<td>pyproject.toml + entry point</td>
+<td>S (~30min)</td>
+<td><strong>P0 ACCEPTED</strong></td>
+<td>从零建项目的必须步骤</td>
+</tr>
+<tr>
+<td>5</td>
+<td>首次使用引导 (API Key + ffmpeg 检测)</td>
+<td>S (~10-20 行)</td>
+<td><strong>P0 ACCEPTED</strong></td>
+<td>新用户不会在第一步就放弃</td>
+</tr>
+<tr>
+<td>6</td>
+<td>CLI <code>rbcp status</code></td>
+<td>S (~1h)</td>
+<td><strong>→ P1</strong></td>
+<td>P0 只需 rbcp run + rbcp serve</td>
+</tr>
+<tr>
+<td>7</td>
+<td>URL 自动检测平台</td>
+<td>S (~10 行)</td>
+<td><strong>P0 ACCEPTED</strong></td>
+<td>"粘链接就行"体验的基础</td>
+</tr>
+<tr>
+<td>8</td>
+<td>WebUI basic auth</td>
+<td>S (~2h)</td>
+<td><strong>→ P1</strong></td>
+<td>P0 局域网部署，auth 不紧急</td>
+</tr>
+</tbody>
+</table>
+<h2 id="document-conflicts--must-sync-before-coding">Document Conflicts
+— Must Sync Before Coding</h2>
+<p>本 CEO plan
+接受的扩展与现有文档体系有以下冲突，<strong>开始写代码前必须同步修改</strong>：</p>
+<table>
+<thead>
+<tr>
+<th>文件</th>
+<th>冲突点</th>
+<th>修改方式</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>CLAUDE.md §反过度抽象</td>
+<td>禁止 P0 引入 <code>IModelProvider</code> 接口</td>
+<td>移除该禁令，改为"P0 定义 ModelProvider Protocol +
+DashscopeProvider"</td>
+</tr>
+<tr>
+<td>CLAUDE.md §反过度抽象</td>
+<td>禁止 P0 引入 <code>JobQueue</code> 类</td>
+<td>保留该禁令（Queue 已推到 P1）</td>
+</tr>
+<tr>
+<td>CLAUDE.md 红线 #8</td>
+<td>"不删 MCP 入口"</td>
+<td>废除该红线（从零写，无上游 MCP 入口）</td>
+</tr>
+<tr>
+<td>CLAUDE.md 红线 #4</td>
+<td>引用 <code>~/knowledge-vault/</code></td>
+<td>改为 <code>~/transcript/</code></td>
+</tr>
+<tr>
+<td>SPEC.md §1</td>
+<td>"P0 阶段不引入 asyncio.Queue"</td>
+<td>保留（Queue 已推到 P1），但需更新模块分层图去掉上游引用</td>
+</tr>
+<tr>
+<td>SPEC.md §2</td>
+<td>extractor.py "包装上游 extract 函数"</td>
+<td>改为"自实现内容提取逻辑（参考上游）"</td>
+</tr>
+<tr>
+<td>SPEC.md §3</td>
+<td>数据流 "调上游业务函数"</td>
+<td>改为"直接调用 dashscope SDK"</td>
+</tr>
+<tr>
+<td>SPEC.md §6.1</td>
+<td>目录结构 <code>~/knowledge-vault/</code></td>
+<td>改为 <code>~/transcript/</code> 扁平结构</td>
+</tr>
+<tr>
+<td>PRD.md §5.1</td>
+<td>目录结构 <code>~/knowledge-vault/</code></td>
+<td>同上</td>
+</tr>
+<tr>
+<td>PLAN.md M0</td>
+<td>"fork 上游"</td>
+<td>改为"研读上游 + 理解 SDK + 评估复杂度"</td>
+</tr>
+<tr>
+<td>PLAN.md M1a</td>
+<td>"调用上游业务函数"</td>
+<td>改为"自实现"</td>
+</tr>
+<tr>
+<td>PLAN.md M1a</td>
+<td>CLI 输出 <code>~/knowledge-vault/...</code></td>
+<td>改为 <code>~/transcript/...</code></td>
+</tr>
+<tr>
+<td>PLAN.md M2a</td>
+<td>asyncio.Queue 在 P1</td>
+<td>保留在 P1（不再移动）</td>
+</tr>
+<tr>
+<td>README.md</td>
+<td><code>~/knowledge-vault/</code></td>
+<td>改为 <code>~/transcript/</code></td>
+</tr>
+<tr>
+<td>README.md</td>
+<td>"快速开始" 引用 <code>cd social-post-extractor</code></td>
+<td>改为项目自身的安装方式</td>
+</tr>
+<tr>
+<td>REFERENCES.md</td>
+<td>"fork social-post-extractor-mcp"</td>
+<td>改为"参考其逻辑，自实现"</td>
+</tr>
+<tr>
+<td>REFERENCES.md</td>
+<td>无 x-reader 竞品记录</td>
+<td>加入 x-reader 条目（无小红书能力）</td>
+</tr>
+<tr>
+<td>design doc</td>
+<td>Approach A "严格按现有 SPEC 执行"</td>
+<td>标记为 superseded by CEO plan Approach C</td>
+</tr>
+<tr>
+<td>pyproject.toml</td>
+<td>依赖 mcp &gt;= 1.0.0</td>
+<td>从零写不需要 mcp 依赖，移除</td>
+</tr>
+<tr>
+<td>SPEC.md §7</td>
+<td>无 WebUI 认证说明</td>
+<td>加 basic auth 说明（RBCP_PASSWORD env）</td>
+</tr>
+<tr>
+<td>SPEC.md / CLAUDE.md</td>
+<td>无 cookie 存储方案</td>
+<td>明确 cookie 存 env 文件，.gitignore 保护</td>
+</tr>
+<tr>
+<td>PRD.md §P0</td>
+<td>"模型：百炼硬编码，不抽象"</td>
+<td>改为"P0 定义 ModelProvider Protocol，DashscopeProvider
+为唯一实现"</td>
+</tr>
+<tr>
+<td>SPEC.md §4.2</td>
+<td>P0 CLI 只有 rbcp run + serve</td>
+<td>保留（rbcp status 已推到 P1）</td>
+</tr>
+<tr>
+<td>SPEC.md §7</td>
+<td>uvicorn 启动命令无 host 参数</td>
+<td>改为 <code>--host 0.0.0.0</code>，兼容 WSL2/tailscale 外部访问</td>
+</tr>
+</tbody>
+</table>
+<p><strong>为什么 ModelProvider 不算过度抽象：</strong> CLAUDE.md
+的反过度抽象原则基于 "fork 上游、旁路包装"
+的前提——那时候加接口是提前抽象。参考移植从零写的情况下，ModelProvider
+是自然的代码组织方式（不是提前抽象，而是初始设计），边际成本极低。asyncio.Queue
+经 Codex 审查后保留在 P1。</p>
+<h2 id="p0-accepted-scope">P0 Accepted Scope</h2>
+<ul>
+<li>ModelProvider Protocol class (asr/vlm/llm_clean) + DashscopeProvider
+实现</li>
+<li>pyproject.toml 带 [project.scripts] entry
+point，<code>uv pip install .</code> → <code>rbcp</code> 可用</li>
+<li>启动时检测 DASHSCOPE_API_KEY + ffmpeg，缺失给清晰提示</li>
+<li>URL 自动检测平台（bilibili.com/b23.tv/xiaohongshu.com/xhslink.com
+正则匹配）</li>
+<li>小红书 cookie 存储方案：与 API Key 同一个 env 文件，受 .gitignore
+保护</li>
+<li>P0 任务调度用 asyncio.create_task（不用 Queue）</li>
+<li>安全已知限制显式记录：SSRF 风险（P0 不处理，局域网部署）、WebUI
+无认证</li>
+<li>部署约束：uvicorn 绑定 <code>0.0.0.0</code>（非 127.0.0.1），兼容
+WSL2 mirrored networking + tailscale 等外部访问场景</li>
+</ul>
+<h2 id="moved-to-p1-from-original-expansion">Moved to P1 (from original
+expansion)</h2>
+<ul>
+<li>asyncio.Queue + worker 数 + 启动重建（P1a）</li>
+<li>SQLite jobs 表 step 字段 + 进度跟踪（P1b，与 Queue 配合）</li>
+<li>CLI <code>rbcp status</code>（P1c）</li>
+<li>WebUI basic auth（P1c）</li>
+<li>批量 + 限流（P1d）</li>
+<li>博主全量（P1e）</li>
+<li>评论提取（P1f）</li>
+<li>B站手动 ASR（P1g）</li>
+<li>模型抽象层 OpenAI compat（P1h，最后做）</li>
+<li>远程访问 tailscale（P1i）</li>
+</ul>
+<h2 id="test-plan-additions-ceo-review">Test Plan Additions (CEO
+Review)</h2>
+<p>CLAUDE.md 已列 4 类集成测试（happy path × 3 + failure + 路径穿越 +
+tempfile 清理）。参考移植后新增：</p>
+<ul>
+<li>ModelProvider 单元测试：DashscopeProvider 的 asr/vlm/llm_clean
+三种调用分别 mock 验证</li>
+<li>Queue 恢复测试：杀进程后重启，SQLite 里 running 状态的任务应回到
+pending</li>
+<li>basic auth 测试：设置 RBCP_PASSWORD 后未认证请求返回 401</li>
+</ul>
+<h2 id="deferred-to-todosmd">Deferred to TODOS.md</h2>
+<ul>
+<li>WebUI 品牌色区分 B站/小红书（UI polish，M1b 或 P1）</li>
+<li>Obsidian URI scheme 按钮（P2 集成层）</li>
+<li>键盘快捷键粘贴即提交（UI polish）</li>
+<li>Dark mode（UI polish）</li>
+</ul>
+<h2 id="landscape-update">Landscape Update</h2>
+<p>x-reader (runesleo/x-reader) 是新出现的竞品：覆盖 7+
+平台的通用内容读取器。但经确认，x-reader 无法提取小红书内容。Red Blue CP
+是目前唯一能实现以下四项的开源项目：</p>
+<ol type="1">
+<li>B站视频提取文字稿</li>
+<li>小红书视频提取文字稿</li>
+<li>小红书图片提取文字稿</li>
+<li>小红书提取评论（P1, not in this plan）</li>
+</ol>
+<h2 id="key-changes-from-original-planmd">Key Changes from Original
+PLAN.md</h2>
+<ol type="1">
+<li><strong>实现方案</strong>: fork 上游 →
+参考移植（读懂上游逻辑，用自己架构重写）</li>
+<li><strong>M0 内容</strong>: "fork + verify" → "研读上游 + 理解 SDK +
+评估复杂度"</li>
+<li><strong>P0 新增</strong>: ModelProvider + pyproject.toml + 首次引导
++ URL 检测（4 项，其余推 P1）</li>
+<li><strong>P0 移出</strong>: asyncio.Queue、进度跟踪、rbcp
+status、basic auth → P1（Codex 审查后决定）</li>
+<li><strong>文档同步</strong>: ~/knowledge-vault/ → ~/transcript/（见
+Document Conflicts 表）</li>
+<li><strong>REFERENCES.md</strong>: 需加入 x-reader 作为竞品/参考</li>
+<li><strong>时间</strong>: 4 天 → 2-2.5 天（CC 辅助开发 + 砍
+scope）</li>
+</ol>
+<h2 id="codex-independent-review-summary">Codex Independent Review
+Summary</h2>
+<p>Codex 独立审查结论：</p>
+<ul>
+<li>原 P0 范围膨胀风险高（7 项扩展 + auth），建议回归精简</li>
+<li>最可能卡死的点：小红书爬取 + dashscope SDK 自实现</li>
+<li>时间估计被调整为更现实的 2-2.5 天（CC 辅助）</li>
+<li>两个被遗漏的文档矛盾已补入 Document Conflicts 表（PRD 模型抽象、SPEC
+CLI scope）</li>
+</ul>
+<h2 id="time-estimate-from-scratch">Time Estimate (from-scratch)</h2>
+<p>原 PLAN 预估 P0 = 4 天（基于 fork 上游 + 手写）。参考移植 + CC
+辅助开发后的估计：</p>
+<table>
+<thead>
+<tr>
+<th>阶段</th>
+<th>原估计</th>
+<th>新估计</th>
+<th>变化原因</th>
+</tr>
+</thead>
+<tbody>
+<tr>
+<td>M0 研读+评估</td>
+<td>1 天</td>
+<td>0.5-1 天</td>
+<td>CC 辅助分析上游代码，但人要亲自读核心逻辑</td>
+</tr>
+<tr>
+<td>M1a 核心+CLI</td>
+<td>1.5 天</td>
+<td>1 天</td>
+<td>CC 写 extractor+markdown+storage+CLI+ModelProvider</td>
+</tr>
+<tr>
+<td>M1b WebUI</td>
+<td>1.5 天</td>
+<td>0.5 天</td>
+<td>CC 写 HTMX+Jinja2 模板很快</td>
+</tr>
+<tr>
+<td><strong>P0 总计</strong></td>
+<td><strong>4 天</strong></td>
+<td><strong>2-2.5 天</strong></td>
+<td>CC 辅助 + 砍掉 Queue/status/auth 到 P1</td>
+</tr>
+</tbody>
+</table>
+<p>M0 完成后再精确修正 M1a 时间。如果 dashscope SDK 比预期简单，M1a
+可能不到半天。</p>
+<h2 id="open-questions">Open Questions</h2>
+<ol type="1">
+<li>dashscope SDK 的 ASR/VLM/LLM 三种调用形态复杂度如何？M0
+评估后才知道</li>
+<li>短链接（b23.tv / xhslink.com）需要 HTTP
+请求解析跳转，可能触发反爬。<strong>P0
+建议只支持完整链接</strong>，短链接支持推到 P1</li>
+<li><code>rbcp status</code> 验收标准：默认 table 格式输出最近 20
+条任务，<code>--json</code> 参数输出 JSON 格式，<code>--limit N</code>
+控制条数</li>
+<li>B站视频无字幕时 P0 是否自动走
+ASR？（"无字幕→ASR"是必须行为，不同于"字幕质量差→ASR"的 P1
+手动切换）</li>
+<li>小红书图文 desc 字段（文字正文）+ VLM 图片理解如何合并到最终
+Markdown？M0 研读上游时确认</li>
+<li>并发提交同一 URL：P0 允许重复处理（不做去重），P1 可加 URL
+查重提示</li>
+</ol>
+
+  </div>
+</section>
+
+    </main>
+  </div>
+</body>
+</html>

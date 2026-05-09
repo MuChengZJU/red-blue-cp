@@ -202,7 +202,7 @@ P2 = M3，按需
 |---|---|---|
 | 小红书风控触发（即使国内 IP） | 中 | 保留 cookie 配置；串行限流强制；UA 伪装 |
 | B 站字幕质量参差 | 高 | 不自动判断；M2d 提供手动"重抽 ASR"按钮 |
-| VLM 图片 token 成本失控（10+ 图笔记） | 中 | 加 `max_images` 软限制（默认 9），超限拒绝 |
+| VLM 图片 token 成本失控（10+ 图笔记） | 低 | 全量处理 + 并发调用，成本可接受；如确需限制，后期加配置 |
 | dashscope 不是 OpenAI 兼容，模型抽象工作量低估 | 中 | M2e 单独排足 1.5 天，不与 M2a-d 并行 |
 | 小红书爬取自实现复杂度超预期 | 中 | M0 研读上游逻辑，超 2 天预估则退回 fork |
 | asyncio.Queue 在多 worker 部署下状态混乱 | 高 | SPEC 强制单进程 uvicorn，禁用 --workers |
@@ -224,3 +224,36 @@ P2 = M3，按需
 
 **P0（M0 + M1a + M1b）应当在结业下阶段前完成**，让本地 Markdown 知识库的核心闭环可用。
 **P1 在下阶段后启动**，避开关键期。
+
+---
+
+## Eng Review 决议（2026-05-09）
+
+/plan-eng-review 产出的 P0 架构补充决议，需要在写代码前同步到 SPEC.md：
+
+1. **extractor.py 拆分**：`service/extractor.py`（编排 + 调 model）+ `service/fetcher.py`（HTTP 爬取 + 解析）
+2. **新增 model.py**：`service/model.py` 包含 ModelProvider Protocol + DashscopeProvider
+3. **SPEC §2 目录更新**：删除 `config/` 目录，改为根目录 `.env` + `.env.example`
+4. **B 站无字幕处理**：API 返回无字幕时自动走 ASR，frontmatter status 标 `asr`（不违反红线 #10）
+5. **DB driver**：sqlite3 标准库（不用 aiosqlite），P0 单进程阻塞影响可忽略
+6. **event loop 保护**：`asyncio.create_task(asyncio.to_thread(sync_fn))` 包装阻塞操作
+7. **后台任务异常捕获**：try/except 包装 + mark_failed，防止任务静默卡在 running
+8. **进程重启清理**：启动时把所有 status=running 的任务改为 failed
+9. **输出路径可配**：环境变量 `RBCP_OUTPUT_DIR`，默认 `~/transcript/`
+10. **配置发现顺序**：环境变量 > `~/.config/rbcp/.env` > 当前目录 `.env`
+11. **分发方式（dispatch）**：if/elif 分发，遵循 CLAUDE.md 反过度抽象原则
+
+## GSTACK REVIEW REPORT
+
+| Review | Trigger | Why | Runs | Status | Findings |
+|--------|---------|-----|------|--------|----------|
+| CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR | 8 proposals, 4 accepted, 4 deferred |
+| Outside Voice | `codex` | Independent 2nd opinion | 1 | issues_found | 4 findings adopted (event loop, restart, config) |
+| Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 6 issues, 0 critical gaps |
+| Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
+| DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
+
+- **CODEX:** event loop 阻塞、restart 清理、输出路径可配、配置发现顺序 — 全部采纳
+- **CROSS-MODEL:** 无重大分歧。Codex 认为 P0 范围仍然太大（建议砍到单平台），review 保持三平台（核心竞争力）
+- **UNRESOLVED:** 0
+- **VERDICT:** CEO + ENG CLEARED — ready to implement
