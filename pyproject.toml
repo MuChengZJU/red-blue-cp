@@ -20,4 +20,4 @@ rbcp = "app.cli:app"
 testpaths = ["tests"]
 
 [dependency-groups]
-dev = ["pytest"]
+dev = ["pytest", "httpx"]

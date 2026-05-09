@@ -1,0 +1,147 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="panel">
+  <form id="job-form" class="submit-row">
+    <input id="url-input" type="url" name="url" placeholder="粘贴 B 站或小红书链接" required>
+    <button id="submit-button" type="submit">抽取</button>
+  </form>
+</section>
+
+<section class="section">
+  <h2 class="section-title">任务列表</h2>
+  <div id="notice" class="notice" aria-live="polite"></div>
+  <div id="job-list" class="job-list">
+    <div class="loading">正在加载...</div>
+  </div>
+</section>
+
+<script>
+  const form = document.getElementById("job-form");
+  const input = document.getElementById("url-input");
+  const button = document.getElementById("submit-button");
+  const notice = document.getElementById("notice");
+  const list = document.getElementById("job-list");
+
+  const statusText = {
+    pending: "等待中",
+    running: "处理中",
+    done: "已完成",
+    failed: "失败"
+  };
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function normalizeJobs(payload) {
+    if (Array.isArray(payload)) {
+      return payload;
+    }
+    if (Array.isArray(payload?.jobs)) {
+      return payload.jobs;
+    }
+    if (Array.isArray(payload?.items)) {
+      return payload.items;
+    }
+    if (Array.isArray(payload?.data)) {
+      return payload.data;
+    }
+    return [];
+  }
+
+  function renderJobs(jobs) {
+    if (!jobs.length) {
+      list.innerHTML = '<div class="empty">暂无任务</div>';
+      return;
+    }
+
+    list.innerHTML = jobs.map((job) => {
+      const id = job.id ?? job.job_id ?? "";
+      const status = job.status || "pending";
+      const title = status === "done"
+        ? (job.title || job.url || "未命名内容")
+        : (job.title || job.url || "等待抽取");
+      const author = job.author || "未知作者";
+      const url = job.url || job.source_url || "";
+      const detailUrl = `/jobs/${encodeURIComponent(id)}`;
+      const source = url
+        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
+        : "无原始链接";
+      const error = status === "failed" && job.error_message
+        ? `<div class="error-box">${escapeHtml(job.error_message)}</div>`
+        : "";
+
+      return `
+        <article class="job-item">
+          <div class="job-main">
+            <div>
+              <h3 class="job-title">${escapeHtml(title)}</h3>
+              <div class="job-meta">
+                <span>${escapeHtml(author)}</span>
+                <span>${source}</span>
+              </div>
+              ${error}
+            </div>
+            <div class="job-actions">
+              <span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span>
+              <a href="${detailUrl}">详情</a>
+            </div>
+          </div>
+        </article>
+      `;
+    }).join("");
+  }
+
+  async function refreshJobs() {
+    try {
+      const response = await fetch("/api/jobs?limit=50");
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const payload = await response.json();
+      renderJobs(normalizeJobs(payload));
+      notice.textContent = "";
+    } catch (error) {
+      notice.textContent = `任务列表加载失败：${error.message}`;
+    }
+  }
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const url = input.value.trim();
+    if (!url) {
+      return;
+    }
+
+    button.disabled = true;
+    notice.textContent = "正在提交...";
+    try {
+      const response = await fetch("/api/jobs", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url })
+      });
+      if (!response.ok) {
+        const message = await response.text();
+        throw new Error(message || `HTTP ${response.status}`);
+      }
+      input.value = "";
+      notice.textContent = "已提交";
+      await refreshJobs();
+    } catch (error) {
+      notice.textContent = `提交失败：${error.message}`;
+    } finally {
+      button.disabled = false;
+    }
+  });
+
+  refreshJobs();
+  setInterval(refreshJobs, 2000);
+</script>
+{% endblock %}

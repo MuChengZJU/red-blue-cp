@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="detail-head">
+  <h2 id="detail-title" class="detail-title">正在加载...</h2>
+  <div id="detail-meta" class="job-meta"></div>
+</section>
+
+<nav class="toolbar" aria-label="任务操作">
+  <button id="copy-button" type="button">复制全文</button>
+  <a class="button secondary" href="/api/jobs/{{ job_id }}/download" download>下载 .md</a>
+  <a class="button ghost" href="/">← 返回列表</a>
+</nav>
+
+<div id="notice" class="notice" aria-live="polite"></div>
+<section id="content" class="section">
+  <div class="loading">正在加载...</div>
+</section>
+
+<script>
+  const jobId = "{{ job_id }}";
+  const jobUrl = `/api/jobs/${encodeURIComponent(jobId)}`;
+  const markdownUrl = `/api/jobs/${encodeURIComponent(jobId)}/markdown`;
+  const titleEl = document.getElementById("detail-title");
+  const metaEl = document.getElementById("detail-meta");
+  const contentEl = document.getElementById("content");
+  const noticeEl = document.getElementById("notice");
+  const copyButton = document.getElementById("copy-button");
+
+  const statusText = {
+    pending: "等待中",
+    running: "处理中",
+    done: "已完成",
+    failed: "失败"
+  };
+
+  function escapeHtml(value) {
+    return String(value ?? "")
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#039;");
+  }
+
+  function formatDate(value) {
+    if (!value) {
+      return "未知时间";
+    }
+    const date = new Date(value);
+    if (Number.isNaN(date.getTime())) {
+      return value;
+    }
+    return date.toLocaleString("zh-CN", { hour12: false });
+  }
+
+  async function fetchMarkdown() {
+    const response = await fetch(markdownUrl);
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`);
+    }
+    return response.text();
+  }
+
+  function renderMeta(job) {
+    const status = job.status || "pending";
+    metaEl.innerHTML = `
+      <span>作者：${escapeHtml(job.author || "未知作者")}</span>
+      <span>平台：${escapeHtml(job.platform || "未知平台")}</span>
+      <span>状态：<span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span></span>
+      <span>创建时间：${escapeHtml(formatDate(job.created_at || job.createdAt))}</span>
+    `;
+  }
+
+  async function renderDone() {
+    contentEl.innerHTML = '<div class="loading">正在加载 Markdown...</div>';
+    const markdown = await fetchMarkdown();
+    contentEl.innerHTML = `<pre>${escapeHtml(markdown)}</pre>`;
+  }
+
+  function renderFailed(job) {
+    const message = [job.error_message || "任务失败", job.log_excerpt || ""]
+      .filter(Boolean)
+      .join("\n\n");
+    contentEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
+  }
+
+  function renderProcessing() {
+    contentEl.innerHTML = '<div class="loading">处理中...</div>';
+    setTimeout(loadJob, 2000);
+  }
+
+  async function loadJob() {
+    try {
+      const response = await fetch(jobUrl);
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}`);
+      }
+      const job = await response.json();
+      titleEl.textContent = job.title || job.url || "未命名任务";
+      renderMeta(job);
+      noticeEl.textContent = "";
+
+      if (job.status === "done") {
+        await renderDone();
+      } else if (job.status === "failed") {
+        renderFailed(job);
+      } else {
+        renderProcessing();
+      }
+    } catch (error) {
+      noticeEl.textContent = `任务加载失败：${error.message}`;
+      contentEl.innerHTML = '<div class="empty">无法显示任务详情</div>';
+    }
+  }
+
+  copyButton.addEventListener("click", async () => {
+    try {
+      const markdown = await fetchMarkdown();
+      await navigator.clipboard.writeText(markdown);
+      noticeEl.textContent = "已复制全文";
+    } catch (error) {
+      noticeEl.textContent = `复制失败：${error.message}`;
+    }
+  });
+
+  loadJob();
+</script>
+{% endblock %}

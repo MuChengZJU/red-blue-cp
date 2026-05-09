@@ -1,0 +1,333 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Red Blue CP</title>
+  <script src="https://unpkg.com/htmx.org@1.9.10"></script>
+  <style>
+    :root {
+      color-scheme: light;
+      --red: #e5484d;
+      --blue: #2563eb;
+      --green: #16a34a;
+      --gray: #6b7280;
+      --text: #172033;
+      --muted: #667085;
+      --line: #e6e8ee;
+      --soft: #f7f8fb;
+      --danger-bg: #fff1f2;
+      --danger-line: #fecdd3;
+      --danger-text: #be123c;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      color: var(--text);
+      background: #fff;
+    }
+
+    a {
+      color: var(--blue);
+      text-decoration: none;
+    }
+
+    a:hover {
+      text-decoration: underline;
+    }
+
+    .site-header {
+      color: #fff;
+      background: linear-gradient(120deg, #e5484d 0%, #d83b6c 42%, #2563eb 100%);
+    }
+
+    .header-inner,
+    .page {
+      width: min(1040px, calc(100% - 32px));
+      margin: 0 auto;
+    }
+
+    .header-inner {
+      padding: 28px 0;
+    }
+
+    .brand {
+      margin: 0;
+      font-size: clamp(28px, 6vw, 42px);
+      line-height: 1.05;
+      letter-spacing: 0;
+    }
+
+    .subtitle {
+      margin: 10px 0 0;
+      color: rgba(255, 255, 255, 0.86);
+      font-size: 15px;
+    }
+
+    .page {
+      padding: 28px 0 44px;
+      background: #fff;
+    }
+
+    .panel {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .section {
+      margin-top: 22px;
+    }
+
+    .section-title {
+      margin: 0 0 14px;
+      font-size: 18px;
+      line-height: 1.3;
+    }
+
+    .submit-row {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 10px;
+      padding: 16px;
+    }
+
+    input[type="url"] {
+      width: 100%;
+      min-height: 42px;
+      padding: 0 13px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      color: var(--text);
+      font: inherit;
+      outline: none;
+    }
+
+    input[type="url"]:focus {
+      border-color: var(--blue);
+      box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+    }
+
+    button,
+    .button {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid transparent;
+      border-radius: 8px;
+      background: var(--blue);
+      color: #fff;
+      font: inherit;
+      font-weight: 600;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    button:hover,
+    .button:hover {
+      text-decoration: none;
+      filter: brightness(0.96);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+
+    .button.secondary {
+      border-color: var(--line);
+      background: #fff;
+      color: var(--text);
+    }
+
+    .button.ghost {
+      border-color: transparent;
+      background: var(--soft);
+      color: var(--text);
+    }
+
+    .job-list {
+      display: grid;
+      gap: 10px;
+    }
+
+    .job-item {
+      padding: 14px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #fff;
+    }
+
+    .job-main {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 14px;
+    }
+
+    .job-title {
+      margin: 0 0 8px;
+      font-size: 16px;
+      line-height: 1.35;
+      overflow-wrap: anywhere;
+    }
+
+    .job-meta,
+    .muted {
+      color: var(--muted);
+      font-size: 13px;
+      line-height: 1.7;
+    }
+
+    .job-meta span + span::before {
+      content: " / ";
+      color: #b4bac6;
+    }
+
+    .job-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-shrink: 0;
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      min-height: 24px;
+      padding: 0 9px;
+      border-radius: 999px;
+      color: #fff;
+      font-size: 12px;
+      font-weight: 700;
+      line-height: 1;
+      white-space: nowrap;
+    }
+
+    .badge.pending {
+      background: var(--gray);
+    }
+
+    .badge.running {
+      background: var(--blue);
+    }
+
+    .badge.done {
+      background: var(--green);
+    }
+
+    .badge.failed {
+      background: var(--red);
+    }
+
+    .error-box {
+      margin-top: 10px;
+      padding: 12px;
+      border: 1px solid var(--danger-line);
+      border-radius: 8px;
+      color: var(--danger-text);
+      background: var(--danger-bg);
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+    }
+
+    .detail-title {
+      margin: 0 0 12px;
+      font-size: clamp(26px, 6vw, 40px);
+      line-height: 1.18;
+      letter-spacing: 0;
+      overflow-wrap: anywhere;
+    }
+
+    .detail-head {
+      padding-bottom: 18px;
+      border-bottom: 1px solid var(--line);
+    }
+
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin: 18px 0;
+    }
+
+    pre {
+      margin: 0;
+      padding: 16px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      background: #0f172a;
+      color: #f8fafc;
+      font: 13px/1.65 ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas,
+        "Liberation Mono", monospace;
+      white-space: pre-wrap;
+      overflow-wrap: anywhere;
+      overflow-x: auto;
+    }
+
+    .empty,
+    .loading {
+      padding: 18px;
+      border: 1px dashed var(--line);
+      border-radius: 8px;
+      color: var(--muted);
+      background: var(--soft);
+      text-align: center;
+    }
+
+    .notice {
+      min-height: 22px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+
+    @media (max-width: 640px) {
+      .header-inner,
+      .page {
+        width: min(100% - 24px, 1040px);
+      }
+
+      .submit-row {
+        grid-template-columns: 1fr;
+      }
+
+      .job-main {
+        display: grid;
+      }
+
+      .job-actions {
+        justify-content: space-between;
+      }
+
+      button,
+      .button {
+        width: 100%;
+      }
+
+      .toolbar {
+        display: grid;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-inner">
+      <h1 class="brand">Red Blue CP</h1>
+      <p class="subtitle">B 站小红书 → Markdown</p>
+    </div>
+  </header>
+  <main class="page">
+    {% block content %}{% endblock %}
+  </main>
+</body>
+</html>
