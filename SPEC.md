@@ -55,16 +55,15 @@ app/
 | `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
 | `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
 | `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录 |
-| `RBCP_ASR_MODEL` | 否 | `qwen3-asr-flash` | 短音频 ASR 模型（≤300s，SDK 调用） |
-| `RBCP_ASR_LONG_MODEL` | 否 | `qwen3-asr-flash-filetrans` | 长音频 ASR 模型（>300s，REST 异步） |
+| `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
 | `RBCP_VLM_MODEL` | 否 | `qwen3-vl-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
 | `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清理 LLM 模型（OpenAI 兼容） |
 
-代码里 `os.getenv("RBCP_ASR_MODEL", "qwen3-asr-flash")` 带默认值读取，不配就用默认。
+代码里 `os.getenv("RBCP_ASR_MODEL", "paraformer-v2")` 带默认值读取，不配就用默认。
 
 P0 走捷径：
 - 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
-- 所有阻塞操作（requests / sqlite3 / ffmpeg / dashscope）通过 `to_thread` 避免阻塞事件循环
+- 所有阻塞操作（requests / sqlite3 / ffmpeg）通过 `to_thread` 避免阻塞事件循环
 - 后台任务用 try/except 包装，异常时 `mark_failed`，防止任务静默卡在 running
 - CLI 同步阻塞，跑完返回路径
 - WebUI 任务列表用轮询（2s 拉一次 `/api/jobs`）
@@ -239,7 +238,7 @@ published_at: 2025-MM-DD
 fetched_at: 2026-MM-DD
 duration_sec: 600          # 视频特有
 image_count: 9             # 图文特有
-asr_model: paraformer-v2
+asr_model: <RBCP_ASR_MODEL 配置值>
 vision_model: qwen3-vl-flash
 status: subtitle | asr | vision | asr_force
 tags: []
@@ -301,14 +300,18 @@ P1 引入持久化前不要做多进程部署。
 ### 8.3 视频音频 ASR 调用
 
 ```
-主路径：OSS 流式中转（上游已验证，无需本地 ffmpeg）
+主路径：OSS 流式中转 → 异步文件转写（上游已验证，无需本地 ffmpeg）
 
 1. 从 DashScope 获取临时 OSS 上传凭证（GET /api/v1/uploads?action=getPolicy）
-2. 边下载音频流（带 Referer header）边上传到 DashScope 临时 OSS bucket
-3. 得到 oss:// 路径，喂给 ASR 模型
-4. 短音频（≤300s）用 qwen3-asr-flash（SDK 同步调用）
-   长音频（>300s）用 qwen3-asr-flash-filetrans（REST 异步提交 + 轮询）
-   短模型失败自动回退到长模型
+2. 边下载音频流（带 Referer header）边上传到 DashScope 临时 OSS bucket（1MB 分块）
+3. 得到 oss:// 路径
+4. REST 异步提交转写任务（POST /api/v1/services/audio/asr/transcription）
+5. 轮询任务状态直到完成
+
+模型选择：统一用录音文件异步转写模型
+- 默认：paraformer-v2（0.288 元/小时，免费 10h/月）
+- 可选：qwen3-asr-flash-filetrans（0.792 元/小时，新模型）
+- 通过 RBCP_ASR_MODEL 配置切换
 
 失败回退：
    - ffmpeg -i <mp4_url> -vn -c:a copy <tempfile.m4a>
@@ -353,7 +356,7 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | 部署 | 单进程 uvicorn，禁 --workers | 多 worker | asyncio.Queue 不跨进程 |
 | MCP 入口 | ~~保留不动~~ 不存在（参考移植） | fork 上游 | 从零写无 MCP 入口，P2 按需新建 |
 | Pipeline 抽象 | P0 不做 | 一开始就分层 | 过度抽象，先验证可行性 |
-| 模型抽象 | P1e 最后做 | 早期抽象 | P0 锁定百炼，VLM/LLM 走 OpenAI 兼容 HTTP，仅短音频 ASR 用 dashscope SDK |
+| 模型抽象 | P1e 最后做 | 早期抽象 | P0 锁定百炼，全部用 requests 调 REST/OpenAI-HTTP，不依赖 dashscope SDK |
 | 文件下载 | 经 job_id 反查 | 直接传 path | 防路径穿越 |
 
 ---
@@ -367,4 +370,6 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | v3 | 砍 MCP 入口；模型抽象推到 P1；图文笔记走 VLM；分 P0/P1/P2 |
 | v3.1 | 接受外部审阅：P0 砍到极简 / 不删 MCP / 安全 API / 单进程约束 / 失败持久化 / 文件名 sanitize |
 | v3.2 | 项目命名为 Red Blue CP（红蓝CP）；CLI 命令 spx → rbcp；包名 red-blue-cp |
-| v3.3（当前） | M0 调研修正：ASR 走 OSS 流式中转而非直传 URL；小红书视频是 MP4 非 m3u8；VLM/LLM 走 OpenAI 兼容 HTTP，仅短音频 ASR 用 dashscope SDK |
+| v3.3 | M0 调研修正：ASR 走 OSS 流式中转而非直传 URL；小红书视频是 MP4 非 m3u8；VLM/LLM 走 OpenAI 兼容 HTTP |
+| v3.4 | Eng review 2：ASR 统一走异步文件转写（去掉短/长切换）；去掉 dashscope SDK 依赖；模型可通过 .env 切换 |
+| v3.5（当前） | 加 python-dotenv 依赖；修正 SPEC 阻塞操作列表去掉 dashscope；依赖 7 个 |

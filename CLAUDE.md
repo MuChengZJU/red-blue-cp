@@ -87,9 +87,9 @@ fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 
 ### 不要自己加依赖
 
-P0 依赖（参考移植，从零写）：requests / ffmpeg-python / dashscope / fastapi / uvicorn / jinja2 / typer / aiosqlite（或 sqlite3 标准库）。
+P0 依赖（参考移植，从零写）：requests / ffmpeg-python / python-dotenv / fastapi / uvicorn / jinja2 / typer。DB 用 sqlite3 标准库。
 
-P0 新增的依赖**仅限**上述列表。其他任何包（celery / redis / paddleocr / openai-sdk / mcp）都属于过早引入，禁止 install。
+P0 新增的依赖**仅限**上述列表。其他任何包（dashscope / openai / celery / redis / paddleocr / mcp）都属于过早引入，禁止 install。ASR/VLM/LLM 全部用 requests 直接调 REST/OpenAI 兼容 HTTP。
 
 ### 不要扩大 P0 范围
 

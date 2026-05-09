@@ -26,7 +26,7 @@ P2 = M3，按需
 
 - [ ] clone [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp)（只读参考，不 fork）
 - [ ] 研读上游代码，重点理解三件事：
-  - [ ] dashscope SDK 调用方式（ASR / VLM / LLM 三种形态）
+  - [x] ~~dashscope SDK 调用方式~~ → M0 确认：ASR 走 REST 异步，VLM/LLM 走 OpenAI 兼容 HTTP，不用 SDK
   - [ ] 小红书爬取签名逻辑（cookie、headers、防盗链）
   - [ ] B 站视频字幕/音频获取逻辑
 - [ ] 评估自实现复杂度：
@@ -54,12 +54,15 @@ P2 = M3，按需
 
 - [ ] **service/model.py**
   - [ ] `ModelProvider` Protocol（asr / vlm / llm_clean 三个方法）
-  - [ ] `DashscopeProvider` 实现（调用 dashscope SDK）
+  - [ ] `DashscopeProvider` 实现：
+    - [ ] ASR：OSS 流式中转 → REST 异步提交+轮询（不用 dashscope SDK）
+    - [ ] VLM：OpenAI 兼容 HTTP `/chat/completions`（URL 直传 + base64 兜底）
+    - [ ] LLM 清洗：OpenAI 兼容 HTTP `/chat/completions`
 - [ ] **service/extractor.py**
   - [ ] 新增 `extract_url(url, provider) -> ExtractResult`
   - [ ] `ExtractResult` dataclass 包含：platform / content_type / title / author / author_id / published_at / url / text / metadata / raw_info
   - [ ] 内部 if/elif 分发 B 站视频 / 小红书视频 / 小红书图文（不抽 Pipeline）
-  - [ ] 自实现内容提取逻辑（参考上游，直接调 dashscope SDK + requests）
+  - [ ] 自实现内容提取逻辑（参考上游，用 requests 调 REST/OpenAI 兼容 HTTP）
 - [ ] **service/markdown.py**
   - [ ] `sanitize_filename(title, author, date, suffix_id) -> str`（按 SPEC §6.2）
   - [ ] Jinja2 模板渲染 frontmatter + 正文（按 SPEC §6.4）
@@ -74,7 +77,7 @@ P2 = M3，按需
   - [ ] 失败输出 `Failed: <error_message>`，并把 traceback 写进 SQLite
 - [ ] **pyproject.toml**
   - [ ] `[project.scripts]` entry point：`rbcp = "app.cli:app"`
-  - [ ] 依赖列表（不含 mcp）
+  - [ ] 依赖列表：requests / ffmpeg-python / python-dotenv / fastapi / uvicorn / jinja2 / typer（不含 dashscope SDK / mcp）
 - [ ] **启动检测**
   - [ ] 检测 DASHSCOPE_API_KEY + ffmpeg，缺失给清晰提示
 - [ ] **URL 自动检测**
@@ -203,7 +206,7 @@ P2 = M3，按需
 | 小红书风控触发（即使国内 IP） | 中 | 保留 cookie 配置；串行限流强制；UA 伪装 |
 | B 站字幕质量参差 | 高 | 不自动判断；M2d 提供手动"重抽 ASR"按钮 |
 | VLM 图片 token 成本失控（10+ 图笔记） | 低 | 全量处理 + 并发调用，成本可接受；如确需限制，后期加配置 |
-| dashscope 不是 OpenAI 兼容，模型抽象工作量低估 | 中 | M2e 单独排足 1.5 天，不与 M2a-d 并行 |
+| ~~dashscope 不是 OpenAI 兼容~~ VLM/LLM 已确认 OpenAI 兼容 | 低 | M0 验证完毕，风险降低 |
 | 小红书爬取自实现复杂度超预期 | 中 | M0 研读上游逻辑，超 2 天预估则退回 fork |
 | asyncio.Queue 在多 worker 部署下状态混乱 | 高 | SPEC 强制单进程 uvicorn，禁用 --workers |
 | 文件下载接口路径穿越 | 高 | 所有文件接口走 job_id 反查，不接受用户 path |
@@ -227,9 +230,9 @@ P2 = M3，按需
 
 ---
 
-## Eng Review 决议（2026-05-09）
+## Eng Review 决议（2026-05-09，第一轮）
 
-/plan-eng-review 产出的 P0 架构补充决议，需要在写代码前同步到 SPEC.md：
+/plan-eng-review 产出的 P0 架构补充决议：
 
 1. **extractor.py 拆分**：`service/extractor.py`（编排 + 调 model）+ `service/fetcher.py`（HTTP 爬取 + 解析）
 2. **新增 model.py**：`service/model.py` 包含 ModelProvider Protocol + DashscopeProvider
@@ -243,6 +246,19 @@ P2 = M3，按需
 10. **配置发现顺序**：环境变量 > `~/.config/rbcp/.env` > 当前目录 `.env`
 11. **分发方式（dispatch）**：if/elif 分发，遵循 CLAUDE.md 反过度抽象原则
 
+## Eng Review 决议（2026-05-09，第二轮——M0 后）
+
+M0 调研完成后的架构修正：
+
+12. **ASR 统一走异步文件转写**：不做短/长音频切换，统一用录音文件异步转写 REST API（提交+轮询）
+13. **ASR 模型可切换**：默认 paraformer-v2（0.288 元/h），可切 qwen3-asr-flash-filetrans（0.792 元/h）
+14. **去掉 dashscope SDK 依赖**：ASR 走 REST，VLM/LLM 走 OpenAI 兼容 HTTP，全部用 requests 完成
+15. **OSS 流式中转放 model.py**：作为 DashscopeProvider 私有方法，不单独拆文件
+16. **配置项简化**：去掉 `RBCP_ASR_LONG_MODEL`，只保留 `RBCP_ASR_MODEL`（默认 paraformer-v2）
+17. **依赖精简**：requests / ffmpeg-python / python-dotenv / fastapi / uvicorn / jinja2 / typer（7 个，不含 dashscope/openai/mcp）
+18. **python-dotenv 加入**：.env 自动加载；python-multipart P0 不需要（无文件上传）
+19. **ffmpeg-python 保留**：链式 API 比 subprocess 可读性好，P0 场景简单不会踩坑
+
 ## GSTACK REVIEW REPORT
 
 | Review | Trigger | Why | Runs | Status | Findings |
@@ -250,10 +266,12 @@ P2 = M3，按需
 | CEO Review | `/plan-ceo-review` | Scope & strategy | 1 | CLEAR | 8 proposals, 4 accepted, 4 deferred |
 | Outside Voice | `codex` | Independent 2nd opinion | 1 | issues_found | 4 findings adopted (event loop, restart, config) |
 | Eng Review | `/plan-eng-review` | Architecture & tests (required) | 1 | CLEAR | 6 issues, 0 critical gaps |
+| Eng Review R2 | `/plan-eng-review` | M0 调研后修正 | 1 | CLEAR | D1-D7: ASR 统一/去 SDK/加 dotenv |
 | Design Review | `/plan-design-review` | UI/UX gaps | 0 | — | — |
 | DX Review | `/plan-devex-review` | Developer experience gaps | 0 | — | — |
 
-- **CODEX:** event loop 阻塞、restart 清理、输出路径可配、配置发现顺序 — 全部采纳
-- **CROSS-MODEL:** 无重大分歧。Codex 认为 P0 范围仍然太大（建议砍到单平台），review 保持三平台（核心竞争力）
+- **CODEX R1:** event loop 阻塞、restart 清理、输出路径可配、配置发现顺序 — 全部采纳
+- **CODEX R2:** 20 findings, 修复 SPEC os.getenv 默认值/PLAN dashscope SDK 引用/SPEC 阻塞列表；加 python-dotenv 依赖
+- **CROSS-MODEL:** 无重大分歧。R1 Codex 认为 P0 范围太大（建议砍到单平台），review 保持三平台。R2 Codex 建议 subprocess 替代 ffmpeg-python，保留 ffmpeg-python
 - **UNRESOLVED:** 0
 - **VERDICT:** CEO + ENG CLEARED — ready to implement
