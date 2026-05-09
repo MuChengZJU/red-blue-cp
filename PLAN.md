@@ -50,6 +50,27 @@ P2 = M3，按需
 
 > 目标：终端跑 `rbcp run <url>`，桌面多一个 Markdown 文件。
 
+### 执行策略：TDD + Codex 并行
+
+先写测试定接口契约，再派 Codex 并行写实现。顺序：
+
+```
+第一批（并行）：
+  CC 写 test_sanitize.py  →  Codex 实现 service/markdown.py
+  CC 写 test_storage.py   →  Codex 实现 service/storage.py
+
+第二批（并行）：
+  CC 写 test_model.py     →  Codex 实现 service/model.py（OSS + REST + OpenAI HTTP）
+
+第三批（串行，依赖前面）：
+  CC 写 test_extractor.py + service/extractor.py + service/fetcher.py
+
+最后：
+  cli.py + pyproject.toml + .env.example + 端到端验收
+```
+
+每个模块完成后独立 commit。Codex 产出需要人工 review 后才合入。
+
 ### 任务清单
 
 - [ ] **service/model.py**
