@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from typing import runtime_checkable, Protocol
 
 import pytest
-from app.service.model import ModelProvider, DashscopeProvider
+from app.service.model import ModelProvider, DashscopeProvider, _format_transcription
 
 
 # ── Protocol 合规 ──────────────────────────────────────────────
@@ -199,6 +199,108 @@ class TestDashscopeAsr:
         if get_call.called:
             headers = get_call.call_args[1].get("headers", {})
             assert headers.get("Referer") == "https://www.bilibili.com/"
+
+
+# ── 说话人分离：结果格式化 (_format_transcription) ──────────────
+
+class TestFormatTranscription:
+
+    def test_multi_speaker_labeled(self):
+        payload = {
+            "transcripts": [
+                {
+                    "text": "整段全文",
+                    "sentences": [
+                        {"speaker_id": 0, "text": "你最近怎么不理我？"},
+                        {"speaker_id": 1, "text": "不是不理你，是想给你空间。"},
+                        {"speaker_id": 0, "text": "那好吧。"},
+                    ],
+                }
+            ]
+        }
+        result = _format_transcription(payload)
+        assert result == (
+            "说话人1：你最近怎么不理我？\n\n"
+            "说话人2：不是不理你，是想给你空间。\n\n"
+            "说话人1：那好吧。"
+        )
+
+    def test_consecutive_same_speaker_merged(self):
+        payload = {
+            "transcripts": [
+                {
+                    "sentences": [
+                        {"speaker_id": 0, "text": "第一句。"},
+                        {"speaker_id": 0, "text": "第二句。"},
+                        {"speaker_id": 1, "text": "对方说话。"},
+                    ]
+                }
+            ]
+        }
+        result = _format_transcription(payload)
+        assert result == "说话人1：第一句。第二句。\n\n说话人2：对方说话。"
+
+    def test_single_speaker_falls_back_to_plain(self):
+        payload = {
+            "transcripts": [
+                {
+                    "text": "整段纯文本。",
+                    "sentences": [
+                        {"speaker_id": 0, "text": "整段纯文本。"},
+                    ],
+                }
+            ]
+        }
+        result = _format_transcription(payload)
+        assert "说话人" not in result
+        assert result == "整段纯文本。"
+
+    def test_no_speaker_id_falls_back_to_plain(self):
+        payload = {"transcripts": [{"text": "没有说话人字段的纯文本。"}]}
+        result = _format_transcription(payload)
+        assert result == "没有说话人字段的纯文本。"
+
+    def test_empty_payload(self):
+        assert _format_transcription({}) == ""
+
+
+# ── 说话人分离：提交参数 ────────────────────────────────────────
+
+class TestDiarizationParams:
+
+    @patch("app.service.model.requests.get")
+    @patch("app.service.model.requests.post")
+    @patch("app.service.model.requests.Session")
+    def test_diarization_enabled_by_default(self, mock_session_cls, mock_post, mock_get):
+        _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
+        provider = DashscopeProvider(api_key="test-key")
+        provider.asr("https://example.com/audio.m4s")
+        asr_calls = [c for c in mock_post.call_args_list if "transcription" in str(c)]
+        params = asr_calls[0][1]["json"]["parameters"]
+        assert params.get("diarization_enabled") is True
+        assert "speaker_count" not in params
+
+    @patch("app.service.model.requests.get")
+    @patch("app.service.model.requests.post")
+    @patch("app.service.model.requests.Session")
+    def test_speaker_count_hint_passed(self, mock_session_cls, mock_post, mock_get):
+        _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
+        provider = DashscopeProvider(api_key="test-key", speaker_count=2)
+        provider.asr("https://example.com/audio.m4s")
+        asr_calls = [c for c in mock_post.call_args_list if "transcription" in str(c)]
+        params = asr_calls[0][1]["json"]["parameters"]
+        assert params.get("speaker_count") == 2
+
+    @patch("app.service.model.requests.get")
+    @patch("app.service.model.requests.post")
+    @patch("app.service.model.requests.Session")
+    def test_diarization_can_be_disabled(self, mock_session_cls, mock_post, mock_get):
+        _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
+        provider = DashscopeProvider(api_key="test-key", diarization_enabled=False)
+        provider.asr("https://example.com/audio.m4s")
+        asr_calls = [c for c in mock_post.call_args_list if "transcription" in str(c)]
+        params = asr_calls[0][1]["json"]["parameters"]
+        assert "diarization_enabled" not in params
 
 
 # ── Helpers ────────────────────────────────────────────────────

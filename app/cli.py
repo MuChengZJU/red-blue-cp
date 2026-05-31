@@ -24,8 +24,23 @@ def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]
     Returns a dict with md_path + 业务元数据，供 storage.mark_done 持久化。
     """
 
+    asr_model = os.getenv("RBCP_ASR_MODEL", "paraformer-v2")
+    diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
+    speaker_count_raw = os.getenv("RBCP_ASR_SPEAKER_COUNT", "").strip()
+    speaker_count = int(speaker_count_raw) if speaker_count_raw.isdigit() else None
+
     def pipeline(url: str) -> dict:
-        provider = DashscopeProvider(api_key=api_key)
+        provider = DashscopeProvider(
+            api_key=api_key,
+            asr_model=asr_model,
+            diarization_enabled=diarization_enabled,
+            speaker_count=speaker_count,
+        )
         result = extract_url(url, provider)
         md_path = render_and_write(result, output_dir=output_dir)
         return {

@@ -24,7 +24,8 @@ DEFAULT_MEDIA_HEADERS = {
 
 LLM_CLEAN_PROMPT = (
     "请对以下原始文本做轻量清洗，只提升可读性，不新增信息，不摘要。"
-    "保留原意，输出纯文本。\n\n"
+    "保留原意，输出纯文本。"
+    "如果文本里有「说话人1：」「说话人2：」这类说话人标记，必须原样保留标记和分行，不要合并或删除。\n\n"
 )
 
 VLM_PROMPT = (
@@ -52,11 +53,15 @@ class DashscopeProvider:
         asr_model: str = "paraformer-v2",
         vlm_model: str = "qwen3-vl-flash",
         llm_model: str = "qwen-plus",
+        diarization_enabled: bool = True,
+        speaker_count: int | None = None,
     ) -> None:
         self.api_key = api_key
         self.asr_model = asr_model
         self.vlm_model = vlm_model
         self.llm_model = llm_model
+        self.diarization_enabled = diarization_enabled
+        self.speaker_count = speaker_count
 
     def llm_clean(self, raw_text: str) -> str:
         payload = {
@@ -183,13 +188,19 @@ class DashscopeProvider:
             "X-DashScope-Async": "enable",
             "X-DashScope-OssResourceResolve": "enable",
         }
+        parameters: dict[str, Any] = {
+            "channel_id": [0],
+            "language_hints": ["zh"],
+        }
+        if self.diarization_enabled:
+            # 说话人分离仅单声道生效；channel_id=[0] 已满足。speaker_count 为可选人数提示。
+            parameters["diarization_enabled"] = True
+            if self.speaker_count:
+                parameters["speaker_count"] = self.speaker_count
         body = {
             "model": self.asr_model,
             "input": {"file_urls": [oss_url]},
-            "parameters": {
-                "channel_id": [0],
-                "language_hints": ["zh"],
-            },
+            "parameters": parameters,
         }
         response = requests.post(
             TRANSCRIPTION_URL,
@@ -320,15 +331,63 @@ def _extract_transcription_text(output: dict[str, Any]) -> str:
     for url in urls:
         response = requests.get(url, timeout=60)
         response.raise_for_status()
-        payload = response.json()
+        text = _format_transcription(response.json())
+        if text:
+            return text
+    return ""
+
+
+def _format_transcription(payload: dict[str, Any]) -> str:
+    """把转写结果 JSON 格式化为文本。
+
+    多说话人（diarization 开启且识别出 ≥2 人）→ 按 speaker_id 分组，输出「说话人N：…」。
+    单一说话人 / 无 speaker_id 字段 → 回退纯文本（拼 transcripts[].text）。
+    一人配音演多角色会被识别成同一 speaker，按单人降级——拆分交给后续 LLM 后处理。
+    纯函数，不发网络请求，便于单测。
+    """
+    transcripts = [t for t in payload.get("transcripts") or [] if isinstance(t, dict)]
+
+    sentences: list[tuple[Any, str]] = []
+    for transcript in transcripts:
+        for sentence in transcript.get("sentences") or []:
+            if not isinstance(sentence, dict):
+                continue
+            text = (sentence.get("text") or "").strip()
+            if text:
+                sentences.append((sentence.get("speaker_id"), text))
+
+    speakers = {sid for sid, _ in sentences if sid is not None}
+
+    if len(speakers) <= 1:
         parts = [
-            item.get("text", "").strip()
-            for item in payload.get("transcripts") or []
-            if isinstance(item, dict) and item.get("text")
+            (t.get("text") or "").strip()
+            for t in transcripts
+            if (t.get("text") or "").strip()
         ]
         if parts:
             return "\n".join(parts)
-    return ""
+        return "\n".join(text for _, text in sentences)
+
+    turns: list[str] = []
+    current_sid: Any = _UNSET
+    buffer: list[str] = []
+    for sid, text in sentences:
+        if sid != current_sid and buffer:
+            turns.append(_format_speaker_turn(current_sid, buffer))
+            buffer = []
+        current_sid = sid
+        buffer.append(text)
+    if buffer:
+        turns.append(_format_speaker_turn(current_sid, buffer))
+    return "\n\n".join(turns)
+
+
+_UNSET = object()
+
+
+def _format_speaker_turn(speaker_id: Any, texts: list[str]) -> str:
+    label = f"说话人{int(speaker_id) + 1}" if isinstance(speaker_id, int) else "说话人"
+    return f"{label}：{''.join(texts)}"
 
 
 def _content_length(response: requests.Response) -> int:

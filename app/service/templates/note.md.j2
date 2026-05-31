@@ -16,6 +16,9 @@ image_count: {{ image_count }}
 {% if asr_model -%}
 asr_model: {{ asr_model }}
 {% endif -%}
+{% if speaker_count is not none -%}
+speaker_count: {{ speaker_count }}
+{% endif -%}
 {% if vision_model -%}
 vision_model: {{ vision_model }}
 {% endif -%}

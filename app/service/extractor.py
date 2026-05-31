@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any
@@ -73,7 +74,9 @@ def _extract_bilibili_text(
 
     media_url = info.get("audio_url") or info.get("video_url")
     metadata["status"] = "asr"
-    return provider.asr(str(media_url or ""), referer=info.get("referer")), metadata
+    asr_text = provider.asr(str(media_url or ""), referer=info.get("referer"))
+    _annotate_speaker_count(metadata, asr_text)
+    return asr_text, metadata
 
 
 def _extract_xiaohongshu_text(
@@ -91,7 +94,19 @@ def _extract_xiaohongshu_text(
 
     media_url = info.get("audio_url") or info.get("video_url")
     metadata["status"] = "asr"
-    return provider.asr(str(media_url or ""), referer=info.get("referer")), metadata
+    asr_text = provider.asr(str(media_url or ""), referer=info.get("referer"))
+    _annotate_speaker_count(metadata, asr_text)
+    return asr_text, metadata
+
+
+_SPEAKER_LABEL_RE = re.compile(r"说话人(\d+)：")
+
+
+def _annotate_speaker_count(metadata: dict[str, Any], asr_text: str) -> None:
+    """从「说话人N：」标签统计说话人数，≥2 才写入 frontmatter。"""
+    speakers = set(_SPEAKER_LABEL_RE.findall(asr_text or ""))
+    if len(speakers) >= 2:
+        metadata["speaker_count"] = len(speakers)
 
 
 def _base_metadata(info: dict[str, Any]) -> dict[str, Any]:
