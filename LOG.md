@@ -28,6 +28,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
+| 2026-06-01 | 🟡 中 | 业务 | ASR 加说话人分离（paraformer-v2 diarization）：多人对谈标「说话人N：」，单人降级纯文本，一人多角色交 LLM 后处理 | SPEC §8.3 / PLAN §M1c |
 | 2026-05-09 | 🟡 中 | 业务 | 失败任务加"重试"按钮提前到 P0（成本极低，POST 同 url 复用即可），不等 M2d | [P0 交付](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R2：ASR 统一异步/去 SDK/加 dotenv/配置简化，Codex 20 findings | PLAN.md §Eng Review 决议（第二轮） |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R1：extractor 拆分、to_thread、restart 清理、配置发现链、输出路径可配 | PLAN.md §Eng Review 决议 |

@@ -56,6 +56,8 @@ app/
 | `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
 | `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录 |
 | `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
+| `RBCP_ASR_DIARIZATION` | 否 | `true` | 是否开启说话人分离（按声纹区分对谈中的不同人）。`true`/`1`/`yes` 为开 |
+| `RBCP_ASR_SPEAKER_COUNT` | 否 | — | 说话人数量提示（整数 2-100）。不填则自动判断；填了也只是辅助算法尽量输出该人数，不保证 |
 | `RBCP_VLM_MODEL` | 否 | `qwen3-vl-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
 | `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清理 LLM 模型（OpenAI 兼容） |
 
@@ -239,6 +241,7 @@ fetched_at: 2026-MM-DD
 duration_sec: 600          # 视频特有
 image_count: 9             # 图文特有
 asr_model: <RBCP_ASR_MODEL 配置值>
+speaker_count: 2           # ASR 说话人分离识别出 ≥2 人时才有；单人/纯文本不写
 vision_model: <RBCP_VLM_MODEL 配置值>
 status: subtitle | asr | vision | asr_force
 tags: []
@@ -313,6 +316,15 @@ P1 引入持久化前不要做多进程部署。
 - 可选：qwen3-asr-flash-filetrans（0.792 元/小时，新模型）
 - 通过 RBCP_ASR_MODEL 配置切换
 
+说话人分离（diarization）：
+- 提交转写任务时 parameters 带 "diarization_enabled": true（默认开，RBCP_ASR_DIARIZATION 控制）
+- 可选 "speaker_count"（2-100）作人数提示，不填自动判断（RBCP_ASR_SPEAKER_COUNT）
+- 限制：仅单声道音频生效（本项目固定提交 channel_id=[0]，满足）；音频建议 < 2 小时
+- 结果：transcripts[].sentences[] 多出整数字段 speaker_id（0 起），仅 diarization 开启时出现
+- 落地：按 speaker_id 把连续句子分组，转录正文输出「说话人N：…」（N = speaker_id + 1）
+- 降级：若识别出 ≤ 1 个说话人（含单人配音演多角色的视频），不打标签，回退纯文本——
+  一人多角色的拆分交给后续 LLM 后处理，不在 ASR 层硬猜
+
 失败回退：
    - ffmpeg -i <mp4_url> -vn -c:a copy <tempfile.m4a>
    - 上传后喂给 ASR
@@ -372,4 +384,5 @@ WebUI 任务列表必须能区分 `done` 和 `failed`，并展示 `error_message
 | v3.2 | 项目命名为 Red Blue CP（红蓝CP）；CLI 命令 spx → rbcp；包名 red-blue-cp |
 | v3.3 | M0 调研修正：ASR 走 OSS 流式中转而非直传 URL；小红书视频是 MP4 非 m3u8；VLM/LLM 走 OpenAI 兼容 HTTP |
 | v3.4 | Eng review 2：ASR 统一走异步文件转写（去掉短/长切换）；去掉 dashscope SDK 依赖；模型可通过 .env 切换 |
-| v3.5（当前） | 加 python-dotenv 依赖；修正 SPEC 阻塞操作列表去掉 dashscope；依赖 7 个 |
+| v3.5 | 加 python-dotenv 依赖；修正 SPEC 阻塞操作列表去掉 dashscope；依赖 7 个 |
+| v3.6（当前） | ASR 加说话人分离（paraformer-v2 diarization_enabled）：转录正文按 speaker_id 输出「说话人N：」，frontmatter 加 speaker_count，单一说话人降级纯文本 |

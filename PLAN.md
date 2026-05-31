@@ -156,6 +156,33 @@ P2 = M3，按需
 
 ---
 
+## M1c · 说话人分离增强（P0 转录保真，✅ 完成 2026-06-01）
+
+> 目标：多人对谈视频的转录正文能区分说话人，而不是糊成一段。
+> 不是新平台/新范围，是 ASR 转录保真度的增强。复用既有 paraformer-v2，加参数即可。
+
+### 任务清单
+
+- [x] **model.py**：提交转写任务带 `diarization_enabled` + 可选 `speaker_count`；
+      转写结果按 `transcripts[].sentences[].speaker_id` 分组，输出「说话人N：」；
+      ≤1 个说话人时降级纯文本（拆出纯函数 `_format_transcription` 便于单测）
+- [x] **extractor.py**：统计说话人数写入 `metadata["speaker_count"]`（≥2 才写）
+- [x] **markdown.py + 模板**：frontmatter 透传 `speaker_count`
+- [x] **cli.py**：读 `RBCP_ASR_DIARIZATION` / `RBCP_ASR_SPEAKER_COUNT` 环境变量
+- [x] **LLM 清洗 prompt**：保留「说话人N：」前缀，不要清洗掉
+
+### 验收
+
+- [x] 单测覆盖 `_format_transcription`：多人 / 单人降级 / 无 speaker_id 字段三种
+- [x] 真链路实测一条双人对谈视频，正文真出「说话人N：」、frontmatter 真写 speaker_count
+
+### 不做的事
+
+- [ ] ~~一人多角色靠 ASR 声纹拆分~~（声纹分不出，交给后续 LLM 后处理）
+- [ ] ~~句级时间戳 / 词级时间戳落盘~~（P2 再议）
+
+---
+
 ## M2 · P1 规模化（3-5 天，子任务串行不并行）
 
 ### M2a · 批量 + 限流（1 天）
