@@ -10,7 +10,7 @@
 
 ## 状态
 
-P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp) 逻辑，自主架构实现。
+**P0 已完成（首个可用版本 v0.1.0）**：B 站 / 小红书的视频与图文 → Markdown 闭环全部跑通，多人对谈视频支持说话人分离。MIT 开源。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp) 逻辑，自主架构实现。
 
 仓库名：`red-blue-cp` ｜ PyPI 包名：`red-blue-cp` ｜ CLI 命令：`rbcp` ｜ 内部代号：`rbcp`
 

@@ -128,7 +128,7 @@ tags: []                   # 远期手动/自动加
 
 | 模块 | 内容 |
 |---|---|
-| 流水线 | B 站视频 / 小红书视频 / 小红书图文，三条全跑通 |
+| 流水线 | B 站视频 / 小红书视频 / 小红书图文，三条全跑通（视频 ASR 默认开说话人分离） |
 | 模型 | ModelProvider Protocol + DashscopeProvider（唯一实现） |
 | 存储 | 本地 Markdown 落盘 + frontmatter，目录结构定死 |
 | 索引 | SQLite jobs 表（schema 见 SPEC） |
