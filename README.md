@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="docs/assets/banner.png" alt="Red Blue CP · 红蓝CP —— B 站小红书 Content Pipeline" width="100%">
+</p>
+
 # Red Blue CP · 红蓝CP
 
 > **自古红蓝出 CP —— B 站小红书 Content Pipeline**
