@@ -59,7 +59,9 @@ P0 实施中。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/J
 
 知识库默认输出位置：`~/transcript/`
 
-## 快速开始（占位，P0 完成后填）
+## 快速开始
+
+前置：Python 3.13、[uv](https://docs.astral.sh/uv/)；ffmpeg（仅音频抽流兜底时用到）。
 
 ```bash
 # 1. 克隆
@@ -71,14 +73,17 @@ uv sync
 
 # 3. 配 API Key
 cp .env.example .env
-# 编辑填入 DASHSCOPE_API_KEY
+# 编辑 .env，填入百炼 DASHSCOPE_API_KEY（小红书公开笔记不需要 cookie）
 
-# 4. 启 WebUI
-rbcp serve
+# 4. 启 WebUI（浏览器粘 URL）
+uv run rbcp serve            # 默认 http://0.0.0.0:8000
 
-# 或 CLI
-rbcp run <url>
+# 或 CLI（单条转录，输出 Markdown 路径）
+uv run rbcp run "<bilibili 或 xiaohongshu 链接>"
 ```
+
+产物默认落在 `~/transcript/{bili,xhs}/` 下，一条内容一个 Markdown 文件。
+多人对谈视频会按说话人分离，正文标注「说话人N：」（见 `RBCP_ASR_DIARIZATION`）。
 
 ## 技术栈
 
@@ -97,4 +102,4 @@ FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + requests（REST/OpenAI 兼�
 
 ## License
 
-MIT 或 Apache-2.0（待定）。
+[MIT](./LICENSE)。
