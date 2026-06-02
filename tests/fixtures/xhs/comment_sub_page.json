@@ -1,0 +1,74 @@
+{
+  "code": 0,
+  "success": true,
+  "msg": "成功",
+  "data": {
+    "cursor": "",
+    "has_more": false,
+    "time": 1780408600000,
+    "xsec_token": "FAKE-SUB-PAGE-TOKEN=",
+    "user_id": "fixtureviewer00000000000001",
+    "comments": [
+      {
+        "id": "fixturesub00000000000000a2",
+        "note_id": "fixturenote000000000000001",
+        "content": "续拉楼中楼第 2 条",
+        "create_time": 1780408430000,
+        "like_count": "1",
+        "liked": false,
+        "ip_location": "浙江",
+        "status": 0,
+        "user_info": {
+          "user_id": "fixturecmtuser0000000000004",
+          "nickname": "回复者丁",
+          "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0004",
+          "ai_agent": false,
+          "xsec_token": "FAKE-CMTUSER-TOKEN-0004="
+        },
+        "at_users": [],
+        "show_tags": [],
+        "target_comment": {
+          "id": "fixturecmt0000000000000002",
+          "user_info": {
+            "user_id": "fixturecmtuser0000000000002",
+            "nickname": "评论者乙",
+            "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0002",
+            "ai_agent": false,
+            "xsec_token": "FAKE-CMTUSER-TOKEN-0002="
+          }
+        }
+      },
+      {
+        "id": "fixturesub00000000000000a3",
+        "note_id": "fixturenote000000000000001",
+        "content": "续拉楼中楼第 3 条，回复丙 @回复者丙",
+        "create_time": 1780408435000,
+        "like_count": "0",
+        "liked": false,
+        "ip_location": "江苏",
+        "status": 0,
+        "user_info": {
+          "user_id": "fixturecmtuser0000000000005",
+          "nickname": "回复者戊",
+          "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0005",
+          "ai_agent": false,
+          "xsec_token": "FAKE-CMTUSER-TOKEN-0005="
+        },
+        "at_users": [
+          {"user_id": "fixturecmtuser0000000000003", "nickname": "回复者丙"}
+        ],
+        "show_tags": [],
+        "target_comment": {
+          "id": "fixturesub00000000000000a1",
+          "user_info": {
+            "user_id": "fixturecmtuser0000000000003",
+            "nickname": "回复者丙",
+            "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0003",
+            "ai_agent": false,
+            "xsec_token": "FAKE-CMTUSER-TOKEN-0003="
+          }
+        }
+      }
+    ]
+  }
+}

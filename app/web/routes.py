@@ -44,6 +44,15 @@ class CreateJobRequest(BaseModel):
     url: str = Field(..., min_length=1)
 
 
+class UploaderPostsRequest(BaseModel):
+    user_url: str = Field(..., min_length=1)
+
+
+class CommentsRequest(BaseModel):
+    url: str = Field(..., min_length=1)
+    sub: bool = True
+
+
 def get_storage() -> Storage:
     db_path = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     return Storage(db_path / "_index.sqlite")
@@ -160,6 +169,40 @@ def download_markdown(
         media_type="text/markdown",
         filename=path.name,
     )
+
+
+@app.post("/api/uploaders/posts")
+async def uploader_posts(payload: UploaderPostsRequest) -> dict:
+    """列博主全量笔记清单。返回 SPEC §4.3 契约（含 complete 硬字段）。
+
+    浏览器抓取较慢且全局串行，这里直接 await（单用户 MVP 可接受）。
+    """
+    from app.service import discover
+
+    return await discover.discover_user_posts(payload.user_url)
+
+
+@app.post("/api/comments")
+async def fetch_comments(payload: CommentsRequest) -> dict:
+    """抓单篇笔记评论，写出 {note_id}.comments.md，返回路径 + 条数。"""
+    from app.service import discover
+    from app.service.comments import write_comments_md
+
+    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    note_id = discover.note_id_from_url(payload.url)
+    try:
+        comments = await discover.discover_comments(payload.url, with_sub=payload.sub)
+    except discover.RiskControlError as error:
+        raise HTTPException(status_code=503, detail=str(error)) from None
+
+    path = write_comments_md(note_id, comments, output_dir, note_title="")
+    sub_count = sum(len(c.sub_comments) for c in comments)
+    return {
+        "note_id": note_id,
+        "comments_path": str(path),
+        "comment_count": len(comments),          # 一级评论数
+        "total_count": len(comments) + sub_count,  # 含楼中楼，= 写入文件的评论总数
+    }
 
 
 @app.get("/")

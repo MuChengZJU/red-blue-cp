@@ -113,6 +113,7 @@ def _render_markdown(result: ExtractResult, fetched_at: str) -> str:
         asr_model=metadata.get("asr_model") or os.getenv("RBCP_ASR_MODEL", "paraformer-v2"),
         speaker_count=metadata.get("speaker_count"),
         vision_model=metadata.get("vision_model") or os.getenv("RBCP_VLM_MODEL", "qwen3-vl-flash"),
+        media_paths=metadata.get("media_paths"),
         status=metadata.get("status"),
         author_url=_author_url(result),
         text=result.text,

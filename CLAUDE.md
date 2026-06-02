@@ -31,14 +31,14 @@ URL → Markdown 文件闭环目标已达成，145 个测试通过。
 
 ### 持久化
 
-5. **媒体文件不进知识库**。音频流、图片必须只存在于 `tempfile.TemporaryDirectory`，任务结束自动清理。用 `with` 块保证。
+5. **媒体文件不进知识库**。知识库目录（`~/transcript`）只放 Markdown + `_index.sqlite`。默认媒体（音频流、图片）只存在于 `tempfile.TemporaryDirectory`，任务结束自动清理（`with` 块保证）。**P1 例外**：用户开 `--save-media` 时，原始媒体存到独立的 `RBCP_MEDIA_DIR`（默认 `~/transcript-media/`），仍**不混入知识库目录**。
 6. **失败任务必须留痕**。SQLite 里有 status=failed + error_message + log_excerpt。WebUI 必须能展示。
 7. **Markdown 写入必须原子**。先写 `{path}.tmp`，再 `os.replace` 替换。中途崩溃不能留半个文件。
 
 ### 业务
 
 8. ~~不删 MCP 入口~~（**已废除**）。P0 采用参考移植方案，不 fork 上游，无 MCP 入口。如未来需要 MCP 能力，作为 P2 新建。
-9. **不引入 bilibili-cli / xiaohongshu-cli 到 P0**。这两个 CLI 是 P1 博主全量和评论用的，P0 不依赖。
+9. **不引入 bilibili-cli / xiaohongshu-cli**。P0 不依赖；**P1 博主全量/评论改用 pydoll 拦截器，也不再用这两个 CLI**（见 [设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)）。
 10. **不自动判断 B 站字幕质量**。字幕优先是默认行为，"切 ASR" 是 P1 的手动按钮。不要写"如果字幕长度小于 X 就走 ASR"这种启发式。
 11. **小红书图文图片处理走双轨**：URL 优先喂 VLM，失败回退到 tempfile 下载（保留 `referer` 等 headers），喂完即删。不要把 URL 当唯一稳定路径。
 
@@ -109,6 +109,8 @@ fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 P0 依赖（参考移植，从零写）：requests / ffmpeg-python / python-dotenv / fastapi / uvicorn / jinja2 / typer。DB 用 sqlite3 标准库。
 
 P0 新增的依赖**仅限**上述列表。其他任何包（dashscope / openai / celery / redis / paddleocr / mcp）都属于过早引入，禁止 install。ASR/VLM/LLM 全部用 requests 直接调 REST/OpenAI 兼容 HTTP。
+
+**P1 唯一新增依赖：`pydoll`**（博主全量/评论用，CDP 连系统 Chrome 拦截 user_posted/comment 接口，不打包 chromium）。宿主机器需装 Chrome/Edge。这是经 eng review 的决定，理由：不自己实现 x-s 签名（约季度失效，维护负担重），让浏览器代签。除 pydoll 外 P1 不得再加其他包。
 
 ### 不要扩大 P0 范围
 

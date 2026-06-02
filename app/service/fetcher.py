@@ -63,6 +63,7 @@ def fetch_bilibili(url: str) -> dict[str, Any]:
         image_urls=[],
         duration_sec=view_data.get("duration"),
         referer=canonical_url,
+        desc=view_data.get("desc") or None,
         raw={"view": view_payload, "aid": aid, "cid": cid},
     )
 
@@ -105,6 +106,7 @@ def fetch_xiaohongshu(url: str) -> dict[str, Any]:
         image_urls=image_urls,
         duration_sec=_first_present(note, "duration", "durationSec", "duration_sec"),
         referer=final_url,
+        desc=_first_present(note, "desc", "description", "content") or None,
         raw=initial_state,
     )
 
@@ -372,6 +374,7 @@ def _standard_result(
     duration_sec: Any,
     referer: str,
     raw: dict[str, Any],
+    desc: str | None = None,
 ) -> dict[str, Any]:
     return {
         "platform": platform,
@@ -388,5 +391,6 @@ def _standard_result(
         "image_urls": image_urls,
         "duration_sec": duration_sec,
         "referer": referer,
+        "desc": desc or None,
         "raw": raw,
     }

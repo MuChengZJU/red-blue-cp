@@ -35,13 +35,17 @@ app/
     model.py            # ModelProvider Protocol + DashscopeProvider
     extractor.py        # 编排：调 fetcher 获取数据 + 调 model 转文字
                         # 输入 URL，输出 ExtractResult
-    fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应
+    fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应（requests，单篇正文不需浏览器）
     markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
     storage.py          # SQLite jobs CRUD（sqlite3 标准库）
+    discover.py         # (P1) pydoll 驱动系统 Chrome，拦截 user_posted（清单）
+                        # 与 comment/page + comment/sub/page（评论一级+二级）接口
+                        # 全项目唯一碰浏览器处；对外 discover_user_posts / discover_comments（async）
+    comments.py         # (P1) 评论数据 → {note_id}.comments.md（一级+二级嵌套）
   web/
-    routes.py           # 输入页 + 任务列表 + 详情 + 下载
+    routes.py           # 输入页 + 任务列表 + 详情 + 下载（P1 加 uploaders/comments）
     templates/          # Jinja2 模板
-  cli.py                # rbcp run <url>
+  cli.py                # rbcp run <url>（P1 加 list / fetch）
 .env                    # 见下方配置项列表（gitignored）
 .env.example            # 配置模板（含所有配置项 + 默认值注释）
 ```
@@ -54,7 +58,8 @@ app/
 |---|---|---|---|
 | `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
 | `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
-| `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录 |
+| `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录（知识库，只放 .md + _index.sqlite） |
+| `RBCP_MEDIA_DIR` | 否 | `~/transcript-media` | (P1) `--save-media` 时原始视频/图片存放目录，独立于知识库 |
 | `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
 | `RBCP_ASR_DIARIZATION` | 否 | `true` | 是否开启说话人分离（按声纹区分对谈中的不同人）。`true`/`1`/`yes` 为开 |
 | `RBCP_ASR_SPEAKER_COUNT` | 否 | — | 说话人数量提示（整数 2-100）。不填则自动判断；填了也只是辅助算法尽量输出该人数，不保证 |
@@ -70,6 +75,10 @@ P0 走捷径：
 - CLI 同步阻塞，跑完返回路径
 - WebUI 任务列表用轮询（2s 拉一次 `/api/jobs`）
 - 不抽 Pipeline 接口，三种内容类型在 `extractor.py` 内部用 if/elif 分发
+
+**P1 并发补充（discover.py）**：pydoll 是 async 原生，**不走 `to_thread`**（那是给同步阻塞代码的）。`discover_*` 作为原生 async 任务 await；CLI 侧用 `asyncio.run()` 包。浏览器任务**全局串行化**：用一把 `asyncio.Lock` 保证同时只有一个 Chrome 在跑——第二个 discover 请求**排队等待**（不报错、不并发开第二个浏览器），WebUI/CLI 同时触发时行为确定。Chrome 生命周期 try/finally 保证用完即关，不泄漏子进程。
+
+**`--save-media` 落盘幂等**：媒体存到 `RBCP_MEDIA_DIR/{note_id}.{ext}`。重跑时**按 note_id 跳过已存在**的完整文件；下载中途失败的残片落 `.part` 临时名，成功才 `os.replace` 成正式名（中断不留半个媒体文件）；媒体路径写进对应 Markdown 的 frontmatter（`media_path`），便于反查、避免孤儿文件。
 
 ---
 
@@ -118,8 +127,8 @@ P1 增加：
 ```
 POST /api/jobs/batch                # 批量提交
 POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR）
-POST /api/uploaders/{platform}/{uid}/posts  # 拉博主作品列表
-POST /api/comments                  # 评论提取
+POST /api/uploaders/posts           # body: {user_url} → 列博主笔记清单(不下载) + 总数/预估
+POST /api/comments                  # body: {url, sub?} → 抓评论写 .comments.md
 GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）
 ```
 
@@ -138,11 +147,135 @@ P1 增加：
 
 ```
 rbcp batch <file>               # 批量，每行一个 URL
-rbcp uploader <platform> <uid>  # 拉博主作品列表（不自动跑）
-rbcp comments <url>             # 评论提取
+rbcp list  <博主url> [--json]    # 列博主笔记清单(id+标题+类型+日期+token+总数+预估)，不下载
+rbcp fetch <url> [开关]          # 下载：单篇 | --all 整博主
 ```
 
-CLI 内部直接 `from app.service import extractor`，**不走 HTTP**。
+`rbcp fetch` 开关（叠加）：
+- `--all`：整博主全量（默认先预览+确认，`--yes` 跳过确认）
+- `--comments`：加抓全量评论（默认含二级），`--no-sub` 只要一级
+- `--save-media`：原始媒体存到 `RBCP_MEDIA_DIR`
+- `--text-only`：跳过 VLM/ASR，只取网页正文文本
+- `--json`：结构化输出（Agent 调用用），不加则人可读
+
+入口受众：`fetch <单篇>` 主要人用（亦同 WebUI 勾选）；`list` + 逐条 `fetch` 主要 Agent 编排。筛选规则在 Agent 侧，不进工具。
+
+CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP**。`run` 保留作单篇别名（向后兼容）。
+
+### 4.3 `list` 输出契约（P1，机器可读）
+
+`rbcp list --json` / `POST /api/uploaders/posts` 返回固定结构，**调用方靠 `complete` 判断是否拿到全量**，绝不靠"清单非空"猜测：
+
+```jsonc
+{
+  "user_id": "...",
+  "complete": false,            // 关键：true=拉全了；false=中途被风控/出错，下面是半份
+  "incomplete_reason": "risk_control",  // complete=false 时给原因：risk_control | cookie_expired | network
+  "captured": 65,               // 已抓到的笔记数
+  "estimated_total": null,      // 已知则给（多数情况未知，为 null）
+  "estimate": { "image_notes": 40, "video_notes": 25, "vlm_calls": 40, "asr_minutes": 120 },
+  "notes": [
+    {
+      "note_id": "...",
+      "title": "...",          // 来自 display_title，可能为空字符串
+      "type": "image | video", // 来自接口 type：normal→image，video→video
+      "liked_count": 128,      // int（接口给的是字符串，解析时转 int）
+      "xsec_token": "..."      // 拼笔记 URL 用的访问令牌（拼 fetch 的 url）；每篇一次性，会过期
+    }
+  ]
+}
+```
+
+- **`complete` 字段是硬契约**：风控/cookie 过期/网络中断导致只拉到一部分时，`complete=false` + `incomplete_reason`，CLI 同时打印明显告警、退出码非 0。Agent 看到 `complete=false` 必须停下跟用户核对，**不得当全量继续逐条 fetch**。
+- `xsec_token`：小红书的访问令牌，拼 `fetch` 的笔记 URL 用；**每篇一次性、会过期**，拿到后尽快用。
+- **无 `published_at`**：实测 `user_posted` 接口的 note 不含发布时间字段（只有 note_id/xsec_token/type/display_title/user/interact_info/cover）。清单拿不到发布日期；`notes` 的**倒序由接口的时间序游标 `cursor` 保证**（最新在前），不是我们排的。发布日期要到 `fetch` 单篇详情时才有。
+- 人可读模式（不加 `--json`）：打印总数/类型拆分/预估 + 是否完整，半份时红字告警。
+
+---
+
+## 4.4 数据模型契约（P1 解析层，并行开发共同接口）
+
+> 这一节是 `discover.py` 纯函数层与 `comments.py` 的**接口契约**。解析逻辑（纯函数）与浏览器抓取（薄壳）分离，便于单测。
+> fixture 见 `tests/fixtures/xhs/`（脱敏真实 schema），单测直接喂这些 JSON。
+
+### 4.4.1 dataclass（定义在 `app/service/discover.py`）
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class Note:
+    note_id: str
+    title: str            # 来自 display_title，可能为 ""
+    type: str             # "image" | "video"（接口 normal→image，video→video）
+    xsec_token: str       # 一次性、会过期；拼单篇 fetch 的 URL 用
+    author: str           # user.nickname
+    author_id: str        # user.user_id
+    liked_count: int      # 接口给字符串，解析转 int
+
+@dataclass
+class NotePage:
+    notes: list[Note]
+    cursor: str           # 下一页游标；末页为 ""
+    has_more: bool
+
+@dataclass
+class Comment:
+    comment_id: str       # 接口 id
+    note_id: str
+    content: str
+    author: str           # user_info.nickname
+    author_id: str        # user_info.user_id
+    like_count: int       # 接口字符串 → int
+    ip_location: str      # 可能为 ""
+    create_time: int      # 毫秒级 epoch
+    reply_to: str | None  # 回复对象昵称（target_comment.user_info.nickname）；一级评论为 None
+    sub_comments: list["Comment"] = field(default_factory=list)  # 仅一级评论非空
+    # 以下三个仅一级评论有意义，供浏览器壳判断是否要续拉楼中楼：
+    sub_comment_count: int = 0
+    sub_comment_has_more: bool = False
+    sub_comment_cursor: str = ""
+
+@dataclass
+class CommentPage:
+    comments: list[Comment]   # 一级评论（内联 sub_comments 已解析进 .sub_comments）
+    cursor: str
+    has_more: bool
+```
+
+### 4.4.2 纯函数签名（`discover.py`，无 I/O、无浏览器）
+
+```python
+def parse_user_posted(resp_json: dict) -> NotePage:
+    """解析单页 user_posted 响应。只解析当前页，不翻页、不发请求。
+    resp_json 是接口返回的整个 JSON（含顶层 success/code/data）。"""
+
+def parse_comment_page(resp_json: dict) -> CommentPage:
+    """解析一级评论页（comment/page）。一级评论的内联 sub_comments 也解析进 .sub_comments，
+    并填好 sub_comment_count / sub_comment_has_more / sub_comment_cursor。"""
+
+def parse_sub_comments(resp_json: dict) -> tuple[list[Comment], str, bool]:
+    """解析楼中楼页（comment/sub/page）。返回 (子评论 list, cursor, has_more)。"""
+
+def merge_sub_comments(comments: list[Comment],
+                       subs_by_root: dict[str, list[Comment]]) -> list[Comment]:
+    """把续拉到的楼中楼按 root comment_id 合并进对应一级评论的 .sub_comments（去重、保序）。
+    纯函数，浏览器壳抓完所有页后调用一次。"""
+```
+
+**解析层不做的事**：不翻页循环、不判风控、不发 HTTP。翻页与风控判定在浏览器壳（Phase 2）。
+但**部分截断的信号**由壳层组装进 §4.3 的 `complete` 字段，不在纯函数里。
+
+### 4.4.3 `comments.py` 格式化签名
+
+```python
+def format_comments_md(note_id: str, comments: list[Comment], *, note_title: str = "") -> str:
+    """list[Comment]（一级，sub_comments 已嵌套）→ markdown 字符串。
+    一级评论平铺，楼中楼缩进嵌套；渲染昵称/正文/点赞数/IP属地/时间；空列表给"暂无评论"。
+    只返回字符串，落盘走 markdown.py 的原子写（{note_id}.comments.md）。"""
+```
+
+输出文件名 `{note_id}.comments.md`，落盘复用既有 `markdown.py` 的 `.tmp + os.replace` 原子写（守红线 #7）。
 
 ---
 
@@ -244,6 +377,7 @@ asr_model: <RBCP_ASR_MODEL 配置值>
 speaker_count: 2           # ASR 说话人分离识别出 ≥2 人时才有；单人/纯文本不写
 vision_model: <RBCP_VLM_MODEL 配置值>
 status: subtitle | asr | vision | asr_force
+media_path: <RBCP_MEDIA_DIR 下的相对路径>   # 仅 --save-media 留了原始媒体时才有，否则不写
 tags: []
 ---
 

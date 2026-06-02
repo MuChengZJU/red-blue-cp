@@ -89,6 +89,34 @@ uv run rbcp run "<bilibili 或 xiaohongshu 链接>"
 产物默认落在 `~/transcript/{bili,xhs}/` 下，一条内容一个 Markdown 文件。
 多人对谈视频会按说话人分离，正文标注「说话人N：」（见 `RBCP_ASR_DIARIZATION`）。
 
+### 博主全量 / 评论（P1，小红书）
+
+这两个要小红书登录态。先扫码登录一次（cookie 存本地，之后复用）：
+
+```bash
+uv run rbcp login          # 弹浏览器→手机扫码→看到首页后回终端按回车
+```
+
+然后：
+
+```bash
+# 列博主全量笔记清单（不下载）。半份/风控会退出码非 0
+uv run rbcp list "<博主主页链接>" [--json]
+
+# 抓单篇笔记
+uv run rbcp fetch "<笔记链接>"                 # 正文转录
+uv run rbcp fetch "<笔记链接>" --comments       # 附带评论（含楼中楼）→ {note_id}.comments.md
+uv run rbcp fetch "<笔记链接>" --text-only       # 跳过 VLM/ASR，只取现成正文
+uv run rbcp fetch "<笔记链接>" --save-media       # 额外把原始媒体存到独立目录
+
+# 抓整个博主（先预览 X 篇，确认后逐条下；--yes 跳过确认）
+uv run rbcp fetch "<博主主页链接>" --all [--comments] [--yes]
+```
+
+> 单篇正文转录走 requests（公开笔记不需 cookie）；**带评论 / 博主全量**走 pydoll 驱动系统 Chrome
+> （宿主需装 Chrome/Edge），抓接口、温和限频（实测清单 ~14、评论 ~4 请求·分钟⁻¹）。
+> cookie 也可不扫码，直接在 `.env` 配 `XHS_COOKIE` 或 `RBCP_XHS_COOKIE_FILE`（见 `.env.example`）。
+
 ## 技术栈
 
 FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + requests（REST/OpenAI 兼容 HTTP 直调百炼）
