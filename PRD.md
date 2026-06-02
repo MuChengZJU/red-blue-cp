@@ -43,7 +43,7 @@ B 站不自动判断字幕质量，由用户在 UI 手动触发"重抽 ASR"。
 1. **单链接**：即时处理
 2. **批量链接**：粘贴一批 URL，串行 + 限流
 3. **博主全量**：列清单 → 过滤 → 确认 → 下载
-   - 拉取实现（小红书）：pydoll 驱动系统 Chrome，拦截 `user_posted` 接口（见 SPEC §4.2 命令面 与 [设计文档](../docs/devlog/2026-06-02-blogger-full-and-comments-design.md)）。B 站另一套机制，本期不做。
+   - 拉取实现（小红书）：pydoll 驱动系统 Chrome，拦截 `user_posted` 接口（见 SPEC §4.2 命令面 与 [设计文档](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)）。B 站另一套机制，本期不做。
    - 过滤：列清单（id+标题+类型+日期），由 **Agent 按规则筛选**（关键词或其他），工具不预设过滤维度
    - 下载前**先预览**：报「共 X 篇（图文 N / 视频 M），预计耗时 Y」，确认后再下；`--all` 默认要确认，`--yes` 跳过
    - 内容选项与单篇一致（带评论 / 存媒体 / 纯文本）

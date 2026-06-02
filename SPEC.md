@@ -188,6 +188,7 @@ CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP*
 
 - **`complete` 字段是硬契约**：风控/cookie 过期/网络中断导致只拉到一部分时，`complete=false` + `incomplete_reason`，CLI 同时打印明显告警、退出码非 0。Agent 看到 `complete=false` 必须停下跟用户核对，**不得当全量继续逐条 fetch**。
 - `xsec_token`：小红书的访问令牌，拼 `fetch` 的笔记 URL 用；**每篇一次性、会过期**，拿到后尽快用。
+- `notes` **按发布时间倒序**（最新在前）固定返回，保证 `--json` 结果可复现。
 - 人可读模式（不加 `--json`）：打印总数/类型拆分/预估 + 是否完整，半份时红字告警。
 
 ---
@@ -290,6 +291,7 @@ asr_model: <RBCP_ASR_MODEL 配置值>
 speaker_count: 2           # ASR 说话人分离识别出 ≥2 人时才有；单人/纯文本不写
 vision_model: <RBCP_VLM_MODEL 配置值>
 status: subtitle | asr | vision | asr_force
+media_path: <RBCP_MEDIA_DIR 下的相对路径>   # 仅 --save-media 留了原始媒体时才有，否则不写
 tags: []
 ---
 
