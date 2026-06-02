@@ -240,29 +240,10 @@ class RiskControlError(RuntimeError):
 # 第二个 discover 请求排队等待，不并发开第二个浏览器。
 _BROWSER_LOCK = asyncio.Lock()
 
-# XHR/fetch 拦截器：钩住 user_posted / comment/page / comment/sub/page，
-# 同时存 URL 和响应体（{u, t}）——楼中楼续拉页要靠 URL 里的 root_comment_id 归组。
-_INTERCEPTOR_JS = r"""
-(function(){
-  if (window.__rbcp_cap) return 'already';
-  window.__rbcp_cap = {user_posted:[], comment_page:[], comment_sub:[]};
-  function cls(u){ if(!u||typeof u!=='string')return null;
-    if(u.indexOf('/user_posted')!==-1)return 'user_posted';
-    if(u.indexOf('/comment/sub/page')!==-1)return 'comment_sub';
-    if(u.indexOf('/comment/page')!==-1)return 'comment_page'; return null;}
-  var oO=XMLHttpRequest.prototype.open,oS=XMLHttpRequest.prototype.send;
-  XMLHttpRequest.prototype.open=function(m,u){this.__u=u;return oO.apply(this,arguments);};
-  XMLHttpRequest.prototype.send=function(){var x=this;x.addEventListener('load',function(){
-    try{var k=cls(x.__u);if(k)window.__rbcp_cap[k].push({u:x.__u,t:x.responseText});}catch(e){}});
-    return oS.apply(this,arguments);};
-  var oF=window.fetch;window.fetch=function(){var a=arguments;
-    var u=(a[0]&&a[0].url)?a[0].url:a[0];
-    return oF.apply(this,a).then(function(r){try{var k=cls(u);
-      if(k)r.clone().text().then(function(t){window.__rbcp_cap[k].push({u:u,t:t});});}catch(e){}
-      return r;});};
-  return 'installed';
-})()
-"""
+# 抓接口响应走 pydoll 原生网络捕获（enable_network_events + get_network_logs +
+# get_network_response_body），不用 JS 注入——pydoll 里页面早在注入前就抓走了原始
+# fetch 引用，覆盖 fetch/XHR 钩不到页面真实请求（实测 JS 拦截器抓 0）。原生捕获稳，
+# 且请求 URL 直接从事件里拿（楼中楼 root_comment_id 更好取）。
 
 _USER_ID_RE = re.compile(r"/user/profile/([0-9a-fA-F]+)")
 _ROOT_ID_RE = re.compile(r"[?&]root_comment_id=([^&]+)")
@@ -454,6 +435,30 @@ async def _eval(tab, expr: str):
     return _script_value(await tab.execute_script(expr))
 
 
+async def _fetch_new_bodies(tab, url_filter: str, seen_rids: set, out: list) -> None:
+    """把 get_network_logs 里新出现、能取到响应体的请求追加到 out=[(url, body_text)]。
+
+    取不到 body 的（preflight / 还没 ready）跳过且不标记 seen，下一轮再试。
+    """
+    try:
+        logs = await tab.get_network_logs(filter=url_filter)
+    except Exception:  # noqa: BLE001 - 网络事件没开等异常，按无新数据处理
+        return
+    for ev in logs:
+        params = ev.get("params", {}) if isinstance(ev, dict) else {}
+        rid = params.get("requestId")
+        if not rid or rid in seen_rids:
+            continue
+        url = (params.get("request") or {}).get("url", "")
+        try:
+            body = await tab.get_network_response_body(rid)
+        except Exception:  # noqa: BLE001 - body 没 ready / preflight 无 body
+            continue
+        if body:
+            seen_rids.add(rid)
+            out.append((url, body))
+
+
 # 风控/验证墙标志：小红书弹验证时标题/正文出现这些词，且不会有业务接口返回
 _RISK_MARKERS = ("安全验证", "验证码", "captcha", "滑动验证", "请完成验证")
 
@@ -525,15 +530,16 @@ async def discover_user_posts(user_url: str) -> dict:
 
         complete = False
         incomplete_reason: str | None = None
-        pages: list[str] = []
+        pages: list[tuple[str, str]] = []   # [(url, body_text)]
+        seen_rids: set = set()
         chrome = None
         t0 = time.monotonic()
         scrolls = 0
         try:
             chrome, tab = await _start_chrome()
+            await tab.enable_network_events()
             await tab.go_to(user_url)
             await asyncio.sleep(3)
-            await tab.execute_script(_INTERCEPTOR_JS)
 
             risk = await _is_risk_page(tab)
             if risk:
@@ -543,15 +549,10 @@ async def discover_user_posts(user_url: str) -> dict:
                 await tab.execute_script("window.scrollTo(0, document.body.scrollHeight)")
                 scrolls += 1
                 await asyncio.sleep(scroll_wait)
-                count = int(await _eval(
-                    tab, "(window.__rbcp_cap&&window.__rbcp_cap.user_posted.length)||0") or 0)
+                await _fetch_new_bodies(tab, "user_posted", seen_rids, pages)
 
-                latest = await _eval(
-                    tab,
-                    "window.__rbcp_cap&&window.__rbcp_cap.user_posted.length?"
-                    "window.__rbcp_cap.user_posted[window.__rbcp_cap.user_posted.length-1].t:''")
-                if latest:
-                    obj = json.loads(latest)
+                if pages:
+                    obj = json.loads(pages[-1][1])
                     if obj.get("success") is False or obj.get("code") not in (0, None):
                         incomplete_reason = "risk_control"
                         break
@@ -559,7 +560,7 @@ async def discover_user_posts(user_url: str) -> dict:
                         complete = True
                         break
 
-                if count == last_count:
+                if len(pages) == last_count:
                     stall += 1
                     if stall >= 3:
                         # 滚到底但没看到 has_more=false：无法确认拉全，按未完整处理
@@ -567,20 +568,15 @@ async def discover_user_posts(user_url: str) -> dict:
                         break
                 else:
                     stall = 0
-                last_count = count
-                if count >= max_pages:
+                last_count = len(pages)
+                if len(pages) >= max_pages:
                     incomplete_reason = "network"
                     break
 
-            raw = await _eval(
-                tab,
-                "JSON.stringify((window.__rbcp_cap?window.__rbcp_cap.user_posted:[])"
-                ".map(function(x){return x.t;}))")
-            pages = json.loads(raw or "[]")
+            # 收尾再扫一遍，捞还没 ready 的 body
+            await _fetch_new_bodies(tab, "user_posted", seen_rids, pages)
         except Exception as exc:  # noqa: BLE001 - 壳层兜底，细节进 reason
             incomplete_reason = incomplete_reason or "network"
-            if not pages:
-                incomplete_reason = "network"
             _ = exc
         finally:
             if chrome is not None:
@@ -591,9 +587,9 @@ async def discover_user_posts(user_url: str) -> dict:
 
         notes: list[Note] = []
         seen: set[str] = set()
-        for page_text in pages:
+        for _url, body_text in pages:
             try:
-                page = parse_user_posted(json.loads(page_text))
+                page = parse_user_posted(json.loads(body_text))
             except Exception:  # noqa: BLE001 - 跳过坏页
                 continue
             for note in page.notes:
@@ -622,18 +618,19 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
         scroll_wait = float(os.getenv("RBCP_DISCOVER_SCROLL_WAIT", "2.0"))
         max_rounds = int(os.getenv("RBCP_COMMENT_MAX_ROUNDS", "60"))
         chrome = None
-        page_texts: list[str] = []
-        sub_items: list[dict] = []
+        l1_pages: list[tuple[str, str]] = []   # comment/page [(url, body)]
+        sub_pages: list[tuple[str, str]] = []  # comment/sub/page [(url, body)]
+        seen_rids: set = set()
         t0 = time.monotonic()
         scrolls = 0
         try:
             chrome, tab = await _start_chrome()
+            await tab.enable_network_events()
             await tab.go_to(note_url)
             await asyncio.sleep(3)
-            await tab.execute_script(_INTERCEPTOR_JS)
 
             if await _is_risk_page(tab):
-                # 撞验证墙，没法抓评论；返回空（壳层不抛，调用方按空处理）
+                # 撞验证墙，没法抓评论；抛出由调用方标 failed 留痕
                 raise RiskControlError("评论抓取撞小红书安全验证，请稍后重试或刷新 cookie")
 
             last_count, stall = 0, 0
@@ -653,19 +650,14 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
                         "try{e.click();}catch(x){}});})()")
                 await asyncio.sleep(scroll_wait)
 
-                cp_count = int(await _eval(
-                    tab, "(window.__rbcp_cap&&window.__rbcp_cap.comment_page.length)||0") or 0)
-                cs_count = int(await _eval(
-                    tab, "(window.__rbcp_cap&&window.__rbcp_cap.comment_sub.length)||0") or 0)
-                total = cp_count + cs_count
+                await _fetch_new_bodies(tab, "comment/page", seen_rids, l1_pages)
+                if with_sub:
+                    await _fetch_new_bodies(tab, "comment/sub/page", seen_rids, sub_pages)
+                total = len(l1_pages) + len(sub_pages)
 
-                latest = await _eval(
-                    tab,
-                    "window.__rbcp_cap&&window.__rbcp_cap.comment_page.length?"
-                    "window.__rbcp_cap.comment_page[window.__rbcp_cap.comment_page.length-1].t:''")
                 page_has_more = True
-                if latest:
-                    obj = json.loads(latest)
+                if l1_pages:
+                    obj = json.loads(l1_pages[-1][1])
                     page_has_more = bool(obj.get("data", {}).get("has_more", False))
 
                 if total == last_count:
@@ -678,13 +670,9 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
                     stall = 0
                 last_count = total
 
-            page_texts = json.loads(await _eval(
-                tab,
-                "JSON.stringify((window.__rbcp_cap?window.__rbcp_cap.comment_page:[])"
-                ".map(function(x){return x.t;}))") or "[]")
-            sub_items = json.loads(await _eval(
-                tab,
-                "JSON.stringify((window.__rbcp_cap?window.__rbcp_cap.comment_sub:[]))") or "[]")
+            await _fetch_new_bodies(tab, "comment/page", seen_rids, l1_pages)
+            if with_sub:
+                await _fetch_new_bodies(tab, "comment/sub/page", seen_rids, sub_pages)
         finally:
             if chrome is not None:
                 try:
@@ -695,9 +683,9 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
         # 一级评论：拼所有页，按 comment_id 去重
         comments: list[Comment] = []
         seen: set[str] = set()
-        for text in page_texts:
+        for _url, body_text in l1_pages:
             try:
-                page = parse_comment_page(json.loads(text))
+                page = parse_comment_page(json.loads(body_text))
             except Exception:  # noqa: BLE001
                 continue
             for c in page.comments:
@@ -708,22 +696,21 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
 
         # 楼中楼续拉：按 URL 里的 root_comment_id 归组
         subs_by_root: dict[str, list[Comment]] = {}
-        for item in sub_items:
-            url = item.get("u", "")
+        for url, body_text in sub_pages:
             rm = _ROOT_ID_RE.search(url)
             if not rm:
                 continue
             root_id = rm.group(1)
             try:
-                subs, _, _ = parse_sub_comments(json.loads(item["t"]))
+                subs, _, _ = parse_sub_comments(json.loads(body_text))
             except Exception:  # noqa: BLE001
                 continue
             subs_by_root.setdefault(root_id, []).extend(subs)
 
         merged = merge_sub_comments(comments, subs_by_root)
         _log_rate(
-            "comments", requests=len(page_texts) + len(sub_items), scrolls=scrolls,
+            "comments", requests=len(l1_pages) + len(sub_pages), scrolls=scrolls,
             elapsed=time.monotonic() - t0,
-            extra=f"{len(merged)}条一级 +{len(sub_items)}楼中楼页",
+            extra=f"{len(merged)}条一级 +{len(sub_pages)}楼中楼页",
         )
         return merged
