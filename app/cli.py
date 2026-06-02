@@ -124,24 +124,23 @@ def _build_note_url(note_id: str, xsec_token: str) -> str:
 
 
 @app.command("login")
-def login(
-    timeout: int = typer.Option(180, "--timeout", help="等待扫码登录的秒数"),
-) -> None:
-    """弹出浏览器，扫码登录小红书，把 cookie 存到本地（博主全量/评论要用）。"""
+def login() -> None:
+    """弹出浏览器，扫码登录小红书，把 cookie 存到本地（博主全量/评论要用）。
+
+    会等你扫完码、回到终端按回车再保存——不会自动关。
+    """
     load_dotenv()
     from app.service import discover
 
-    typer.echo("即将弹出浏览器并打开小红书。请用手机扫码登录…")
-    typer.echo(f"（登录成功会自动保存；最多等 {timeout} 秒）")
-    count, path = asyncio.run(discover.login_and_save_cookies(timeout=timeout))
+    typer.echo("即将弹出浏览器并打开小红书。")
+    typer.echo("→ 用手机扫码登录，看到自己头像/进入首页后，回这里按【回车】。")
+    count, path = asyncio.run(discover.login_and_save_cookies())
     if count > 0:
         typer.secho(f"✓ 已保存 {count} 条 cookie 到 {path}", fg=typer.colors.GREEN)
         typer.echo("现在可以用 rbcp list / fetch --comments / fetch --all 了。")
+        typer.echo("（若接着 list 仍抓到 0 条，多半是没真登录上，重跑 rbcp login。）")
     else:
-        typer.secho(
-            "✗ 没拿到登录 cookie（可能没扫码或超时）。重跑 rbcp login 再试。",
-            fg=typer.colors.RED,
-        )
+        typer.secho("✗ 没拿到 cookie。重跑 rbcp login 再试。", fg=typer.colors.RED)
         raise typer.Exit(code=1)
 
 

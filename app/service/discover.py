@@ -374,13 +374,15 @@ def _cookie_field(cookie, key, default=None):
 
 
 async def login_and_save_cookies(
-    cookie_file: Path | None = None, *, timeout: int = 180, poll: float = 2.0
+    cookie_file: Path | None = None, *, interactive: bool = True, on_ready=None
 ) -> tuple[int, Path]:
     """弹有头浏览器到小红书，等用户扫码登录，把 cookie 存到本地文件。
 
-    返回 (有效 cookie 条数, 落盘路径)。检测到 web_session 即视为登录成功；
-    超时则存当前已有 cookie（可能为空，调用方据条数判断）。这是**最终用户**
-    获取登录态的入口（不依赖任何外部工具），也是开发期刷新 cookie 的统一办法。
+    **不自动猜是否登录**（小红书给游客也发 web_session，自动判断会误触发秒关）。
+    交互模式下等用户扫完码、回终端按回车再读 cookie。返回 (有效 cookie 条数, 落盘路径)。
+    这是最终用户获取登录态的入口（不依赖任何外部工具），也是开发期刷新 cookie 的统一办法。
+
+    interactive=False 用于自动化/测试：开页后立即读当前 cookie（由 on_ready 钩子控制时机）。
     """
     from pydoll.browser.chromium import Chrome
 
@@ -390,21 +392,16 @@ async def login_and_save_cookies(
     try:
         tab = await chrome.start(headless=False)  # 有头：用户要看到二维码
         await tab.go_to("https://www.xiaohongshu.com")
-        deadline = time.monotonic() + timeout
-        while time.monotonic() < deadline:
-            cookies = await chrome.get_cookies()
-            if any(
-                _cookie_field(c, "name") == "web_session" and _cookie_field(c, "value")
-                for c in cookies
-            ):
-                break
-            await asyncio.sleep(poll)
+        if interactive:
+            await asyncio.to_thread(
+                input,
+                "\n>>> 浏览器已打开。请用手机扫码登录小红书；看到自己的头像、"
+                "进入首页后，回到这里按【回车】保存 cookie……\n",
+            )
+        if on_ready is not None:
+            await on_ready(tab, chrome)
+        cookies = await chrome.get_cookies()
     finally:
-        # 关浏览器前先尽量再取一次（成功路径已取过）
-        try:
-            cookies = await chrome.get_cookies() or cookies
-        except Exception:  # noqa: BLE001
-            pass
         try:
             await chrome.stop()
         except Exception:  # noqa: BLE001
