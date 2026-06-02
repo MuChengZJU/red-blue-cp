@@ -250,6 +250,16 @@ _INTERCEPTOR_JS = r"""
 
 _USER_ID_RE = re.compile(r"/user/profile/([0-9a-fA-F]+)")
 _ROOT_ID_RE = re.compile(r"[?&]root_comment_id=([^&]+)")
+_NOTE_ID_RE = re.compile(r"/(?:explore|discovery/item|search_result)/([0-9a-fA-F]+)")
+
+
+def note_id_from_url(url: str) -> str:
+    """从笔记 URL 抠 note_id；抠不到时退回 URL 末段（去 query）。"""
+    m = _NOTE_ID_RE.search(url)
+    if m:
+        return m.group(1)
+    tail = url.split("?", 1)[0].rstrip("/").rsplit("/", 1)[-1]
+    return tail or "unknown_note"
 
 
 def _load_cookies() -> list[dict]:
