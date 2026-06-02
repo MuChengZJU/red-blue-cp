@@ -38,7 +38,8 @@ app/
     fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应（requests，单篇正文不需浏览器）
     markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
     storage.py          # SQLite jobs CRUD（sqlite3 标准库）
-    discover.py         # (P1) pydoll 驱动系统 Chrome，拦截 user_posted/comment 接口
+    discover.py         # (P1) pydoll 驱动系统 Chrome，拦截 user_posted（清单）
+                        # 与 comment/page + comment/sub/page（评论一级+二级）接口
                         # 全项目唯一碰浏览器处；对外 discover_user_posts / discover_comments（async）
     comments.py         # (P1) 评论数据 → {note_id}.comments.md（一级+二级嵌套）
   web/
@@ -75,7 +76,9 @@ P0 走捷径：
 - WebUI 任务列表用轮询（2s 拉一次 `/api/jobs`）
 - 不抽 Pipeline 接口，三种内容类型在 `extractor.py` 内部用 if/elif 分发
 
-**P1 并发补充（discover.py）**：pydoll 是 async 原生，**不走 `to_thread`**（那是给同步阻塞代码的）。`discover_*` 作为原生 async 任务 await；CLI 侧用 `asyncio.run()` 包。浏览器任务**串行化**（一次一个 Chrome），try/finally 保证用完即关。
+**P1 并发补充（discover.py）**：pydoll 是 async 原生，**不走 `to_thread`**（那是给同步阻塞代码的）。`discover_*` 作为原生 async 任务 await；CLI 侧用 `asyncio.run()` 包。浏览器任务**全局串行化**：用一把 `asyncio.Lock` 保证同时只有一个 Chrome 在跑——第二个 discover 请求**排队等待**（不报错、不并发开第二个浏览器），WebUI/CLI 同时触发时行为确定。Chrome 生命周期 try/finally 保证用完即关，不泄漏子进程。
+
+**`--save-media` 落盘幂等**：媒体存到 `RBCP_MEDIA_DIR/{note_id}.{ext}`。重跑时**按 note_id 跳过已存在**的完整文件；下载中途失败的残片落 `.part` 临时名，成功才 `os.replace` 成正式名（中断不留半个媒体文件）；媒体路径写进对应 Markdown 的 frontmatter（`media_path`），便于反查、避免孤儿文件。
 
 ---
 
@@ -158,6 +161,34 @@ rbcp fetch <url> [开关]          # 下载：单篇 | --all 整博主
 入口受众：`fetch <单篇>` 主要人用（亦同 WebUI 勾选）；`list` + 逐条 `fetch` 主要 Agent 编排。筛选规则在 Agent 侧，不进工具。
 
 CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP**。`run` 保留作单篇别名（向后兼容）。
+
+### 4.3 `list` 输出契约（P1，机器可读）
+
+`rbcp list --json` / `POST /api/uploaders/posts` 返回固定结构，**调用方靠 `complete` 判断是否拿到全量**，绝不靠"清单非空"猜测：
+
+```jsonc
+{
+  "user_id": "...",
+  "complete": false,            // 关键：true=拉全了；false=中途被风控/出错，下面是半份
+  "incomplete_reason": "risk_control",  // complete=false 时给原因：risk_control | cookie_expired | network
+  "captured": 65,               // 已抓到的笔记数
+  "estimated_total": null,      // 已知则给（多数情况未知，为 null）
+  "estimate": { "image_notes": 40, "video_notes": 25, "vlm_calls": 40, "asr_minutes": 120 },
+  "notes": [
+    {
+      "note_id": "...",
+      "title": "...",
+      "type": "image | video",
+      "published_at": "2026-MM-DD",
+      "xsec_token": "..."        // 拼笔记 URL 用的访问令牌（拼 fetch 的 url）；每篇一次性，会过期
+    }
+  ]
+}
+```
+
+- **`complete` 字段是硬契约**：风控/cookie 过期/网络中断导致只拉到一部分时，`complete=false` + `incomplete_reason`，CLI 同时打印明显告警、退出码非 0。Agent 看到 `complete=false` 必须停下跟用户核对，**不得当全量继续逐条 fetch**。
+- `xsec_token`：小红书的访问令牌，拼 `fetch` 的笔记 URL 用；**每篇一次性、会过期**，拿到后尽快用。
+- 人可读模式（不加 `--json`）：打印总数/类型拆分/预估 + 是否完整，半份时红字告警。
 
 ---
 

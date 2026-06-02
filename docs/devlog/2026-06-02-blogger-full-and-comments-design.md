@@ -79,10 +79,10 @@ status: active
 
 | 文件 | 职责 | 碰浏览器 |
 |---|---|---|
-| `app/service/discover.py`（新）| pydoll 驱动 Chrome，拦截 `user_posted`/`comment` 接口。**全项目唯一碰浏览器处**，对外只暴露 `discover_user_posts(url)`、`discover_comments(url)` | 是（异步）|
+| `app/service/discover.py`（新）| pydoll 驱动 Chrome，拦截 `user_posted`（清单）、`comment/page`（一级评论）、`comment/sub/page`（二级评论）三个接口。**全项目唯一碰浏览器处**，对外只暴露 `discover_user_posts(url)`、`discover_comments(url)` | 是（异步）|
 | `app/service/comments.py`（新）| 评论数据 → `{note_id}.comments.md`（一级+二级嵌套）| 否 |
 | `app/cli.py`（改）| 加 `list` / `fetch` 命令 | 否 |
-| `app/web/routes.py`（改）| `POST /api/uploaders`、`POST /api/comments`，复用现有 `/api/jobs` 队列 | 否 |
+| `app/web/routes.py`（改）| `POST /api/uploaders/posts`、`POST /api/comments`，复用现有 `/api/jobs` 队列 | 否 |
 | `app/service/extractor.py`（改）| 支持"纯文本"（跳过 VLM/ASR）、"存媒体"（媒体移出 tempfile 到 RBCP_MEDIA_DIR）| 否 |
 
 解析与浏览器分离便于测试：纯函数 `parse_user_posted(json)->list[Note]`、`parse_comments(json)->list[Comment]` 单测；`discover_*` 薄壳做集成测试。
@@ -98,7 +98,9 @@ rbcp fetch <url> [--all] [--comments [--no-sub]] \
 ## 并发模型
 
 - `discover.py` 是 async（pydoll 原生），**不能塞进现有 `asyncio.to_thread`**（那是给同步阻塞代码的，见 routes.py:117）；作为原生 async 任务 await，CLI 侧用 `asyncio.run()` 包。
-- 浏览器任务**串行化**（一次一个 Chrome），避免多会话并发抬高风控；Chrome 生命周期 try/finally 保证用完即关。
+- 浏览器任务**全局串行化**（`asyncio.Lock`，一次一个 Chrome）：第二个请求排队等待，不并发开第二个浏览器、不报错；避免多会话并发抬高风控；Chrome 生命周期 try/finally 保证用完即关。
+- `list` 输出契约见 SPEC §4.3：`complete` 字段是硬契约，半份清单（风控/过期）`complete=false`，Agent 不得当全量。
+- `--save-media` 幂等：按 note_id 跳过已存在；残片走 `.part` + `os.replace`；媒体路径写进 frontmatter。
 
 ## 边界 / 异常
 
@@ -137,7 +139,7 @@ rbcp fetch <url> [--all] [--comments [--no-sub]] \
 | 文档 | 改什么 |
 |---|---|
 | PRD.md | 博主全量/评论的产品定义；单篇人·批量 Agent 定位；三种入口；媒体落盘哲学变更 |
-| SPEC.md | `list`/`fetch` 命令面、`POST /api/uploaders`/`/api/comments`、改不变量 #5、加 pydoll 依赖、RBCP_MEDIA_DIR |
+| SPEC.md | `list`/`fetch` 命令面、`POST /api/uploaders/posts`/`/api/comments`、改不变量 #5、加 pydoll 依赖、RBCP_MEDIA_DIR |
 | PLAN.md | M2b/M2c 实现方式改 pydoll；并发模型、串行化、预览确认 |
 | CLAUDE.md | 红线 #5 改措辞；P1 依赖清单加 pydoll |
 
