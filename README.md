@@ -8,130 +8,115 @@
 
 把 B 站和小红书的视频/图文内容转成纯文本，沉淀成本地 Markdown 知识库。
 
-## 状态
+**状态**：`v0.2.0`，MIT 开源。P0 单篇闭环（B站/小红书 视频+图文 → Markdown，多人对谈自动说话人分离）+ P1 小红书博主全量下载 / 评论提取 / 扫码登录。
+仓库 `red-blue-cp` ｜ CLI `rbcp` ｜ 输出默认 `~/transcript/`
 
-**P0 已完成（首个可用版本 v0.1.0）**：B 站 / 小红书的视频与图文 → Markdown 闭环全部跑通，多人对谈视频支持说话人分离。MIT 开源。参考 [JNHFlow21/social-post-extractor-mcp](https://github.com/JNHFlow21/social-post-extractor-mcp) 逻辑，自主架构实现。
+---
 
-仓库名：`red-blue-cp` ｜ PyPI 包名：`red-blue-cp` ｜ CLI 命令：`rbcp` ｜ 内部代号：`rbcp`
+## 一、给用户（人）
 
-## 文档导航
+把一个链接变成桌面上的一个 Markdown 文件。视频转文字、图文做识别、多人对谈分说话人。新版还能扫码登录后**整个博主批量下**、**连评论一起存**。
+
+### 装 + 配
+
+前置：Python 3.13、[uv](https://docs.astral.sh/uv/)；ffmpeg（音频抽流兜底用）；Chrome/Edge（仅评论/批量用）。
+
+```bash
+git clone <repo-url> && cd red-blue-cp
+uv sync
+cp .env.example .env        # 填入百炼 DASHSCOPE_API_KEY（单篇公开笔记不需 cookie）
+```
+
+### 用
+
+```bash
+# 网页版：浏览器粘链接
+uv run rbcp serve                              # http://0.0.0.0:8000
+
+# 单篇（主要给人用）
+uv run rbcp run "<B站 或 小红书 链接>"          # 转录成 Markdown
+uv run rbcp fetch "<小红书笔记链接>" --comments  # 附带评论（含楼中楼）
+
+# 博主全量 / 评论：先扫码登录一次（cookie 存本地复用）
+uv run rbcp login                              # 弹浏览器→手机扫码→回终端按回车
+uv run rbcp fetch "<博主主页链接>" --all        # 先预览 X 篇，确认后逐条下
+```
+
+可选开关：`--comments`（带评论）/ `--save-media`（留原始媒体）/ `--text-only`（跳过转录只取正文）。
+带评论 / 博主全量走浏览器抓接口，温和限频（实测清单 ~14、评论 ~4 请求·分钟⁻¹），不易触发风控。
+
+---
+
+## 二、给开发者
+
+**技术栈**：FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + requests（REST/OpenAI 兼容 HTTP 直调百炼）；博主全量/评论用 pydoll（CDP 连系统 Chrome 抓接口）。
+
+**结构**：
+```
+app/
+├── service/
+│   ├── model.py       # ModelProvider + DashscopeProvider（ASR/VLM/LLM）
+│   ├── extractor.py   # 编排：fetcher + model（含 --text-only/--save-media）
+│   ├── fetcher.py     # requests 爬 B站/小红书 API + 解析
+│   ├── discover.py    # P1 唯一碰浏览器处：pydoll 抓博主清单/评论 + rbcp login
+│   ├── comments.py    # 评论 → {note_id}.comments.md（楼中楼嵌套）
+│   ├── markdown.py    # frontmatter + sanitize + 原子写
+│   └── storage.py     # SQLite jobs
+├── web/routes.py      # WebUI + REST API
+└── cli.py             # rbcp 命令
+```
+
+**开发**：
+```bash
+uv run pytest          # 全量测试
+uv run rbcp serve      # 本地起服务（单进程 uvicorn，禁 --workers）
+```
+
+**部署**：自部署工具，推荐国内 IP 机器（避海外风控）；手机访问走 tailscale 或 frp。
+
+**文档导航**：
 
 | 文档 | 用途 |
 |---|---|
-| [PRD.md](./PRD.md) | 产品需求：项目定位、五层功能架构、优先级排期 |
-| [SPEC.md](./SPEC.md) | 技术规格：架构、API、数据模型、决策记录 |
-| [PLAN.md](./PLAN.md) | 开发计划：里程碑、P0 Checklist、风险 |
-| [CLAUDE.md](./CLAUDE.md) | Claude Code 工作规则、项目不变量、红线 |
-| [REFERENCES.md](./REFERENCES.md) | 外部仓库选型记录 |
-| [LOG.md](./LOG.md) | 项目演进日志：决策纲要 + 开发纲要 + 经验沉淀（详情在 [docs/devlog/](./docs/devlog/)） |
+| [PRD.md](./PRD.md) | 产品需求：定位、五层架构、排期 |
+| [SPEC.md](./SPEC.md) | 技术规格：架构、API、数据模型、决策 |
+| [PLAN.md](./PLAN.md) | 里程碑、Checklist、风险、开放问题 |
+| [CLAUDE.md](./CLAUDE.md) | 项目不变量、红线、协作规则 |
+| [LOG.md](./LOG.md) | 演进日志（决策/开发/经验，详情在 [docs/devlog/](./docs/devlog/)） |
+| [docs/reference/xhs-api-notes.md](./docs/reference/xhs-api-notes.md) | 小红书接口速查（字段/风控/cookie） |
 
-## 形态
+---
 
-- **WebUI**：手机 + 电脑浏览器
-- **CLI**：AI Agent + 脚本调用
+## 三、给 Agent
 
-两者共享同一组业务函数。
+**定位**：单篇给人用，**博主批量为 Agent 设计**——工具只列清单，按什么规则筛由 Agent 决定。
 
-## 目录结构（预期）
-
+**列清单（机器可读）**：
+```bash
+uv run rbcp list "<博主主页链接>" --json
 ```
-.
-├── app/
-│   ├── service/
-│   │   ├── model.py            # ModelProvider Protocol + DashscopeProvider
-│   │   ├── extractor.py        # 编排：调 fetcher + model
-│   │   ├── fetcher.py          # HTTP 爬取 B站/小红书 API + 解析
-│   │   ├── markdown.py         # frontmatter + sanitize + 原子写入
-│   │   └── storage.py          # SQLite jobs CRUD
-│   ├── web/
-│   │   └── routes.py           # WebUI + REST API
-│   └── cli.py                  # rbcp 命令
-├── .env                        # 百炼 API Key + 小红书 cookie（gitignored）
-├── PRD.md
-├── SPEC.md
-├── PLAN.md
-├── CLAUDE.md
-├── REFERENCES.md
-├── LOG.md
-├── docs/
-│   ├── devlog/
-│   │   ├── TEMPLATE.md
-│   │   └── YYYY-MM-DD-{slug}.md  # 决策/里程碑/经验详情
-│   └── gstack/                    # gstack skill 产出物
-└── README.md
-```
+返回固定结构（[SPEC §4.3](./SPEC.md)），关键是 **`complete` 硬字段**：
 
-知识库默认输出位置：`~/transcript/`
+- `complete: true` → 拉全了，`notes[]` 是全量
+- `complete: false` → 被风控/cookie 过期/网络中断截断，是**半份**，**不得当全量**，且退出码非 0
 
-## 快速开始
+每条 note 给 `note_id / title / type / liked_count / xsec_token`（token 一次性会过期，拿到尽快用）。
 
-前置：Python 3.13、[uv](https://docs.astral.sh/uv/)；ffmpeg（仅音频抽流兜底时用到）。
+**典型工作流**：`list --json` 拿清单 → 自己按关键词/类型筛出要的 → 对每条 `fetch`。或直接 `fetch <博主url> --all --json --yes` 整博主下，返回 `{captured, downloaded, failed, results[]}`。
 
 ```bash
-# 1. 克隆
-git clone <repo-url>
-cd red-blue-cp
-
-# 2. 装依赖
-uv sync
-
-# 3. 配 API Key
-cp .env.example .env
-# 编辑 .env，填入百炼 DASHSCOPE_API_KEY（小红书公开笔记不需要 cookie）
-
-# 4. 启 WebUI（浏览器粘 URL）
-uv run rbcp serve            # 默认 http://0.0.0.0:8000
-
-# 或 CLI（单条转录，输出 Markdown 路径）
-uv run rbcp run "<bilibili 或 xiaohongshu 链接>"
+uv run rbcp fetch "<笔记链接>" --comments --json   # 单篇，结构化输出
+uv run rbcp fetch "<博主url>" --all --json --yes    # 整博主，逐条结果
 ```
 
-产物默认落在 `~/transcript/{bili,xhs}/` 下，一条内容一个 Markdown 文件。
-多人对谈视频会按说话人分离，正文标注「说话人N：」（见 `RBCP_ASR_DIARIZATION`）。
+**注意**：评论/博主全量需登录态（`rbcp login` 或 `.env` 配 `XHS_COOKIE`/`RBCP_XHS_COOKIE_FILE`）；浏览器任务全局串行、温和限频；解析层契约与字段见 [SPEC §4.4](./SPEC.md) 和 [小红书接口速查](./docs/reference/xhs-api-notes.md)。
 
-### 博主全量 / 评论（P1，小红书）
-
-这两个要小红书登录态。先扫码登录一次（cookie 存本地，之后复用）：
-
-```bash
-uv run rbcp login          # 弹浏览器→手机扫码→看到首页后回终端按回车
-```
-
-然后：
-
-```bash
-# 列博主全量笔记清单（不下载）。半份/风控会退出码非 0
-uv run rbcp list "<博主主页链接>" [--json]
-
-# 抓单篇笔记
-uv run rbcp fetch "<笔记链接>"                 # 正文转录
-uv run rbcp fetch "<笔记链接>" --comments       # 附带评论（含楼中楼）→ {note_id}.comments.md
-uv run rbcp fetch "<笔记链接>" --text-only       # 跳过 VLM/ASR，只取现成正文
-uv run rbcp fetch "<笔记链接>" --save-media       # 额外把原始媒体存到独立目录
-
-# 抓整个博主（先预览 X 篇，确认后逐条下；--yes 跳过确认）
-uv run rbcp fetch "<博主主页链接>" --all [--comments] [--yes]
-```
-
-> 单篇正文转录走 requests（公开笔记不需 cookie）；**带评论 / 博主全量**走 pydoll 驱动系统 Chrome
-> （宿主需装 Chrome/Edge），抓接口、温和限频（实测清单 ~14、评论 ~4 请求·分钟⁻¹）。
-> cookie 也可不扫码，直接在 `.env` 配 `XHS_COOKIE` 或 `RBCP_XHS_COOKIE_FILE`（见 `.env.example`）。
-
-## 技术栈
-
-FastAPI + Jinja2 + HTMX + typer + SQLite + asyncio + requests（REST/OpenAI 兼容 HTTP 直调百炼）
-
-## 部署位置
-
-自部署工具。推荐部署在国内 IP 机器（避免小红书海外风控）。支持 WSL2 mirrored networking。手机访问走 tailscale 私有网络或 frp 中转。
+---
 
 ## 范围外
 
-- 抖音平台
-- MCP server（P0 不含，P2 按需新建）
-- Get 笔记历史数据迁移（独立项目）
-- 远期 LLM Wiki 主题索引（本项目只产 Markdown 原料）
+抖音 ｜ MCP server（P2 按需）｜ Get 笔记历史迁移（独立项目）｜ 远期 LLM Wiki（本项目只产 Markdown 原料）。
 
 ## License
 
-[MIT](./LICENSE)。
+[MIT](./LICENSE)
