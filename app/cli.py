@@ -123,6 +123,28 @@ def _build_note_url(note_id: str, xsec_token: str) -> str:
     )
 
 
+@app.command("login")
+def login(
+    timeout: int = typer.Option(180, "--timeout", help="等待扫码登录的秒数"),
+) -> None:
+    """弹出浏览器，扫码登录小红书，把 cookie 存到本地（博主全量/评论要用）。"""
+    load_dotenv()
+    from app.service import discover
+
+    typer.echo("即将弹出浏览器并打开小红书。请用手机扫码登录…")
+    typer.echo(f"（登录成功会自动保存；最多等 {timeout} 秒）")
+    count, path = asyncio.run(discover.login_and_save_cookies(timeout=timeout))
+    if count > 0:
+        typer.secho(f"✓ 已保存 {count} 条 cookie 到 {path}", fg=typer.colors.GREEN)
+        typer.echo("现在可以用 rbcp list / fetch --comments / fetch --all 了。")
+    else:
+        typer.secho(
+            "✗ 没拿到登录 cookie（可能没扫码或超时）。重跑 rbcp login 再试。",
+            fg=typer.colors.RED,
+        )
+        raise typer.Exit(code=1)
+
+
 @app.command("list")
 def list_uploader(
     url: str,

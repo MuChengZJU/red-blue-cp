@@ -326,32 +326,114 @@ def _cookies_from_file(path: Path) -> list[dict]:
     return cookies
 
 
+# `rbcp login` 扫码登录后 cookie 的默认落盘位置
+_DEFAULT_COOKIE_FILE = "~/.config/rbcp/xhs_cookies.json"
+
+
+def _resolve_cookie_file() -> Path:
+    """cookie 文件路径：RBCP_XHS_COOKIE_FILE 优先，否则默认 ~/.config/rbcp/xhs_cookies.json。"""
+    return Path(os.getenv("RBCP_XHS_COOKIE_FILE") or _DEFAULT_COOKIE_FILE).expanduser()
+
+
 def _load_cookies() -> list[dict]:
     """解析小红书 cookie，供 pydoll set_cookies。按优先级取来源：
 
-    1. 环境变量 ``XHS_COOKIE``（原始串 'web_session=...; a1=...'）—— 生产首选。
-    2. 环境变量 ``RBCP_XHS_COOKIE_FILE``（指向 cookie JSON 文件）—— dev / 自动化用。
+    1. 环境变量 ``XHS_COOKIE``（原始串 'web_session=...; a1=...'）。
+    2. 环境变量 ``RBCP_XHS_COOKIE_FILE`` 指向的 cookie JSON 文件。
+    3. 默认文件 ``~/.config/rbcp/xhs_cookies.json``（``rbcp login`` 扫码后存这）。
 
-    两者都没有则报错（壳层会把它转成失败留痕）。
+    都没有则报错（壳层会把它转成失败留痕，提示先跑 rbcp login）。
     """
     raw = os.getenv("XHS_COOKIE", "").strip()
     if raw:
         return _cookies_from_string(raw)
 
-    file_path = os.getenv("RBCP_XHS_COOKIE_FILE", "").strip()
-    if file_path:
-        path = Path(file_path).expanduser()
-        if not path.is_file():
-            raise RuntimeError(f"RBCP_XHS_COOKIE_FILE 指向的文件不存在：{path}")
-        cookies = _cookies_from_file(path)
-        if not cookies:
-            raise RuntimeError(f"RBCP_XHS_COOKIE_FILE 文件里没有可用 cookie：{path}")
-        return cookies
+    explicit = os.getenv("RBCP_XHS_COOKIE_FILE", "").strip()
+    candidates: list[Path] = []
+    if explicit:
+        candidates.append(Path(explicit).expanduser())
+    candidates.append(Path(_DEFAULT_COOKIE_FILE).expanduser())
+
+    for path in candidates:
+        if path.is_file():
+            cookies = _cookies_from_file(path)
+            if cookies:
+                return cookies
 
     raise RuntimeError(
-        "未配置小红书 cookie：在 .env 设 XHS_COOKIE='web_session=...; a1=...'，"
-        "或设 RBCP_XHS_COOKIE_FILE 指向 cookie JSON 文件"
+        "未配置小红书 cookie：先跑 `rbcp login` 扫码登录，"
+        "或在 .env 设 XHS_COOKIE='web_session=...; a1=...' / RBCP_XHS_COOKIE_FILE 指向 cookie 文件"
     )
+
+
+def _cookie_field(cookie, key, default=None):
+    """pydoll get_cookies 返回的条目可能是 dict 或对象，统一取字段。"""
+    if isinstance(cookie, dict):
+        return cookie.get(key, default)
+    return getattr(cookie, key, default)
+
+
+async def login_and_save_cookies(
+    cookie_file: Path | None = None, *, timeout: int = 180, poll: float = 2.0
+) -> tuple[int, Path]:
+    """弹有头浏览器到小红书，等用户扫码登录，把 cookie 存到本地文件。
+
+    返回 (有效 cookie 条数, 落盘路径)。检测到 web_session 即视为登录成功；
+    超时则存当前已有 cookie（可能为空，调用方据条数判断）。这是**最终用户**
+    获取登录态的入口（不依赖任何外部工具），也是开发期刷新 cookie 的统一办法。
+    """
+    from pydoll.browser.chromium import Chrome
+
+    target = (cookie_file or _resolve_cookie_file()).expanduser()
+    chrome = Chrome()
+    cookies: list = []
+    try:
+        tab = await chrome.start(headless=False)  # 有头：用户要看到二维码
+        await tab.go_to("https://www.xiaohongshu.com")
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            cookies = await chrome.get_cookies()
+            if any(
+                _cookie_field(c, "name") == "web_session" and _cookie_field(c, "value")
+                for c in cookies
+            ):
+                break
+            await asyncio.sleep(poll)
+    finally:
+        # 关浏览器前先尽量再取一次（成功路径已取过）
+        try:
+            cookies = await chrome.get_cookies() or cookies
+        except Exception:  # noqa: BLE001
+            pass
+        try:
+            await chrome.stop()
+        except Exception:  # noqa: BLE001
+            pass
+
+    out: list[dict] = []
+    for c in cookies:
+        domain = _cookie_field(c, "domain") or ""
+        if "xiaohongshu" not in domain:
+            continue
+        entry = {
+            "name": _cookie_field(c, "name"),
+            "value": _cookie_field(c, "value"),
+            "domain": domain,
+            "path": _cookie_field(c, "path", "/"),
+        }
+        for k in ("expires", "httpOnly", "secure", "sameSite"):
+            v = _cookie_field(c, k)
+            if v is not None:
+                entry[k] = v
+        out.append(entry)
+
+    target.parent.mkdir(parents=True, exist_ok=True)
+    tmp = target.with_suffix(target.suffix + ".tmp")
+    tmp.write_text(
+        json.dumps({"cookies": out}, ensure_ascii=False, indent=2), encoding="utf-8"
+    )
+    os.replace(tmp, target)
+    return sum(1 for c in out if c.get("value")), target
 
 
 def _script_value(resp):

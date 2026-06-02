@@ -254,8 +254,20 @@ def test_load_cookies_env_string_wins_over_file(monkeypatch, tmp_path):
     assert cookies[0]["name"] == "fromenv"  # .env 串优先
 
 
-def test_load_cookies_missing_raises(monkeypatch):
+def test_load_cookies_missing_raises(monkeypatch, tmp_path):
     monkeypatch.delenv("XHS_COOKIE", raising=False)
     monkeypatch.delenv("RBCP_XHS_COOKIE_FILE", raising=False)
+    # 把默认文件指到不存在路径，避免本机已有 ~/.config/rbcp/xhs_cookies.json 干扰
+    monkeypatch.setattr(discover, "_DEFAULT_COOKIE_FILE", str(tmp_path / "nope.json"))
     with pytest.raises(RuntimeError):
         discover._load_cookies()
+
+
+def test_load_cookies_from_default_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("XHS_COOKIE", raising=False)
+    monkeypatch.delenv("RBCP_XHS_COOKIE_FILE", raising=False)
+    f = tmp_path / "xhs_cookies.json"
+    f.write_text('{"cookies":[{"name":"web_session","value":"v"}]}', encoding="utf-8")
+    monkeypatch.setattr(discover, "_DEFAULT_COOKIE_FILE", str(f))
+    cookies = discover._load_cookies()
+    assert cookies[0]["name"] == "web_session"
