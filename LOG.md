@@ -90,6 +90,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-02 | 🔴 高 | 抓博主全量笔记别滚 DOM（触发风控+虚拟滚动丢数据），注入 XHR 拦截器抓 user_posted 接口 JSON，翻页收割；博主编号会乱（跳号/重复），核对按内容不按文件名 | [博主全量·XHR 拦截器](docs/devlog/2026-06-02-xhs-blogger-full-fetch-via-interceptor.md) |
 | 2026-05-09 | 🔴 高 | 架构审阅 + 单测都抓不到"接线层"bug，必须靠端到端实测 | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
 | 2026-05-09 | 🔴 高 | 外部 API 字段名查官方文档，不能信引用代码（`_reference/` 也是错的） | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
 | 2026-05-09 | 🟡 中 | smoke test 必须跑到外部 API 那一步，否则等于零（YouTube 假 URL 在 detect_platform 第一步就 ValueError） | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
