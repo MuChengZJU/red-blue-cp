@@ -76,6 +76,16 @@ class CommentPage:
 # ─────────────────────────────────────────────────────────────────────────────
 
 
+def _to_int(value, default: int = 0) -> int:
+    """接口计数字段健壮转 int：真实数据里可能是 ""（空串）/ None / 数字字符串。"""
+    try:
+        if value in (None, ""):
+            return default
+        return int(value)
+    except (TypeError, ValueError):
+        return default
+
+
 def parse_user_posted(resp_json: dict) -> NotePage:
     """解析单页 user_posted 响应。只解析当前页，不翻页、不发请求。
 
@@ -91,9 +101,9 @@ def parse_user_posted(resp_json: dict) -> NotePage:
         raw_type = raw.get("type", "normal")
         note_type = "video" if raw_type == "video" else "image"
 
-        # liked_count 接口给字符串，转 int；缺 interact_info 时默认 0
+        # liked_count 接口给字符串（真实数据里可能是空串），健壮转 int
         interact = raw.get("interact_info") or {}
-        liked_count = int(interact.get("liked_count", 0))
+        liked_count = _to_int(interact.get("liked_count"))
 
         user = raw.get("user", {})
         notes.append(Note(
@@ -124,9 +134,9 @@ def _parse_one_comment(raw: dict) -> Comment:
         content=raw.get("content", ""),
         author=user_info.get("nickname", ""),
         author_id=user_info.get("user_id", ""),
-        like_count=int(raw.get("like_count", 0)),
+        like_count=_to_int(raw.get("like_count")),
         ip_location=raw.get("ip_location", ""),
-        create_time=int(raw.get("create_time", 0)),
+        create_time=_to_int(raw.get("create_time")),
         reply_to=reply_to,
     )
 
@@ -148,7 +158,7 @@ def parse_comment_page(resp_json: dict) -> CommentPage:
         comment.reply_to = None
 
         # 填楼中楼元信息
-        comment.sub_comment_count = int(raw.get("sub_comment_count", 0))
+        comment.sub_comment_count = _to_int(raw.get("sub_comment_count"))
         comment.sub_comment_has_more = bool(raw.get("sub_comment_has_more", False))
         comment.sub_comment_cursor = raw.get("sub_comment_cursor", "")
 

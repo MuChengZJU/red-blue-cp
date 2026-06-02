@@ -301,3 +301,46 @@ class TestMergeSubComments:
         result = merge_sub_comments([c2], {"fixturecmt0000000000000002": extra})
         assert len(result) == 1
         assert len(result[0].sub_comments) == 3
+
+
+# ─── 真实数据回归：计数字段空串（fixture 漏了，真链路实测抓到）──────────────
+
+
+def test_liked_count_empty_string_coerces_to_zero():
+    """真实 user_posted 里 liked_count 可能是空串 ""，不能让 int("") 崩。"""
+    resp = {
+        "success": True,
+        "code": 0,
+        "data": {
+            "cursor": "c",
+            "has_more": True,
+            "notes": [{
+                "note_id": "n",
+                "xsec_token": "t",
+                "type": "normal",
+                "display_title": "x",
+                "user": {"nickname": "u", "user_id": "uid"},
+                "interact_info": {"liked_count": ""},  # 空串
+            }],
+        },
+    }
+    page = parse_user_posted(resp)
+    assert page.notes[0].liked_count == 0
+
+
+def test_comment_counts_empty_string_coerce_to_zero():
+    resp = {
+        "code": 0, "success": True,
+        "data": {"cursor": "", "has_more": False, "comments": [{
+            "id": "c", "note_id": "n", "content": "x",
+            "user_info": {"nickname": "u", "user_id": "uid"},
+            "like_count": "", "create_time": "", "ip_location": "",
+            "sub_comment_count": "", "sub_comment_has_more": False,
+            "sub_comment_cursor": "", "sub_comments": [],
+        }]},
+    }
+    page = parse_comment_page(resp)
+    c = page.comments[0]
+    assert c.like_count == 0
+    assert c.create_time == 0
+    assert c.sub_comment_count == 0
