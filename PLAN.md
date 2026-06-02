@@ -198,18 +198,32 @@ P2 = M3，按需（未启动）
 
 ### M2b · 博主全量（1.5 天）
 
-- [ ] `uv tool install bilibili-cli[audio] xiaohongshu-cli`
-- [ ] `service/uploader.py`：subprocess 调 `bili user-videos` / `xhs user-posts`
-- [ ] `POST /api/uploaders/{platform}/{uid}/posts` 拉列表
-- [ ] WebUI 列表页 + 过滤（时长 / 发布日期 / 关键词）+ 勾选（全选 + 单选）+ 入队按钮
-- [ ] CLI `rbcp uploader <platform> <uid>` 输出列表（不自动跑）
+> 实现方式已重定为 pydoll 拦截器（取代原"外部 CLI"路线）。设计见 [博主全量+评论设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)。只做小红书；B 站另一套机制本期不做。
+
+- [ ] 加依赖 `pydoll`（CDP 连系统 Chrome，不打包 chromium）；宿主需装 Chrome/Edge
+- [ ] `service/discover.py`：pydoll 驱动 Chrome，拦截 `user_posted` 接口；纯函数 `parse_user_posted(json)->list[Note]` 单独可测
+  - async 原生，**不走 to_thread**；浏览器任务串行化 + try/finally 关闭
+  - 风控/验证码中途触发 → 返回部分清单 + 明确告警，**绝不静默截断**
+- [ ] `POST /api/uploaders/posts`（body: user_url）→ 列清单 + 总数/类型拆分/预估
+- [ ] CLI `rbcp list <博主url> [--json]`（不下载）
+- [ ] CLI `rbcp fetch <url> --all`：整博主下载，默认先预览+确认（`--yes` 跳过），按 note_id 跳过已下载（续传）
+- [ ] 子集下载由 Agent 编排（list → 筛 → 逐条 fetch），不在工具里写过滤维度
+- [ ] WebUI 列表页 + 勾选下载（人用路径）
 
 ### M2c · 评论提取（0.5 天）
 
-- [ ] `service/comments.py`：subprocess 调 `xhs comments URL --all --json`
-- [ ] `POST /api/comments` 单笔记
-- [ ] 输出 JSON + Markdown 伴生文件（`{note_id}.comments.md`）
-- [ ] CLI `rbcp comments <url>`
+> 同 M2b 的 pydoll 拦截器，不依赖外部 CLI。
+
+- [ ] `service/discover.py` 加 `discover_comments(url)`：拦截 `comment/page` + `comment/sub/page`；纯函数 `parse_comments(json)->list[Comment]` 单独可测
+- [ ] `service/comments.py`：评论数据 → `{note_id}.comments.md`（一级 + 二级嵌套）
+- [ ] `POST /api/comments`（body: url, sub?）单笔记
+- [ ] CLI：`rbcp fetch <url> --comments [--no-sub]`（叠加在单篇下载上）
+- [ ] 评论逐篇量大（160+）是最大风控未验证点 → 单篇按需为主 + 可断点续 + 逐篇失败留痕 + 限流
+
+### M2c+ · 媒体落盘 / 纯文本开关（含在 M2b/c）
+
+- [ ] `extractor.py` 加 `--save-media`：原始媒体移出 tempfile → `RBCP_MEDIA_DIR`（独立于知识库，守不变量 #5 新措辞）；视频要存完整视频（比 ASR 多下一步）
+- [ ] `extractor.py` 加 `--text-only`：跳过 VLM/ASR；**加回归测试**守住原有全量转写不破
 
 ### M2d · B 站手动 ASR 切换（0.5 天）
 

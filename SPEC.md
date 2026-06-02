@@ -35,13 +35,16 @@ app/
     model.py            # ModelProvider Protocol + DashscopeProvider
     extractor.py        # 编排：调 fetcher 获取数据 + 调 model 转文字
                         # 输入 URL，输出 ExtractResult
-    fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应
+    fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应（requests，单篇正文不需浏览器）
     markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
     storage.py          # SQLite jobs CRUD（sqlite3 标准库）
+    discover.py         # (P1) pydoll 驱动系统 Chrome，拦截 user_posted/comment 接口
+                        # 全项目唯一碰浏览器处；对外 discover_user_posts / discover_comments（async）
+    comments.py         # (P1) 评论数据 → {note_id}.comments.md（一级+二级嵌套）
   web/
-    routes.py           # 输入页 + 任务列表 + 详情 + 下载
+    routes.py           # 输入页 + 任务列表 + 详情 + 下载（P1 加 uploaders/comments）
     templates/          # Jinja2 模板
-  cli.py                # rbcp run <url>
+  cli.py                # rbcp run <url>（P1 加 list / fetch）
 .env                    # 见下方配置项列表（gitignored）
 .env.example            # 配置模板（含所有配置项 + 默认值注释）
 ```
@@ -54,7 +57,8 @@ app/
 |---|---|---|---|
 | `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
 | `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
-| `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录 |
+| `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录（知识库，只放 .md + _index.sqlite） |
+| `RBCP_MEDIA_DIR` | 否 | `~/transcript-media` | (P1) `--save-media` 时原始视频/图片存放目录，独立于知识库 |
 | `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
 | `RBCP_ASR_DIARIZATION` | 否 | `true` | 是否开启说话人分离（按声纹区分对谈中的不同人）。`true`/`1`/`yes` 为开 |
 | `RBCP_ASR_SPEAKER_COUNT` | 否 | — | 说话人数量提示（整数 2-100）。不填则自动判断；填了也只是辅助算法尽量输出该人数，不保证 |
@@ -70,6 +74,8 @@ P0 走捷径：
 - CLI 同步阻塞，跑完返回路径
 - WebUI 任务列表用轮询（2s 拉一次 `/api/jobs`）
 - 不抽 Pipeline 接口，三种内容类型在 `extractor.py` 内部用 if/elif 分发
+
+**P1 并发补充（discover.py）**：pydoll 是 async 原生，**不走 `to_thread`**（那是给同步阻塞代码的）。`discover_*` 作为原生 async 任务 await；CLI 侧用 `asyncio.run()` 包。浏览器任务**串行化**（一次一个 Chrome），try/finally 保证用完即关。
 
 ---
 
@@ -118,8 +124,8 @@ P1 增加：
 ```
 POST /api/jobs/batch                # 批量提交
 POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR）
-POST /api/uploaders/{platform}/{uid}/posts  # 拉博主作品列表
-POST /api/comments                  # 评论提取
+POST /api/uploaders/posts           # body: {user_url} → 列博主笔记清单(不下载) + 总数/预估
+POST /api/comments                  # body: {url, sub?} → 抓评论写 .comments.md
 GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）
 ```
 
@@ -138,11 +144,20 @@ P1 增加：
 
 ```
 rbcp batch <file>               # 批量，每行一个 URL
-rbcp uploader <platform> <uid>  # 拉博主作品列表（不自动跑）
-rbcp comments <url>             # 评论提取
+rbcp list  <博主url> [--json]    # 列博主笔记清单(id+标题+类型+日期+token+总数+预估)，不下载
+rbcp fetch <url> [开关]          # 下载：单篇 | --all 整博主
 ```
 
-CLI 内部直接 `from app.service import extractor`，**不走 HTTP**。
+`rbcp fetch` 开关（叠加）：
+- `--all`：整博主全量（默认先预览+确认，`--yes` 跳过确认）
+- `--comments`：加抓全量评论（默认含二级），`--no-sub` 只要一级
+- `--save-media`：原始媒体存到 `RBCP_MEDIA_DIR`
+- `--text-only`：跳过 VLM/ASR，只取网页正文文本
+- `--json`：结构化输出（Agent 调用用），不加则人可读
+
+入口受众：`fetch <单篇>` 主要人用（亦同 WebUI 勾选）；`list` + 逐条 `fetch` 主要 Agent 编排。筛选规则在 Agent 侧，不进工具。
+
+CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP**。`run` 保留作单篇别名（向后兼容）。
 
 ---
 
