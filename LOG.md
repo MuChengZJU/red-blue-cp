@@ -80,7 +80,9 @@
 | 2026-05-09 | M1b 完成 | done | FastAPI + 5 API + HTMX 模板，路径穿越防御，135 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | QA + 接线 bug 修复 | done | 真链接跑通 3/3，修了 5 个接线层 bug（serve/job_id/metadata/timeout/file_urls）。137 单测全过。[详情](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | P0 收尾 | done | 三类链接均能稳定出 Markdown：xhs 图文 / B 站视频 / xhs 视频笔记 |
-| 待定 | P1 启动（M2） | pending | P0 稳定运行后启动 |
+| 2026-06-02 | M2 文档定稿 | done | 博主全量+评论设计/PRD/SPEC/PLAN/CLAUDE 改完，3 轮 Codex 审 |
+| 2026-06-03 | M2b/M2c 完成 | done | 博主全量+评论：并行 SubAgent 写解析层，pydoll 原生捕获写浏览器壳，加 rbcp login。真链路实测：清单 90 笔记 / 评论含楼中楼嵌套渲染。[详情](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
+| 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
 
@@ -90,6 +92,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-03 | 🔴 高 | pydoll 抓接口别用 JS 注入拦截器（页面早抓走原始 fetch 引用，覆盖钩不到，抓 0）→ 用原生 get_network_logs+get_network_response_body；扫码登录别用 web_session 判成功（游客也有），改按回车确认 | [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
 | 2026-06-02 | 🔴 高 | 并行 SubAgent TDD：成本在"合"不在"写"；worktree 可能从旧基线切致 agent 看不到契约而各自重建（接口分叉）；可执行契约(dataclass 桩)+把契约嵌进 prompt 才能收住 | [并行 SubAgent TDD 收获与教训](docs/devlog/2026-06-02-parallel-subagent-tdd-lessons.md) |
 | 2026-06-02 | 🔴 高 | 抓博主全量笔记别滚 DOM（触发风控+虚拟滚动丢数据），注入 XHR 拦截器抓 user_posted 接口 JSON，翻页收割；博主编号会乱（跳号/重复），核对按内容不按文件名 | [博主全量·XHR 拦截器](docs/devlog/2026-06-02-xhs-blogger-full-fetch-via-interceptor.md) |
 | 2026-05-09 | 🔴 高 | 架构审阅 + 单测都抓不到"接线层"bug，必须靠端到端实测 | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |

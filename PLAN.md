@@ -10,7 +10,7 @@
 | M1a | 1 | CLI 极简闭环 + ModelProvider | ✅ 完成 |
 | M1b | 0.5 | WebUI 最小页 | ✅ 完成 |
 | M1c | — | 说话人分离增强（P0 转录保真） | ✅ 完成 |
-| M2 | 3-5 | P1 规模化（按子优先级串行） | 未启动 |
+| M2 | 3-5 | P1 规模化（按子优先级串行） | 🔄 进行中：M2b/M2c ✅ |
 | M3 | 按需 | P2 完善 | 未启动 |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
@@ -196,9 +196,10 @@ P2 = M3，按需（未启动）
 - [ ] `POST /api/jobs/batch` 接受 URL 数组
 - [ ] CLI `rbcp batch <file>`
 
-### M2b · 博主全量（1.5 天）
+### M2b · 博主全量（✅ 完成 2026-06-03）
 
-> 实现方式已重定为 pydoll 拦截器（取代原"外部 CLI"路线）。设计见 [博主全量+评论设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)。只做小红书；B 站另一套机制本期不做。
+> 实现方式重定为 pydoll **原生网络捕获**（`enable_network_events` + `get_network_logs` + `get_network_response_body`）。设计见 [博主全量+评论设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)，实现踩坑见 [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md)。只做小红书；B 站另一套机制本期不做。
+> 真链路实测：清单抓 90 笔记（真标题/token/点赞），频率 ~14 请求/分钟。**新增 `rbcp login` 扫码登录命令**作为最终用户拿 cookie 的入口。
 
 - [ ] 加依赖 `pydoll`（CDP 连系统 Chrome，不打包 chromium）；宿主需装 Chrome/Edge
 - [ ] `service/discover.py`：pydoll 驱动 Chrome，拦截 `user_posted` 接口；纯函数 `parse_user_posted(json)->list[Note]` 单独可测
@@ -210,9 +211,9 @@ P2 = M3，按需（未启动）
 - [ ] 子集下载由 Agent 编排（list → 筛 → 逐条 fetch），不在工具里写过滤维度
 - [ ] WebUI 列表页 + 勾选下载（人用路径）
 
-### M2c · 评论提取（0.5 天）
+### M2c · 评论提取（✅ 完成 2026-06-03）
 
-> 同 M2b 的 pydoll 拦截器，不依赖外部 CLI。
+> 同 M2b 的 pydoll 原生捕获。真链路实测：抓到含楼中楼的评论，嵌套渲染正确（"X 回复 Y" + @提及 + 属地/点赞/时间），频率 ~4 请求/分钟。
 
 - [ ] `service/discover.py` 加 `discover_comments(url)`：拦截 `comment/page` + `comment/sub/page`；纯函数 `parse_comments(json)->list[Comment]` 单独可测
 - [ ] `service/comments.py`：评论数据 → `{note_id}.comments.md`（一级 + 二级嵌套）
