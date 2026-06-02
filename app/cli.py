@@ -201,6 +201,7 @@ def fetch(
             save_media=save_media,
             text_only=text_only,
             yes=yes,
+            json_out=json_out,
         )
         return
 
@@ -239,40 +240,63 @@ def _fetch_all(
     save_media: bool,
     text_only: bool,
     yes: bool,
+    json_out: bool = False,
 ) -> None:
     """博主全量：列清单 → 预览 → 确认 → 逐条下载。半份清单默认拒绝继续。"""
     from app.service import discover
 
     listing = asyncio.run(discover.discover_user_posts(url))
     est = listing["estimate"]
-    typer.echo(
-        f"博主 {listing['user_id']}：共 {listing['captured']} 篇"
-        f"（图文 {est['image_notes']} / 视频 {est['video_notes']}）"
-    )
 
     if not listing["complete"]:
-        typer.secho(
-            f"⚠ 清单未拉全（{listing['incomplete_reason']}）。不在半份清单上做全量下载。"
-            "请稍后重试或刷新 cookie。",
-            fg=typer.colors.RED,
-        )
+        if json_out:
+            typer.echo(_json.dumps(
+                {"ok": False, "error": "incomplete_list",
+                 "incomplete_reason": listing["incomplete_reason"],
+                 "captured": listing["captured"]}, ensure_ascii=False))
+        else:
+            typer.secho(
+                f"⚠ 清单未拉全（{listing['incomplete_reason']}）。不在半份清单上做全量下载。"
+                "请稍后重试或刷新 cookie。",
+                fg=typer.colors.RED,
+            )
         raise typer.Exit(code=1)
 
     if not listing["notes"]:
-        typer.echo("这个博主没有可下载的笔记。")
+        if json_out:
+            typer.echo(_json.dumps({"ok": True, "captured": 0, "downloaded": 0,
+                                    "failed": 0, "results": []}, ensure_ascii=False))
+        else:
+            typer.echo("这个博主没有可下载的笔记。")
         return
 
     if not yes:
-        confirmed = typer.confirm(f"确认下载这 {listing['captured']} 篇？")
-        if not confirmed:
+        # JSON/非交互模式不弹确认；要批量下载必须显式 --yes
+        if json_out:
+            typer.echo(_json.dumps(
+                {"ok": False, "error": "confirmation_required",
+                 "hint": "--all 在 --json 模式下需加 --yes", "captured": listing["captured"]},
+                ensure_ascii=False))
+            raise typer.Exit(code=1)
+        typer.echo(
+            f"博主 {listing['user_id']}：共 {listing['captured']} 篇"
+            f"（图文 {est['image_notes']} / 视频 {est['video_notes']}）"
+        )
+        if not typer.confirm(f"确认下载这 {listing['captured']} 篇？"):
             typer.echo("已取消。")
             raise typer.Exit(code=0)
+    elif not json_out:
+        typer.echo(
+            f"博主 {listing['user_id']}：共 {listing['captured']} 篇"
+            f"（图文 {est['image_notes']} / 视频 {est['video_notes']}）"
+        )
 
     ok, failed = 0, 0
+    results: list[dict] = []
     for note in listing["notes"]:
         note_url = _build_note_url(note["note_id"], note["xsec_token"])
         try:
-            _fetch_single(
+            out = _fetch_single(
                 note_url,
                 api_key=api_key,
                 output_dir=output_dir,
@@ -282,12 +306,21 @@ def _fetch_all(
                 text_only=text_only,
             )
             ok += 1
-            typer.echo(f"  [{ok + failed}/{listing['captured']}] ✓ {note['title'][:30]}")
+            results.append({"note_id": note["note_id"], "ok": True, **out})
+            if not json_out:
+                typer.echo(f"  [{ok + failed}/{listing['captured']}] ✓ {note['title'][:30]}")
         except Exception as error:  # noqa: BLE001 - 单篇失败不中断整批
             failed += 1
-            typer.secho(
-                f"  [{ok + failed}/{listing['captured']}] ✗ {note['note_id']}: {error}",
-                fg=typer.colors.YELLOW,
-            )
+            results.append({"note_id": note["note_id"], "ok": False, "error": str(error)})
+            if not json_out:
+                typer.secho(
+                    f"  [{ok + failed}/{listing['captured']}] ✗ {note['note_id']}: {error}",
+                    fg=typer.colors.YELLOW,
+                )
 
-    typer.echo(f"完成：成功 {ok}，失败 {failed}。")
+    if json_out:
+        typer.echo(_json.dumps(
+            {"ok": True, "captured": listing["captured"], "downloaded": ok,
+             "failed": failed, "results": results}, ensure_ascii=False))
+    else:
+        typer.echo(f"完成：成功 {ok}，失败 {failed}。")

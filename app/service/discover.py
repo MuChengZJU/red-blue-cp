@@ -236,6 +236,10 @@ class RiskControlError(RuntimeError):
     """撞上小红书安全验证（captcha）墙，无法继续抓取。调用方应标 failed 留痕。"""
 
 
+class CookieError(RuntimeError):
+    """cookie 没配/没登录/文件无效。区别于网络错误，提示用户先 rbcp login。"""
+
+
 # 全局串行化：一次只允许一个 Chrome 在跑（避免多会话并发抬高风控）。
 # 第二个 discover 请求排队等待，不并发开第二个浏览器。
 _BROWSER_LOCK = asyncio.Lock()
@@ -341,7 +345,7 @@ def _load_cookies() -> list[dict]:
             if cookies:
                 return cookies
 
-    raise RuntimeError(
+    raise CookieError(
         "未配置小红书 cookie：先跑 `rbcp login` 扫码登录，"
         "或在 .env 设 XHS_COOKIE='web_session=...; a1=...' / RBCP_XHS_COOKIE_FILE 指向 cookie 文件"
     )
@@ -575,6 +579,9 @@ async def discover_user_posts(user_url: str) -> dict:
 
             # 收尾再扫一遍，捞还没 ready 的 body
             await _fetch_new_bodies(tab, "user_posted", seen_rids, pages)
+        except CookieError:
+            # cookie 没配/没登录：报准确原因，别混成 network
+            incomplete_reason = "cookie_expired"
         except Exception as exc:  # noqa: BLE001 - 壳层兜底，细节进 reason
             incomplete_reason = incomplete_reason or "network"
             _ = exc

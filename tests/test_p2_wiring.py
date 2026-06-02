@@ -186,11 +186,21 @@ def test_api_uploaders_posts(monkeypatch):
     assert body["captured"] == 2
 
 
+def _mk_comment(cid, subs=()):
+    return discover.Comment(
+        comment_id=cid, note_id="note9", content="x", author="u", author_id="uid",
+        like_count=0, ip_location="", create_time=0, reply_to=None,
+        sub_comments=list(subs),
+    )
+
+
 def test_api_comments(monkeypatch, tmp_path):
     monkeypatch.setenv("RBCP_OUTPUT_DIR", str(tmp_path))
 
     async def fake_comments(url, *, with_sub):
-        return ["c1", "c2"]
+        # 2 条一级，其中一条带 3 条楼中楼 → total 应是 5
+        return [_mk_comment("c1", subs=[_mk_comment("s1"), _mk_comment("s2"), _mk_comment("s3")]),
+                _mk_comment("c2")]
 
     monkeypatch.setattr(discover, "discover_comments", fake_comments)
     monkeypatch.setattr(
@@ -204,7 +214,8 @@ def test_api_comments(monkeypatch, tmp_path):
     assert resp.status_code == 200
     body = resp.json()
     assert body["note_id"] == "note9"
-    assert body["comment_count"] == 2
+    assert body["comment_count"] == 2   # 一级
+    assert body["total_count"] == 5     # 含楼中楼
 
 
 def test_api_comments_risk_control_503(monkeypatch, tmp_path):
@@ -271,3 +282,55 @@ def test_load_cookies_from_default_file(monkeypatch, tmp_path):
     monkeypatch.setattr(discover, "_DEFAULT_COOKIE_FILE", str(f))
     cookies = discover._load_cookies()
     assert cookies[0]["name"] == "web_session"
+
+
+# ─── Codex review 修复回归 ─────────────────────────────────────────────────────
+
+
+def test_discover_user_posts_cookie_error_is_cookie_expired(monkeypatch):
+    """没配 cookie 时 _start_chrome 抛 CookieError，要分类成 cookie_expired 而非 network。"""
+    async def fake_start():
+        raise discover.CookieError("先 rbcp login")
+
+    monkeypatch.setattr(discover, "_start_chrome", fake_start)
+    import asyncio
+    r = asyncio.run(discover.discover_user_posts("https://x/user/profile/u1"))
+    assert r["complete"] is False
+    assert r["incomplete_reason"] == "cookie_expired"
+
+
+def test_fetch_all_json_incomplete(monkeypatch):
+    async def fake(url):
+        return _fake_listing(complete=False, reason="risk_control")
+
+    monkeypatch.setattr(discover, "discover_user_posts", fake)
+    result = runner.invoke(cli.app, ["fetch", "https://x/user/profile/u1", "--all", "--json", "--yes"])
+    assert result.exit_code == 1
+    assert '"error": "incomplete_list"' in result.stdout
+    assert '"risk_control"' in result.stdout
+
+
+def test_fetch_all_json_needs_yes(monkeypatch):
+    async def fake(url):
+        return _fake_listing(complete=True)
+
+    monkeypatch.setattr(discover, "discover_user_posts", fake)
+    # --json --all 但没 --yes → 不弹确认，报 confirmation_required
+    result = runner.invoke(cli.app, ["fetch", "https://x/user/profile/u1", "--all", "--json"])
+    assert result.exit_code == 1
+    assert '"confirmation_required"' in result.stdout
+
+
+def test_fetch_all_json_success(monkeypatch):
+    async def fake(url):
+        return _fake_listing(complete=True)
+
+    monkeypatch.setattr(discover, "discover_user_posts", fake)
+    monkeypatch.setattr(cli, "_fetch_single", lambda url, **kw: {"md_path": "x", "title": "t"})
+    result = runner.invoke(cli.app, ["fetch", "https://x/user/profile/u1", "--all", "--json", "--yes"])
+    assert result.exit_code == 0
+    import json as _j
+    # 末行是 JSON 汇总
+    line = [l for l in result.stdout.strip().splitlines() if l.startswith("{")][-1]
+    data = _j.loads(line)
+    assert data["ok"] is True and data["downloaded"] == 2 and data["failed"] == 0

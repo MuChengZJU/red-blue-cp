@@ -22,6 +22,12 @@ speaker_count: {{ speaker_count }}
 {% if vision_model -%}
 vision_model: {{ vision_model }}
 {% endif -%}
+{% if media_paths -%}
+media_paths:
+{% for p in media_paths -%}
+  - {{ p }}
+{% endfor -%}
+{% endif -%}
 status: {{ status }}
 tags: []
 ---

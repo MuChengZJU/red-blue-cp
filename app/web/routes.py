@@ -196,10 +196,12 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
         raise HTTPException(status_code=503, detail=str(error)) from None
 
     path = write_comments_md(note_id, comments, output_dir, note_title="")
+    sub_count = sum(len(c.sub_comments) for c in comments)
     return {
         "note_id": note_id,
         "comments_path": str(path),
-        "comment_count": len(comments),
+        "comment_count": len(comments),          # 一级评论数
+        "total_count": len(comments) + sub_count,  # 含楼中楼，= 写入文件的评论总数
     }
 
 
