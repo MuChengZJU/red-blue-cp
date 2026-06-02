@@ -1,0 +1,92 @@
+{
+  "success": true,
+  "msg": "成功",
+  "code": 0,
+  "data": {
+    "cursor": "6a000001000000000000aaaa",
+    "has_more": true,
+    "notes": [
+      {
+        "note_id": "fixturenote000000000000001",
+        "xsec_token": "FAKE-TOKEN-AAAA-0001=",
+        "type": "normal",
+        "display_title": "脱敏图文笔记标题一",
+        "user": {
+          "nick_name": "测试博主",
+          "nickname": "测试博主",
+          "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/FAKEAVATAR0001",
+          "user_id": "fixtureuser0000000000000001"
+        },
+        "interact_info": {
+          "liked": false,
+          "liked_count": "128",
+          "sticky": true
+        },
+        "cover": {
+          "info_list": [
+            {"image_scene": "WB_PRV", "url": "http://sns-webpic-qc.xhscdn.com/fake/cover0001!nc_n_webp_prv_1"},
+            {"image_scene": "WB_DFT", "url": "http://sns-webpic-qc.xhscdn.com/fake/cover0001!nc_n_webp_mw_1"}
+          ],
+          "url_pre": "http://sns-webpic-qc.xhscdn.com/fake/cover0001!nc_n_webp_prv_1",
+          "url_default": "http://sns-webpic-qc.xhscdn.com/fake/cover0001!nc_n_webp_mw_1",
+          "file_id": "",
+          "height": 2400,
+          "width": 1920
+        }
+      },
+      {
+        "note_id": "fixturenote000000000000002",
+        "xsec_token": "FAKE-TOKEN-AAAA-0002=",
+        "type": "video",
+        "display_title": "脱敏视频笔记标题二",
+        "user": {
+          "nick_name": "测试博主",
+          "nickname": "测试博主",
+          "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/FAKEAVATAR0001",
+          "user_id": "fixtureuser0000000000000001"
+        },
+        "interact_info": {
+          "liked": false,
+          "liked_count": "1024",
+          "sticky": false
+        },
+        "cover": {
+          "info_list": [
+            {"image_scene": "WB_PRV", "url": "http://sns-webpic-qc.xhscdn.com/fake/cover0002!nc_n_webp_prv_1"},
+            {"image_scene": "WB_DFT", "url": "http://sns-webpic-qc.xhscdn.com/fake/cover0002!nc_n_webp_mw_1"}
+          ],
+          "url_pre": "http://sns-webpic-qc.xhscdn.com/fake/cover0002!nc_n_webp_prv_1",
+          "url_default": "http://sns-webpic-qc.xhscdn.com/fake/cover0002!nc_n_webp_mw_1",
+          "file_id": "",
+          "height": 1920,
+          "width": 1080
+        }
+      },
+      {
+        "note_id": "fixturenote000000000000003",
+        "xsec_token": "FAKE-TOKEN-AAAA-0003=",
+        "type": "normal",
+        "display_title": "",
+        "user": {
+          "nick_name": "测试博主",
+          "nickname": "测试博主",
+          "avatar": "https://sns-avatar-qc.xhscdn.com/avatar/FAKEAVATAR0001",
+          "user_id": "fixtureuser0000000000000001"
+        },
+        "interact_info": {
+          "liked": true,
+          "liked_count": "7",
+          "sticky": false
+        },
+        "cover": {
+          "info_list": [],
+          "url_pre": "http://sns-webpic-qc.xhscdn.com/fake/cover0003!nc_n_webp_prv_1",
+          "url_default": "http://sns-webpic-qc.xhscdn.com/fake/cover0003!nc_n_webp_mw_1",
+          "file_id": "",
+          "height": 1706,
+          "width": 1280
+        }
+      }
+    ]
+  }
+}

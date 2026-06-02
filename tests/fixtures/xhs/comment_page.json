@@ -1,0 +1,90 @@
+{
+  "code": 0,
+  "success": true,
+  "msg": "成功",
+  "data": {
+    "cursor": "6a000comment00000000cur01",
+    "has_more": true,
+    "time": 1780408500000,
+    "xsec_token": "FAKE-CMT-PAGE-TOKEN=",
+    "user_id": "fixtureviewer00000000000001",
+    "comments": [
+      {
+        "id": "fixturecmt0000000000000001",
+        "note_id": "fixturenote000000000000001",
+        "content": "第一条一级评论，无回复[石化R]",
+        "create_time": 1780408417000,
+        "like_count": "12",
+        "liked": false,
+        "ip_location": "北京",
+        "status": 0,
+        "user_info": {
+          "user_id": "fixturecmtuser0000000000001",
+          "nickname": "评论者甲",
+          "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0001",
+          "ai_agent": false,
+          "xsec_token": "FAKE-CMTUSER-TOKEN-0001="
+        },
+        "at_users": [],
+        "show_tags": ["is_author"],
+        "sub_comment_count": "0",
+        "sub_comments": [],
+        "sub_comment_cursor": "",
+        "sub_comment_has_more": false
+      },
+      {
+        "id": "fixturecmt0000000000000002",
+        "note_id": "fixturenote000000000000001",
+        "content": "第二条一级评论，有 3 条楼中楼，先内联 1 条",
+        "create_time": 1780408420000,
+        "like_count": "30",
+        "liked": true,
+        "ip_location": "广东",
+        "status": 0,
+        "user_info": {
+          "user_id": "fixturecmtuser0000000000002",
+          "nickname": "评论者乙",
+          "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0002",
+          "ai_agent": false,
+          "xsec_token": "FAKE-CMTUSER-TOKEN-0002="
+        },
+        "at_users": [],
+        "show_tags": [],
+        "sub_comment_count": "3",
+        "sub_comment_cursor": "6a000sub00000000000cur002",
+        "sub_comment_has_more": true,
+        "sub_comments": [
+          {
+            "id": "fixturesub00000000000000a1",
+            "note_id": "fixturenote000000000000001",
+            "content": "内联楼中楼第 1 条，回复评论者乙",
+            "create_time": 1780408425000,
+            "like_count": "2",
+            "liked": false,
+            "ip_location": "上海",
+            "status": 0,
+            "user_info": {
+              "user_id": "fixturecmtuser0000000000003",
+              "nickname": "回复者丙",
+              "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0003",
+              "ai_agent": false,
+              "xsec_token": "FAKE-CMTUSER-TOKEN-0003="
+            },
+            "at_users": [],
+            "show_tags": [],
+            "target_comment": {
+              "id": "fixturecmt0000000000000002",
+              "user_info": {
+                "user_id": "fixturecmtuser0000000000002",
+                "nickname": "评论者乙",
+                "image": "https://sns-avatar-qc.xhscdn.com/avatar/FAKECMT0002",
+                "ai_agent": false,
+                "xsec_token": "FAKE-CMTUSER-TOKEN-0002="
+              }
+            }
+          }
+        ]
+      }
+    ]
+  }
+}

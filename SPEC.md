@@ -177,10 +177,10 @@ CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP*
   "notes": [
     {
       "note_id": "...",
-      "title": "...",
-      "type": "image | video",
-      "published_at": "2026-MM-DD",
-      "xsec_token": "..."        // 拼笔记 URL 用的访问令牌（拼 fetch 的 url）；每篇一次性，会过期
+      "title": "...",          // 来自 display_title，可能为空字符串
+      "type": "image | video", // 来自接口 type：normal→image，video→video
+      "liked_count": 128,      // int（接口给的是字符串，解析时转 int）
+      "xsec_token": "..."      // 拼笔记 URL 用的访问令牌（拼 fetch 的 url）；每篇一次性，会过期
     }
   ]
 }
@@ -188,8 +188,94 @@ CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP*
 
 - **`complete` 字段是硬契约**：风控/cookie 过期/网络中断导致只拉到一部分时，`complete=false` + `incomplete_reason`，CLI 同时打印明显告警、退出码非 0。Agent 看到 `complete=false` 必须停下跟用户核对，**不得当全量继续逐条 fetch**。
 - `xsec_token`：小红书的访问令牌，拼 `fetch` 的笔记 URL 用；**每篇一次性、会过期**，拿到后尽快用。
-- `notes` **按发布时间倒序**（最新在前）固定返回，保证 `--json` 结果可复现。
+- **无 `published_at`**：实测 `user_posted` 接口的 note 不含发布时间字段（只有 note_id/xsec_token/type/display_title/user/interact_info/cover）。清单拿不到发布日期；`notes` 的**倒序由接口的时间序游标 `cursor` 保证**（最新在前），不是我们排的。发布日期要到 `fetch` 单篇详情时才有。
 - 人可读模式（不加 `--json`）：打印总数/类型拆分/预估 + 是否完整，半份时红字告警。
+
+---
+
+## 4.4 数据模型契约（P1 解析层，并行开发共同接口）
+
+> 这一节是 `discover.py` 纯函数层与 `comments.py` 的**接口契约**。解析逻辑（纯函数）与浏览器抓取（薄壳）分离，便于单测。
+> fixture 见 `tests/fixtures/xhs/`（脱敏真实 schema），单测直接喂这些 JSON。
+
+### 4.4.1 dataclass（定义在 `app/service/discover.py`）
+
+```python
+from dataclasses import dataclass, field
+
+@dataclass
+class Note:
+    note_id: str
+    title: str            # 来自 display_title，可能为 ""
+    type: str             # "image" | "video"（接口 normal→image，video→video）
+    xsec_token: str       # 一次性、会过期；拼单篇 fetch 的 URL 用
+    author: str           # user.nickname
+    author_id: str        # user.user_id
+    liked_count: int      # 接口给字符串，解析转 int
+
+@dataclass
+class NotePage:
+    notes: list[Note]
+    cursor: str           # 下一页游标；末页为 ""
+    has_more: bool
+
+@dataclass
+class Comment:
+    comment_id: str       # 接口 id
+    note_id: str
+    content: str
+    author: str           # user_info.nickname
+    author_id: str        # user_info.user_id
+    like_count: int       # 接口字符串 → int
+    ip_location: str      # 可能为 ""
+    create_time: int      # 毫秒级 epoch
+    reply_to: str | None  # 回复对象昵称（target_comment.user_info.nickname）；一级评论为 None
+    sub_comments: list["Comment"] = field(default_factory=list)  # 仅一级评论非空
+    # 以下三个仅一级评论有意义，供浏览器壳判断是否要续拉楼中楼：
+    sub_comment_count: int = 0
+    sub_comment_has_more: bool = False
+    sub_comment_cursor: str = ""
+
+@dataclass
+class CommentPage:
+    comments: list[Comment]   # 一级评论（内联 sub_comments 已解析进 .sub_comments）
+    cursor: str
+    has_more: bool
+```
+
+### 4.4.2 纯函数签名（`discover.py`，无 I/O、无浏览器）
+
+```python
+def parse_user_posted(resp_json: dict) -> NotePage:
+    """解析单页 user_posted 响应。只解析当前页，不翻页、不发请求。
+    resp_json 是接口返回的整个 JSON（含顶层 success/code/data）。"""
+
+def parse_comment_page(resp_json: dict) -> CommentPage:
+    """解析一级评论页（comment/page）。一级评论的内联 sub_comments 也解析进 .sub_comments，
+    并填好 sub_comment_count / sub_comment_has_more / sub_comment_cursor。"""
+
+def parse_sub_comments(resp_json: dict) -> tuple[list[Comment], str, bool]:
+    """解析楼中楼页（comment/sub/page）。返回 (子评论 list, cursor, has_more)。"""
+
+def merge_sub_comments(comments: list[Comment],
+                       subs_by_root: dict[str, list[Comment]]) -> list[Comment]:
+    """把续拉到的楼中楼按 root comment_id 合并进对应一级评论的 .sub_comments（去重、保序）。
+    纯函数，浏览器壳抓完所有页后调用一次。"""
+```
+
+**解析层不做的事**：不翻页循环、不判风控、不发 HTTP。翻页与风控判定在浏览器壳（Phase 2）。
+但**部分截断的信号**由壳层组装进 §4.3 的 `complete` 字段，不在纯函数里。
+
+### 4.4.3 `comments.py` 格式化签名
+
+```python
+def format_comments_md(note_id: str, comments: list[Comment], *, note_title: str = "") -> str:
+    """list[Comment]（一级，sub_comments 已嵌套）→ markdown 字符串。
+    一级评论平铺，楼中楼缩进嵌套；渲染昵称/正文/点赞数/IP属地/时间；空列表给"暂无评论"。
+    只返回字符串，落盘走 markdown.py 的原子写（{note_id}.comments.md）。"""
+```
+
+输出文件名 `{note_id}.comments.md`，落盘复用既有 `markdown.py` 的 `.tmp + os.replace` 原子写（守红线 #7）。
 
 ---
 
