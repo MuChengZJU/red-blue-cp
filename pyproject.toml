@@ -11,6 +11,7 @@ dependencies = [
     "uvicorn",
     "jinja2",
     "typer",
+    "pydoll-python",  # P1：博主全量/评论用，CDP 连系统 Chrome 拦截接口；discover.py 内懒加载
 ]
 
 [project.scripts]
