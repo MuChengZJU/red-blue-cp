@@ -21,6 +21,7 @@ import json
 import os
 import re
 from dataclasses import dataclass, field
+from pathlib import Path
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -272,13 +273,8 @@ def note_id_from_url(url: str) -> str:
     return tail or "unknown_note"
 
 
-def _load_cookies() -> list[dict]:
-    """从环境变量 XHS_COOKIE（形如 'a=1; b=2'）解析成 pydoll set_cookies 的格式。"""
-    raw = os.getenv("XHS_COOKIE", "").strip()
-    if not raw:
-        raise RuntimeError(
-            "未配置 XHS_COOKIE。请在 .env 设置小红书 cookie（形如 'web_session=...; a1=...'）"
-        )
+def _cookies_from_string(raw: str) -> list[dict]:
+    """原始 cookie 串 'a=1; b=2' → pydoll set_cookies 格式（统一挂 .xiaohongshu.com）。"""
     cookies: list[dict] = []
     for part in raw.split(";"):
         part = part.strip()
@@ -292,6 +288,65 @@ def _load_cookies() -> list[dict]:
             "path": "/",
         })
     return cookies
+
+
+def _cookies_from_file(path: Path) -> list[dict]:
+    """cookie JSON 文件 → pydoll 格式。兼容 {"cookies":[...]} 和裸数组 [...] 两种结构。
+
+    每条至少要 name/value；domain/path/expires/httpOnly/secure/sameSite 有则透传。
+    （Playwright/CDP 风格的导出文件即此结构，与具体工具无关。）
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    raw_list = data.get("cookies", []) if isinstance(data, dict) else data
+    cookies: list[dict] = []
+    for c in raw_list:
+        if "name" not in c or "value" not in c:
+            continue
+        cp: dict = {
+            "name": c["name"],
+            "value": c["value"],
+            "domain": c.get("domain", ".xiaohongshu.com"),
+            "path": c.get("path", "/"),
+        }
+        exp = c.get("expires")
+        if isinstance(exp, (int, float)) and exp > 0:
+            cp["expires"] = exp
+        if c.get("httpOnly") is not None:
+            cp["httpOnly"] = bool(c["httpOnly"])
+        if c.get("secure") is not None:
+            cp["secure"] = bool(c["secure"])
+        if c.get("sameSite") in ("Strict", "Lax", "None"):
+            cp["sameSite"] = c["sameSite"]
+        cookies.append(cp)
+    return cookies
+
+
+def _load_cookies() -> list[dict]:
+    """解析小红书 cookie，供 pydoll set_cookies。按优先级取来源：
+
+    1. 环境变量 ``XHS_COOKIE``（原始串 'web_session=...; a1=...'）—— 生产首选。
+    2. 环境变量 ``RBCP_XHS_COOKIE_FILE``（指向 cookie JSON 文件）—— dev / 自动化用。
+
+    两者都没有则报错（壳层会把它转成失败留痕）。
+    """
+    raw = os.getenv("XHS_COOKIE", "").strip()
+    if raw:
+        return _cookies_from_string(raw)
+
+    file_path = os.getenv("RBCP_XHS_COOKIE_FILE", "").strip()
+    if file_path:
+        path = Path(file_path).expanduser()
+        if not path.is_file():
+            raise RuntimeError(f"RBCP_XHS_COOKIE_FILE 指向的文件不存在：{path}")
+        cookies = _cookies_from_file(path)
+        if not cookies:
+            raise RuntimeError(f"RBCP_XHS_COOKIE_FILE 文件里没有可用 cookie：{path}")
+        return cookies
+
+    raise RuntimeError(
+        "未配置小红书 cookie：在 .env 设 XHS_COOKIE='web_session=...; a1=...'，"
+        "或设 RBCP_XHS_COOKIE_FILE 指向 cookie JSON 文件"
+    )
 
 
 def _script_value(resp):

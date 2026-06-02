@@ -217,3 +217,45 @@ def test_api_comments_risk_control_503(monkeypatch, tmp_path):
     client = TestClient(web_app)
     resp = client.post("/api/comments", json={"url": "https://www.xiaohongshu.com/explore/n"})
     assert resp.status_code == 503
+
+
+# ─── cookie 来源解析（生产 .env 串 / dev 文件回退）─────────────────────────────
+
+
+def test_load_cookies_from_env_string(monkeypatch):
+    monkeypatch.setenv("XHS_COOKIE", "web_session=abc; a1=xyz")
+    monkeypatch.delenv("RBCP_XHS_COOKIE_FILE", raising=False)
+    cookies = discover._load_cookies()
+    names = {c["name"]: c["value"] for c in cookies}
+    assert names == {"web_session": "abc", "a1": "xyz"}
+    assert all(c["domain"] == ".xiaohongshu.com" for c in cookies)
+
+
+def test_load_cookies_from_file(monkeypatch, tmp_path):
+    monkeypatch.delenv("XHS_COOKIE", raising=False)
+    f = tmp_path / "ck.json"
+    f.write_text(
+        '{"cookies":[{"name":"a1","value":"v","domain":".xiaohongshu.com",'
+        '"path":"/","secure":true,"sameSite":"Lax"}]}',
+        encoding="utf-8",
+    )
+    monkeypatch.setenv("RBCP_XHS_COOKIE_FILE", str(f))
+    cookies = discover._load_cookies()
+    assert cookies[0]["name"] == "a1"
+    assert cookies[0]["sameSite"] == "Lax"
+
+
+def test_load_cookies_env_string_wins_over_file(monkeypatch, tmp_path):
+    f = tmp_path / "ck.json"
+    f.write_text('[{"name":"fromfile","value":"x"}]', encoding="utf-8")
+    monkeypatch.setenv("RBCP_XHS_COOKIE_FILE", str(f))
+    monkeypatch.setenv("XHS_COOKIE", "fromenv=1")
+    cookies = discover._load_cookies()
+    assert cookies[0]["name"] == "fromenv"  # .env 串优先
+
+
+def test_load_cookies_missing_raises(monkeypatch):
+    monkeypatch.delenv("XHS_COOKIE", raising=False)
+    monkeypatch.delenv("RBCP_XHS_COOKIE_FILE", raising=False)
+    with pytest.raises(RuntimeError):
+        discover._load_cookies()
