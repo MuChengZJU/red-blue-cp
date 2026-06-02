@@ -29,9 +29,11 @@ def _make_comment(
     create_time=1_717_200_000_000,  # 2024-06-01 04:00:00 UTC
     reply_to=None,
     sub_comments=None,
+    note_id="note1",
 ) -> Comment:
     return Comment(
         comment_id=comment_id,
+        note_id=note_id,
         author=author,
         author_id=author_id,
         content=content,
