@@ -77,7 +77,54 @@ def parse_user_posted(resp_json: dict) -> NotePage:
 
     resp_json 是接口返回的整个 JSON（含顶层 success/code/data）。
     """
-    raise NotImplementedError  # Phase 1-A
+    data = resp_json["data"]
+    cursor: str = data.get("cursor", "")
+    has_more: bool = bool(data.get("has_more", False))
+
+    notes: list[Note] = []
+    for raw in data.get("notes", []):
+        # type 映射：normal → "image"，video → "video"
+        raw_type = raw.get("type", "normal")
+        note_type = "video" if raw_type == "video" else "image"
+
+        # liked_count 接口给字符串，转 int；缺 interact_info 时默认 0
+        interact = raw.get("interact_info") or {}
+        liked_count = int(interact.get("liked_count", 0))
+
+        user = raw.get("user", {})
+        notes.append(Note(
+            note_id=raw["note_id"],
+            title=raw.get("display_title", ""),
+            type=note_type,
+            xsec_token=raw.get("xsec_token", ""),
+            author=user.get("nickname", user.get("nick_name", "")),
+            author_id=user.get("user_id", ""),
+            liked_count=liked_count,
+        ))
+
+    return NotePage(notes=notes, cursor=cursor, has_more=has_more)
+
+
+def _parse_one_comment(raw: dict) -> Comment:
+    """把接口单条评论 dict 解析成 Comment（不含子评论递归，子评论由调用方处理）。"""
+    user_info = raw.get("user_info", {})
+    target = raw.get("target_comment")
+    reply_to: str | None = None
+    if target:
+        target_user = target.get("user_info", {})
+        reply_to = target_user.get("nickname") or None
+
+    return Comment(
+        comment_id=raw["id"],
+        note_id=raw.get("note_id", ""),
+        content=raw.get("content", ""),
+        author=user_info.get("nickname", ""),
+        author_id=user_info.get("user_id", ""),
+        like_count=int(raw.get("like_count", 0)),
+        ip_location=raw.get("ip_location", ""),
+        create_time=int(raw.get("create_time", 0)),
+        reply_to=reply_to,
+    )
 
 
 def parse_comment_page(resp_json: dict) -> CommentPage:
@@ -86,12 +133,43 @@ def parse_comment_page(resp_json: dict) -> CommentPage:
     一级评论的内联 sub_comments 也解析进 .sub_comments，
     并填好 sub_comment_count / sub_comment_has_more / sub_comment_cursor。
     """
-    raise NotImplementedError  # Phase 1-A
+    data = resp_json["data"]
+    cursor: str = data.get("cursor", "")
+    has_more: bool = bool(data.get("has_more", False))
+
+    comments: list[Comment] = []
+    for raw in data.get("comments", []):
+        comment = _parse_one_comment(raw)
+        # 一级评论 reply_to 强制为 None（接口里一级评论不带 target_comment）
+        comment.reply_to = None
+
+        # 填楼中楼元信息
+        comment.sub_comment_count = int(raw.get("sub_comment_count", 0))
+        comment.sub_comment_has_more = bool(raw.get("sub_comment_has_more", False))
+        comment.sub_comment_cursor = raw.get("sub_comment_cursor", "")
+
+        # 解析内联 sub_comments
+        inline_subs: list[Comment] = []
+        for sub_raw in raw.get("sub_comments", []):
+            inline_subs.append(_parse_one_comment(sub_raw))
+        comment.sub_comments = inline_subs
+
+        comments.append(comment)
+
+    return CommentPage(comments=comments, cursor=cursor, has_more=has_more)
 
 
 def parse_sub_comments(resp_json: dict) -> tuple[list[Comment], str, bool]:
     """解析楼中楼页（comment/sub/page）。返回 (子评论 list, cursor, has_more)。"""
-    raise NotImplementedError  # Phase 1-A
+    data = resp_json["data"]
+    cursor: str = data.get("cursor", "")
+    has_more: bool = bool(data.get("has_more", False))
+
+    subs: list[Comment] = []
+    for raw in data.get("comments", []):
+        subs.append(_parse_one_comment(raw))
+
+    return subs, cursor, has_more
 
 
 def merge_sub_comments(
@@ -102,7 +180,32 @@ def merge_sub_comments(
 
     去重（按 comment_id）、保序。纯函数，浏览器壳抓完所有页后调用一次。
     """
-    raise NotImplementedError  # Phase 1-A
+    import copy
+
+    result: list[Comment] = []
+    for comment in comments:
+        extra = subs_by_root.get(comment.comment_id, [])
+        if not extra:
+            result.append(comment)
+            continue
+
+        # 以已有 sub_comments 的 comment_id 为基础，追加去重
+        existing_ids: dict[str, Comment] = {
+            s.comment_id: s for s in comment.sub_comments
+        }
+        merged_subs = list(comment.sub_comments)  # 保留原有顺序
+
+        for sub in extra:
+            if sub.comment_id not in existing_ids:
+                merged_subs.append(sub)
+                existing_ids[sub.comment_id] = sub
+
+        # 返回新 Comment 对象，避免 in-place 修改原对象影响调用方
+        new_comment = copy.copy(comment)
+        new_comment.sub_comments = merged_subs
+        result.append(new_comment)
+
+    return result
 
 
 # ─────────────────────────────────────────────────────────────────────────────

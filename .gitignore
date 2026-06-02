@@ -11,3 +11,4 @@ build/
 uv.lock
 .gstack/
 .leak-patterns.local
+.claude/
