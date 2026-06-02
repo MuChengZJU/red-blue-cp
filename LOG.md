@@ -90,6 +90,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-02 | 🔴 高 | 并行 SubAgent TDD：成本在"合"不在"写"；worktree 可能从旧基线切致 agent 看不到契约而各自重建（接口分叉）；可执行契约(dataclass 桩)+把契约嵌进 prompt 才能收住 | [并行 SubAgent TDD 收获与教训](docs/devlog/2026-06-02-parallel-subagent-tdd-lessons.md) |
 | 2026-06-02 | 🔴 高 | 抓博主全量笔记别滚 DOM（触发风控+虚拟滚动丢数据），注入 XHR 拦截器抓 user_posted 接口 JSON，翻页收割；博主编号会乱（跳号/重复），核对按内容不按文件名 | [博主全量·XHR 拦截器](docs/devlog/2026-06-02-xhs-blogger-full-fetch-via-interceptor.md) |
 | 2026-05-09 | 🔴 高 | 架构审阅 + 单测都抓不到"接线层"bug，必须靠端到端实测 | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
 | 2026-05-09 | 🔴 高 | 外部 API 字段名查官方文档，不能信引用代码（`_reference/` 也是错的） | [接线层 bug 复盘](docs/devlog/2026-05-09-integration-layer-bugs.md) |
