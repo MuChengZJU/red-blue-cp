@@ -18,10 +18,15 @@ from __future__ import annotations
 
 import asyncio
 import json
+import logging
 import os
 import re
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
+
+# 请求计数/频率日志：保护账号，跑完打一条 summary，方便看抓得猛不猛
+_log = logging.getLogger("rbcp.discover")
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -385,6 +390,19 @@ async def _is_risk_page(tab) -> bool:
     return bool(hit)
 
 
+def _log_rate(label: str, *, requests: int, scrolls: int, elapsed: float, extra: str = "") -> None:
+    """打一条抓取频率 summary：接口请求数 / 滚动次数 / 耗时 / 估算请求频率。
+
+    requests 指捕获到的签名接口响应数（user_posted/comment 等），就是真正打到
+    小红书的那些请求——盯这个数和频率，别把账号搞炸。
+    """
+    rate = (requests / elapsed * 60) if elapsed > 0 else 0.0
+    _log.info(
+        "[%s] 接口请求 %d 次 / 滚动 %d 次 / 耗时 %.1fs / 约 %.1f 请求·分钟⁻¹%s",
+        label, requests, scrolls, elapsed, rate, (" / " + extra) if extra else "",
+    )
+
+
 def _build_list_contract(user_id, notes, complete, incomplete_reason) -> dict:
     image_notes = sum(1 for n in notes if n.type == "image")
     video_notes = sum(1 for n in notes if n.type == "video")
@@ -430,6 +448,8 @@ async def discover_user_posts(user_url: str) -> dict:
         incomplete_reason: str | None = None
         pages: list[str] = []
         chrome = None
+        t0 = time.monotonic()
+        scrolls = 0
         try:
             chrome, tab = await _start_chrome()
             await tab.go_to(user_url)
@@ -442,6 +462,7 @@ async def discover_user_posts(user_url: str) -> dict:
             last_count, stall = 0, 0
             while not risk:
                 await tab.execute_script("window.scrollTo(0, document.body.scrollHeight)")
+                scrolls += 1
                 await asyncio.sleep(scroll_wait)
                 count = int(await _eval(
                     tab, "(window.__rbcp_cap&&window.__rbcp_cap.user_posted.length)||0") or 0)
@@ -508,6 +529,11 @@ async def discover_user_posts(user_url: str) -> dict:
         if incomplete_reason is not None:
             complete = False
 
+        _log_rate(
+            "user_posted", requests=len(pages), scrolls=scrolls,
+            elapsed=time.monotonic() - t0,
+            extra=f"{len(notes)}笔记 complete={complete} reason={incomplete_reason}",
+        )
         return _build_list_contract(user_id, notes, complete, incomplete_reason)
 
 
@@ -519,6 +545,8 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
         chrome = None
         page_texts: list[str] = []
         sub_items: list[dict] = []
+        t0 = time.monotonic()
+        scrolls = 0
         try:
             chrome, tab = await _start_chrome()
             await tab.go_to(note_url)
@@ -536,6 +564,7 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
                     "(function(){var c=document.querySelector("
                     "'.comments-el,.comments-container,.note-scroller,.comment-list');"
                     "if(c)c.scrollTop=c.scrollHeight;window.scrollTo(0,document.body.scrollHeight);})()")
+                scrolls += 1
                 if with_sub:
                     # 点开"展开 N 条回复"，触发 comment/sub/page
                     await tab.execute_script(
@@ -612,4 +641,10 @@ async def discover_comments(note_url: str, *, with_sub: bool = True) -> list[Com
                 continue
             subs_by_root.setdefault(root_id, []).extend(subs)
 
-        return merge_sub_comments(comments, subs_by_root)
+        merged = merge_sub_comments(comments, subs_by_root)
+        _log_rate(
+            "comments", requests=len(page_texts) + len(sub_items), scrolls=scrolls,
+            elapsed=time.monotonic() - t0,
+            extra=f"{len(merged)}条一级 +{len(sub_items)}楼中楼页",
+        )
+        return merged
