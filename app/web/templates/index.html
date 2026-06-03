@@ -57,6 +57,13 @@
     return { key: "", label: "" };
   }
 
+  // 卡片里只显示 host+path，去掉超长 query（B站 vd_source / 小红书 xsec_token 等）；
+  // href 仍是完整 url，能正常跳转
+  function shortUrl(url) {
+    try { const u = new URL(url); return u.host + u.pathname; }
+    catch { return url; }
+  }
+
   function platformOf(job) {
     if (job.platform === "bilibili" || job.platform === "xiaohongshu") return job.platform;
     return detectPlatform(job.url || job.source_url || "").key;
@@ -97,7 +104,7 @@
     const author = job.author || "未知作者";
     const url = job.url || job.source_url || "";
     const source = url
-      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
+      ? `<a class="job-src" href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(shortUrl(url))}</a>`
       : "无原始链接";
 
     let badge;

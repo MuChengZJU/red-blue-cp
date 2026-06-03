@@ -55,6 +55,9 @@
 
     * { box-sizing: border-box; }
 
+    /* hidden 属性必须真隐藏：否则会被下面 .toolbar{display:flex} 等作者样式盖掉 */
+    [hidden] { display: none !important; }
+
     body {
       margin: 0;
       min-height: 100vh;
@@ -236,6 +239,7 @@
     .job-meta, .muted { color: var(--muted); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; word-break: break-word; }
     .job-meta a { color: var(--muted); }
     .job-meta .sep { color: var(--faint); margin: 0 7px; }
+    .job-src { display: inline-block; max-width: min(100%, 460px); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; vertical-align: bottom; }
     .job-actions { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
 
     /* ── Status badge ─────────────────────────────────────── */

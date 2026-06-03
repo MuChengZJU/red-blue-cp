@@ -143,6 +143,13 @@
   async function loadJob() {
     try {
       const response = await fetch(jobUrl);
+      if (response.status === 404) {
+        metaEl.innerHTML = "";
+        titleEl.textContent = "任务不存在";
+        toolbar.hidden = true;
+        contentEl.innerHTML = '<div class="empty"><p class="empty-title">任务不存在或已被删除</p><div><a href="/">← 返回任务列表</a></div></div>';
+        return;
+      }
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const job = await response.json();
       renderMeta(job);

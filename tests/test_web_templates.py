@@ -156,3 +156,22 @@ class TestDetailPage:
         job_id = self._job(mock_storage)
         html = client.get(f"/jobs/{job_id}").text
         assert 'id="copy-button"' in html
+
+    def test_missing_job_returns_styled_html_not_json(self, client):
+        """坏的 /jobs/{id} 要返回带样式的 404 页，而不是裸 JSON"""
+        resp = client.get("/jobs/99999")
+        assert resp.status_code == 404
+        assert "html" in resp.headers.get("content-type", "").lower()
+        assert "任务不存在" in resp.text
+        assert not resp.text.strip().startswith("{")
+
+
+# ── 首页卡片细节 ───────────────────────────────────────────────
+
+class TestCardDetails:
+
+    def test_source_url_shortened(self, client):
+        """卡片源链接显示 host+path（去掉超长 query），避免撑满卡片"""
+        html = client.get("/").text
+        assert "shortUrl" in html
+        assert "job-src" in html
