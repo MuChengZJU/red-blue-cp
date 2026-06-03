@@ -1,127 +1,188 @@
 {% extends 'base.html' %}
 
 {% block content %}
+<a class="breadcrumb" href="/">← 任务</a>
+
 <section class="detail-head">
   <h2 id="detail-title" class="detail-title">正在加载...</h2>
   <div id="detail-meta" class="job-meta"></div>
 </section>
 
-<nav class="toolbar" aria-label="任务操作">
-  <button id="copy-button" type="button">复制全文</button>
-  <a class="button secondary" href="/api/jobs/{{ job_id }}/download" download>下载 .md</a>
-  <a class="button ghost" href="/">← 返回列表</a>
+<nav id="toolbar" class="toolbar" aria-label="任务操作" hidden>
+  <div class="segmented" role="group" aria-label="查看方式">
+    <button id="view-rendered" type="button" aria-pressed="true">渲染</button>
+    <button id="view-source" type="button" aria-pressed="false">源码</button>
+  </div>
+  <span class="spacer"></span>
+  <button id="copy-button" type="button" class="button small secondary">复制</button>
+  <a id="download-button" class="button small secondary" href="/api/jobs/{{ job_id }}/download" download>下载 .md</a>
 </nav>
 
-<div id="notice" class="notice" aria-live="polite"></div>
 <section id="content" class="section">
-  <div class="loading">正在加载...</div>
+  <div class="loading"><span class="spinner"></span>正在加载...</div>
 </section>
+{% endblock %}
 
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
   const jobId = "{{ job_id }}";
   const jobUrl = `/api/jobs/${encodeURIComponent(jobId)}`;
   const markdownUrl = `/api/jobs/${encodeURIComponent(jobId)}/markdown`;
+
   const titleEl = document.getElementById("detail-title");
   const metaEl = document.getElementById("detail-meta");
   const contentEl = document.getElementById("content");
-  const noticeEl = document.getElementById("notice");
+  const toolbar = document.getElementById("toolbar");
+  const btnRendered = document.getElementById("view-rendered");
+  const btnSource = document.getElementById("view-source");
   const copyButton = document.getElementById("copy-button");
 
-  const statusText = {
-    pending: "等待中",
-    running: "处理中",
-    done: "已完成",
-    failed: "失败"
-  };
+  const statusText = { pending: "等待中", running: "处理中", done: "已完成", failed: "失败" };
+
+  let markdownText = null;   // 缓存原文，渲染/源码/复制共用，避免重复请求
+  let viewMode = "rendered";
 
   function escapeHtml(value) {
     return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  }
+
+  function platformLabel(p) {
+    if (p === "bilibili") return "Bilibili";
+    if (p === "xiaohongshu") return "小红书";
+    return p || "未知平台";
+  }
+
+  function typeTag(job) {
+    const t = job.content_type || "";
+    if (t === "video") return "视频";
+    if (t === "image_text" || t === "image_note" || t === "note" || t === "image") return "图文";
+    if (t === "article") return "文章";
+    if (job.platform === "xiaohongshu") return "图文";
+    if (job.platform === "bilibili") return "视频";
+    return "";
   }
 
   function formatDate(value) {
-    if (!value) {
-      return "未知时间";
-    }
+    if (!value) return "未知时间";
     const date = new Date(value);
-    if (Number.isNaN(date.getTime())) {
-      return value;
-    }
-    return date.toLocaleString("zh-CN", { hour12: false });
+    return Number.isNaN(date.getTime()) ? value : date.toLocaleString("zh-CN", { hour12: false });
   }
 
   async function fetchMarkdown() {
+    if (markdownText !== null) return markdownText;
     const response = await fetch(markdownUrl);
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`);
-    }
-    return response.text();
+    if (!response.ok) throw new Error(`HTTP ${response.status}`);
+    markdownText = await response.text();
+    return markdownText;
+  }
+
+  // 去掉文件开头的 YAML frontmatter（--- ... ---）。它是给机器看的元信息，
+  // 渲染态会被 marked 误当成超大标题（一段文字紧跟 --- = setext H2）。
+  // 详情页头部已经显示作者/平台/时间，这里去掉更干净；源码态保留原文。
+  function stripFrontmatter(md) {
+    const m = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(md);
+    return m ? md.slice(m[0].length) : md;
   }
 
   function renderMeta(job) {
     const status = job.status || "pending";
+    const dot = job.platform === "bilibili" || job.platform === "xiaohongshu"
+      ? `<span class="plat-dot ${escapeHtml(job.platform)}"></span>` : "";
     metaEl.innerHTML = `
-      <span>作者：${escapeHtml(job.author || "未知作者")}</span>
-      <span>平台：${escapeHtml(job.platform || "未知平台")}</span>
-      <span>状态：<span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span></span>
-      <span>创建时间：${escapeHtml(formatDate(job.created_at || job.createdAt))}</span>
-    `;
+      ${dot}<span>作者：${escapeHtml(job.author || "未知作者")}</span>
+      <span class="sep">·</span><span>${escapeHtml(platformLabel(job.platform))}</span>
+      <span class="sep">·</span><span><span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span></span>
+      <span class="sep">·</span><span>${escapeHtml(formatDate(job.created_at || job.createdAt))}</span>`;
   }
 
-  async function renderDone() {
-    contentEl.innerHTML = '<div class="loading">正在加载 Markdown...</div>';
-    const markdown = await fetchMarkdown();
-    contentEl.innerHTML = `<pre>${escapeHtml(markdown)}</pre>`;
+  function renderView() {
+    btnRendered.setAttribute("aria-pressed", String(viewMode === "rendered"));
+    btnSource.setAttribute("aria-pressed", String(viewMode === "source"));
+    if (markdownText === null) return;
+    if (viewMode === "source") {
+      contentEl.innerHTML = `<pre class="source-view">${escapeHtml(markdownText)}</pre>`;
+    } else {
+      // marked 转 HTML，再用 DOMPurify 清洗（内容是爬来的，防 XSS 注入）
+      const rawHtml = marked.parse(stripFrontmatter(markdownText), { gfm: true, breaks: true });
+      const clean = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ["target", "rel"] });
+      contentEl.innerHTML = `<article class="markdown-body">${clean}</article>`;
+    }
+  }
+
+  async function renderDone(job) {
+    toolbar.hidden = false;
+    const tag = typeTag(job);
+    titleEl.innerHTML = `${escapeHtml(job.title || job.url || "未命名任务")}${tag ? `<span class="type-tag">${escapeHtml(tag)}</span>` : ""}`;
+    contentEl.innerHTML = '<div class="loading"><span class="spinner"></span>正在加载内容...</div>';
+    try {
+      await fetchMarkdown();
+      renderView();
+    } catch (error) {
+      contentEl.innerHTML = `<div class="error-box">内容加载失败：${escapeHtml(error.message)}</div>`;
+    }
   }
 
   function renderFailed(job) {
-    const message = [job.error_message || "任务失败", job.log_excerpt || ""]
-      .filter(Boolean)
-      .join("\n\n");
+    toolbar.hidden = true;
+    titleEl.textContent = job.title || job.url || "任务失败";
+    const message = [job.error_message || "任务失败", job.log_excerpt || ""].filter(Boolean).join("\n\n");
     contentEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
   }
 
-  function renderProcessing() {
-    contentEl.innerHTML = '<div class="loading">处理中...</div>';
+  function renderProcessing(job) {
+    toolbar.hidden = true;
+    titleEl.textContent = job.title || job.url || "正在抽取...";
+    contentEl.innerHTML = '<div class="loading"><span class="spinner"></span>处理中，完成后自动显示...</div>';
     setTimeout(loadJob, 2000);
   }
 
   async function loadJob() {
     try {
       const response = await fetch(jobUrl);
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+      if (response.status === 404) {
+        metaEl.innerHTML = "";
+        titleEl.textContent = "任务不存在";
+        toolbar.hidden = true;
+        contentEl.innerHTML = '<div class="empty"><p class="empty-title">任务不存在或已被删除</p><div><a href="/">← 返回任务列表</a></div></div>';
+        return;
       }
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
       const job = await response.json();
-      titleEl.textContent = job.title || job.url || "未命名任务";
       renderMeta(job);
-      noticeEl.textContent = "";
-
-      if (job.status === "done") {
-        await renderDone();
-      } else if (job.status === "failed") {
-        renderFailed(job);
-      } else {
-        renderProcessing();
-      }
+      if (job.status === "done") await renderDone(job);
+      else if (job.status === "failed") renderFailed(job);
+      else renderProcessing(job);
     } catch (error) {
-      noticeEl.textContent = `任务加载失败：${error.message}`;
-      contentEl.innerHTML = '<div class="empty">无法显示任务详情</div>';
+      titleEl.textContent = "无法显示任务";
+      contentEl.innerHTML = `<div class="empty"><p class="empty-title">任务加载失败</p><div>${escapeHtml(error.message)}</div></div>`;
     }
   }
 
+  function setView(mode) { viewMode = mode; renderView(); }
+  btnRendered.addEventListener("click", () => setView("rendered"));
+  btnSource.addEventListener("click", () => setView("source"));
+
   copyButton.addEventListener("click", async () => {
     try {
-      const markdown = await fetchMarkdown();
-      await navigator.clipboard.writeText(markdown);
-      noticeEl.textContent = "已复制全文";
+      const md = await fetchMarkdown();
+      await navigator.clipboard.writeText(md);
+      window.rbToast("已复制全文", "success");
     } catch (error) {
-      noticeEl.textContent = `复制失败：${error.message}`;
+      window.rbToast(`复制失败：${error.message}`, "error");
     }
+  });
+
+  // 键盘快捷键：r 切换渲染/源码，c 复制，Esc 返回
+  document.addEventListener("keydown", (event) => {
+    if (event.metaKey || event.ctrlKey || event.altKey) return;
+    if (event.key === "Escape") { window.location.href = "/"; return; }
+    if (toolbar.hidden) return;
+    if (event.key === "r" || event.key === "R") { setView(viewMode === "rendered" ? "source" : "rendered"); }
+    else if (event.key === "c" || event.key === "C") { copyButton.click(); }
   });
 
   loadJob();

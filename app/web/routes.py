@@ -218,7 +218,14 @@ def job_detail(
 ):
     job = storage.get_job(job_id)
     if job is None:
-        raise HTTPException(status_code=404, detail="Job not found")
+        # 返回带样式的 404 页（仍是 404 状态），而不是裸 JSON。
+        # 前端 JS fetch /api/jobs/{id} 拿到 404 后会显示「任务不存在」空状态。
+        return templates.TemplateResponse(
+            request,
+            "detail.html",
+            {"request": request, "job_id": job_id, "job": None},
+            status_code=404,
+        )
     return templates.TemplateResponse(
         request,
         "detail.html",

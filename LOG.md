@@ -32,6 +32,7 @@
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
 | 2026-06-03 | 🔴 高 | 范围 | Q1 形态定案：不收敛单一入口。现在做＝自部署 WebUI 手机可达（Tailscale）+ 发 PyPI（pipx/uv tool）；Tauri 桌面 GUI 门控 P2（真实非技术用户 + API Key 上手路径）。架构守 service 前端无关给 GUI 留门；公网暴露前必须加鉴权 | [形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
+| 2026-06-03 | 🟡 中 | 工程 | WebUI 视觉从零重做为「红蓝品牌」设计系统；详情页 Markdown 渲染/源码切换（marked+DOMPurify，CDN 非 Python 依赖） | [详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-01 | 🟡 中 | 业务 | ASR 加说话人分离（paraformer-v2 diarization）：多人对谈标「说话人N：」，单人降级纯文本，一人多角色交 LLM 后处理 | SPEC §8.3 / PLAN §M1c |
 | 2026-05-09 | 🟡 中 | 业务 | 失败任务加"重试"按钮提前到 P0（成本极低，POST 同 url 复用即可），不等 M2d | [P0 交付](docs/devlog/2026-05-09-p0-delivery.md) |
 | 2026-05-09 | 🔴 高 | 架构 | Eng review R2：ASR 统一异步/去 SDK/加 dotenv/配置简化，Codex 20 findings | PLAN.md §Eng Review 决议（第二轮） |
@@ -83,6 +84,7 @@
 | 2026-05-09 | P0 收尾 | done | 三类链接均能稳定出 Markdown：xhs 图文 / B 站视频 / xhs 视频笔记 |
 | 2026-06-02 | M2 文档定稿 | done | 博主全量+评论设计/PRD/SPEC/PLAN/CLAUDE 改完，3 轮 Codex 审 |
 | 2026-06-03 | M2b/M2c 完成 | done | 博主全量+评论：并行 SubAgent 写解析层，pydoll 原生捕获写浏览器壳，加 rbcp login。真链路实测：清单 90 笔记 / 评论含楼中楼嵌套渲染。[详情](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
+| 2026-06-03 | WebUI 重做（红蓝品牌）+ QA | done | 从零重做 WebUI 设计系统（方案3红蓝品牌）+ 详情页 Markdown 渲染/源码切换（marked+DOMPurify），gstack 浏览器自动化 QA 修 4 个 bug，264 单测全过。[详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
@@ -93,6 +95,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-03 | 🟡 中 | 自测数据缺真实数据的关键特征就测不出真实 bug（手写无 frontmatter 的 md 掩盖了 marked 把 frontmatter 渲成巨大 setext 标题）；`[hidden]` 会被 `display:flex` 静默盖掉；改 routes.py 须重启 uvicorn（模板热重载 / Python 模块不重载） | [WebUI 重做+QA](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-03 | 🔴 高 | 何时能并行=接缝锁定没（锁定=决策敲定+写成代码，不是PRD全不全）；依赖链型串行真不能并行；调研分功能层(锁哪儿)+技术层(锁得住吗)，技术调研要在 fan out 前做 spike | [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md) |
 | 2026-06-03 | 🔴 高 | P1 复盘（五段×三问，对标业界 agent 编码方法论）：赢在规划阶段把契约定成可执行的；输在执行/评审对"并行隔离"和"提交=所测"没设硬门 | [P1 复盘](docs/devlog/2026-06-03-retro-p1-claude-code.md) |
 | 2026-06-03 | 🔴 高 | pydoll 抓接口别用 JS 注入拦截器（页面早抓走原始 fetch 引用，覆盖钩不到，抓 0）→ 用原生 get_network_logs+get_network_response_body；扫码登录别用 web_session 判成功（游客也有），改按回车确认 | [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
