@@ -86,6 +86,23 @@ feat(extractor): 实现 extract_url 包装上游 extract 函数
 fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 ```
 
+### 多 session 并行协作（多开 Claude Code 同时做不同特性）
+
+同时开多个 Claude Code 改这个仓库时，**必须用 git worktree，禁止同一工作目录开多个会话**（同目录多会话改同一批文件必撞）。Claude Code 原生支持：`git fetch origin` 后 `claude -w <name> -n <显示名>` 给会话开独立 worktree + 新分支。
+
+规则：
+
+1. **各流各分支，从最新 main 切**：开 worktree 前先 `git fetch origin`，否则从过时基线切，看不到最新代码/契约（已踩过，见 [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md)）。
+2. **按目录切割范围，写进开场 prompt**：每条流明确"只改哪些目录、禁碰哪些"。典型切法——文档/打包流碰 `docs/ PLAN/PRD/LOG pyproject.toml scripts/`；WebUI 流碰 `app/web/ tests/test_web*`；核心 `app/service/` 同一时刻只让一条流碰。
+3. **共享文件防撞**：
+   - `LOG.md`（多流都想加索引）：让后合并的流**先别碰**，索引行合并时统一加，或先合的先加、后者 rebase。
+   - `pyproject.toml` 版本号/依赖：**单一流负责**，其他流要加依赖先说。
+   - `.env`（git 忽略）：新 worktree **默认不复制**，建好后手动 `cp` 进去，否则报缺 API Key。
+   - `uv.lock`：各 worktree 各自 `uv sync` 建独立 `.venv`，互不影响。
+4. **dev server 端口**：同时起多个 `rbcp serve` 会撞 8000；不需要 server 的流别起，需要的流用 `--port` 错开。
+5. **未提交改动跨 worktree 不可见**（git 设计，非 bug）：要让另一条流看到你的改动，先 commit。
+6. **合并用 rebase 保线性历史**：合并前 `git fetch && git rebase origin/main`，符合本仓单分支线性提交习惯。
+
 ### 里程碑收尾必须真链路实测
 
 不要把"测试全过 + 审阅通过"等同于"完工"。完工 = 用户视角真链路跑得通。
