@@ -1,0 +1,150 @@
+"""WebUI 模板结构测试 —— 锁定「红蓝品牌」重做后的关键 UI 契约。
+
+与 test_routes.py 互补：那边测 API/路由契约，这边测重做后的模板里
+该有的 UI 元素（平台识别、状态筛选、渲染⇄源码切换、防 XSS 清洗、
+空状态引导等），防止以后改模板把这些体验悄悄改没。
+
+策略同 test_routes：dependency_overrides 注入临时 Storage，只看 HTML 输出。
+"""
+
+from unittest.mock import MagicMock
+
+import pytest
+from fastapi.testclient import TestClient
+
+from app.web.routes import app, get_storage, get_pipeline_fn
+
+
+@pytest.fixture
+def mock_storage(tmp_path):
+    from app.service.storage import Storage
+    return Storage(tmp_path / "test.db")
+
+
+@pytest.fixture
+def client(mock_storage):
+    pipe = MagicMock()
+    pipe.return_value = "/fake/path/file.md"
+    app.dependency_overrides[get_storage] = lambda: mock_storage
+    app.dependency_overrides[get_pipeline_fn] = lambda: pipe
+    yield TestClient(app)
+    app.dependency_overrides.clear()
+
+
+# ── 基础外壳（base.html） ──────────────────────────────────────
+
+class TestBaseShell:
+
+    def test_brand_present(self, client):
+        html = client.get("/").text
+        assert "Red Blue CP" in html
+
+    def test_loads_web_font(self, client):
+        """拉丁文用 Plus Jakarta Sans（Bunny Fonts CDN，隐私友好）"""
+        html = client.get("/").text
+        assert "fonts.bunny.net" in html
+        assert "plus-jakarta-sans" in html
+
+    def test_has_toast_host(self, client):
+        """全局 toast 容器 + 辅助函数"""
+        html = client.get("/").text
+        assert 'id="toast-host"' in html
+        assert "rbToast" in html
+
+    def test_no_old_gradient_banner(self, client):
+        """旧版顶部红粉蓝渐变 banner（AI 味）应已移除"""
+        html = client.get("/").text
+        assert "120deg, #e5484d 0%, #d83b6c" not in html
+
+
+# ── 首页（index.html） ─────────────────────────────────────────
+
+class TestIndexPage:
+
+    def test_has_url_input(self, client):
+        html = client.get("/").text
+        assert 'id="url-input"' in html
+        assert 'type="url"' in html
+
+    def test_has_status_filters(self, client):
+        """状态筛选 chip：全部 / 处理中 / 已完成 / 失败"""
+        html = client.get("/").text
+        for f in ("all", "running", "done", "failed"):
+            assert f'data-filter="{f}"' in html
+
+    def test_has_platform_detection(self, client):
+        """输入即识别 B站 / 小红书平台"""
+        html = client.get("/").text
+        assert "detectPlatform" in html
+        assert "bilibili" in html
+        assert "xiaohongshu" in html
+
+    def test_has_job_list_container(self, client):
+        html = client.get("/").text
+        assert 'id="job-list"' in html
+
+    def test_has_empty_state_guidance(self, client):
+        """空状态要引导，而不是只有「暂无任务」"""
+        html = client.get("/").text
+        assert "还没有任务" in html
+
+    def test_polls_for_updates(self, client):
+        html = client.get("/").text
+        assert "setInterval" in html
+        assert "/api/jobs" in html
+
+    def test_anti_flicker_signature(self, client):
+        """防闪烁：内容未变不重绘（lastSignature 门控）"""
+        html = client.get("/").text
+        assert "lastSignature" in html
+
+
+# ── 详情页（detail.html） ──────────────────────────────────────
+
+class TestDetailPage:
+
+    def _job(self, storage):
+        return storage.create_job("https://www.bilibili.com/video/BV1detail")
+
+    def test_has_breadcrumb_back(self, client, mock_storage):
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "← 任务" in html
+
+    def test_has_render_source_toggle(self, client, mock_storage):
+        """渲染 ⇄ 源码 分段开关"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert 'id="view-rendered"' in html
+        assert 'id="view-source"' in html
+        assert "渲染" in html and "源码" in html
+
+    def test_loads_markdown_renderer(self, client, mock_storage):
+        """marked 负责 Markdown→HTML"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "marked" in html
+        assert "marked.parse" in html
+
+    def test_sanitizes_rendered_html(self, client, mock_storage):
+        """不变量：爬来的内容渲染前必须 DOMPurify 清洗，防 XSS"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "DOMPurify" in html
+        assert "DOMPurify.sanitize" in html
+
+    def test_download_uses_job_id(self, client, mock_storage):
+        """下载走 job_id，不接受任意路径（不变量 #1）"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert f"/api/jobs/{job_id}/download" in html
+
+    def test_references_job_id(self, client, mock_storage):
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert f'"{job_id}"' in html
+
+    def test_has_copy_button(self, client, mock_storage):
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert 'id="copy-button"' in html

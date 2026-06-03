@@ -1,151 +1,243 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<section class="panel">
+<section class="submit-card">
   <form id="job-form" class="submit-row">
-    <input id="url-input" type="url" name="url" placeholder="粘贴 B 站或小红书链接" required>
+    <input id="url-input" type="url" name="url" placeholder="粘贴 B 站或小红书链接，回车抽取" required
+           autocomplete="off" spellcheck="false">
     <button id="submit-button" type="submit">抽取</button>
   </form>
+  <div id="submit-hint" class="submit-hint" aria-live="polite"></div>
 </section>
 
 <section class="section">
-  <h2 class="section-title">任务列表</h2>
-  <div id="notice" class="notice" aria-live="polite"></div>
+  <div class="section-head">
+    <h2 class="section-title">任务</h2>
+    <div id="filters" class="filters" role="group" aria-label="按状态筛选">
+      <button type="button" class="filter-chip" data-filter="all" aria-pressed="true">全部 <span id="cnt-all">0</span></button>
+      <button type="button" class="filter-chip" data-filter="running" aria-pressed="false"><span class="dot running"></span>处理中 <span id="cnt-running">0</span></button>
+      <button type="button" class="filter-chip" data-filter="done" aria-pressed="false"><span class="dot done"></span>已完成 <span id="cnt-done">0</span></button>
+      <button type="button" class="filter-chip" data-filter="failed" aria-pressed="false"><span class="dot failed"></span>失败 <span id="cnt-failed">0</span></button>
+    </div>
+  </div>
   <div id="job-list" class="job-list">
-    <div class="loading">正在加载...</div>
+    <div class="loading"><span class="spinner"></span>正在加载...</div>
   </div>
 </section>
+{% endblock %}
 
+{% block scripts %}
 <script>
   const form = document.getElementById("job-form");
   const input = document.getElementById("url-input");
   const button = document.getElementById("submit-button");
-  const notice = document.getElementById("notice");
+  const hint = document.getElementById("submit-hint");
   const list = document.getElementById("job-list");
+  const filtersEl = document.getElementById("filters");
 
-  const statusText = {
-    pending: "等待中",
-    running: "处理中",
-    done: "已完成",
-    failed: "失败"
-  };
+  const EXAMPLE_URL = "https://www.bilibili.com/video/BV1GJ411x7h7";
+
+  const statusText = { pending: "等待中", running: "处理中", done: "已完成", failed: "失败" };
+
+  let currentFilter = "all";
+  let lastSignature = null;   // 防闪烁：内容未变就不重绘
+  let knownIds = null;        // 已见过的 job id，用于高亮新任务
 
   function escapeHtml(value) {
     return String(value ?? "")
-      .replaceAll("&", "&amp;")
-      .replaceAll("<", "&lt;")
-      .replaceAll(">", "&gt;")
-      .replaceAll('"', "&quot;")
-      .replaceAll("'", "&#039;");
+      .replaceAll("&", "&amp;").replaceAll("<", "&lt;").replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;").replaceAll("'", "&#039;");
+  }
+
+  // 从链接推断平台（提交提示 + 卡片色条都用）
+  function detectPlatform(url) {
+    const u = String(url || "").toLowerCase();
+    if (/bilibili\.com|b23\.tv/.test(u)) return { key: "bilibili", label: "B站视频" };
+    if (/xiaohongshu\.com|xhslink\.com|xhs\.cn/.test(u)) return { key: "xiaohongshu", label: "小红书图文" };
+    return { key: "", label: "" };
+  }
+
+  function platformOf(job) {
+    if (job.platform === "bilibili" || job.platform === "xiaohongshu") return job.platform;
+    return detectPlatform(job.url || job.source_url || "").key;
   }
 
   function normalizeJobs(payload) {
-    if (Array.isArray(payload)) {
-      return payload;
-    }
-    if (Array.isArray(payload?.jobs)) {
-      return payload.jobs;
-    }
-    if (Array.isArray(payload?.items)) {
-      return payload.items;
-    }
-    if (Array.isArray(payload?.data)) {
-      return payload.data;
+    if (Array.isArray(payload)) return payload;
+    for (const k of ["jobs", "items", "data"]) {
+      if (Array.isArray(payload?.[k])) return payload[k];
     }
     return [];
   }
 
+  function fmtElapsed(ms) {
+    if (!Number.isFinite(ms) || ms < 0) ms = 0;
+    const s = Math.floor(ms / 1000);
+    const m = Math.floor(s / 60);
+    return `${m}:${String(s % 60).padStart(2, "0")}`;
+  }
+
+  // 每秒刷新「处理中」卡片上的计时，独立于列表重绘（重绘是防闪烁门控的）
+  function tickTimers() {
+    const now = Date.now();
+    document.querySelectorAll(".job-timer[data-start]").forEach((el) => {
+      const start = Date.parse(el.dataset.start);
+      if (!Number.isNaN(start)) el.textContent = fmtElapsed(now - start);
+    });
+  }
+
+  function cardHtml(job, isNew) {
+    const id = job.id ?? job.job_id ?? "";
+    const status = job.status || "pending";
+    const plat = platformOf(job);
+    const title = job.title || job.url || (status === "done" ? "未命名内容" : "等待抽取");
+    const author = job.author || "未知作者";
+    const url = job.url || job.source_url || "";
+    const source = url
+      ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
+      : "无原始链接";
+
+    let badge;
+    if (status === "running") {
+      const start = job.started_at || job.created_at || "";
+      badge = `<span class="badge running"><span class="spinner"></span>处理中 <span class="job-timer" data-start="${escapeHtml(start)}">0:00</span></span>`;
+    } else {
+      badge = `<span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span>`;
+    }
+
+    const errorLine = status === "failed" && job.error_message
+      ? `<div class="error-line">${escapeHtml(job.error_message)}</div>` : "";
+    const retryBtn = status === "failed" && url
+      ? `<button type="button" class="button small secondary retry-btn" data-url="${escapeHtml(url)}">重试</button>` : "";
+
+    return `
+      <article class="job-item${isNew ? " is-new" : ""}" data-platform="${escapeHtml(plat)}" data-id="${escapeHtml(id)}">
+        <div class="job-bar"></div>
+        <div class="job-body">
+          <div style="min-width:0">
+            <h3 class="job-title"><span class="plat-dot ${escapeHtml(plat)}"></span>${escapeHtml(title)}</h3>
+            <div class="job-meta"><span>${escapeHtml(author)}</span><span class="sep">·</span><span>${source}</span></div>
+            ${errorLine}
+          </div>
+          <div class="job-actions">
+            ${badge}
+            ${retryBtn}
+            <a class="button small ghost" href="/jobs/${encodeURIComponent(id)}">详情 →</a>
+          </div>
+        </div>
+      </article>`;
+  }
+
+  function updateCounts(jobs) {
+    const c = { all: jobs.length, running: 0, done: 0, failed: 0, pending: 0 };
+    jobs.forEach((j) => { c[j.status || "pending"] = (c[j.status || "pending"] || 0) + 1; });
+    document.getElementById("cnt-all").textContent = c.all;
+    document.getElementById("cnt-running").textContent = c.running + c.pending; // pending 也算「处理中」桶
+    document.getElementById("cnt-done").textContent = c.done;
+    document.getElementById("cnt-failed").textContent = c.failed;
+  }
+
+  function applyFilter(jobs) {
+    if (currentFilter === "all") return jobs;
+    if (currentFilter === "running") return jobs.filter((j) => j.status === "running" || j.status === "pending");
+    return jobs.filter((j) => j.status === currentFilter);
+  }
+
   function renderJobs(jobs) {
-    if (!jobs.length) {
-      list.innerHTML = '<div class="empty">暂无任务</div>';
+    updateCounts(jobs);
+    const view = applyFilter(jobs);
+
+    // 防闪烁：只有当 (筛选 + 每条 id/status/title/error) 变化时才重绘
+    const signature = currentFilter + "|" + view.map((j) =>
+      `${j.id}:${j.status}:${j.title || ""}:${(j.error_message || "").slice(0, 20)}`).join(",");
+    if (signature === lastSignature) { tickTimers(); return; }
+    lastSignature = signature;
+
+    if (!view.length) {
+      if (currentFilter === "all") {
+        list.innerHTML = `
+          <div class="empty">
+            <p class="empty-title">还没有任务</p>
+            <div>粘贴一个 B 站 / 小红书链接，开始沉淀你的知识库。</div>
+            <div class="example">试试：<code id="example-link">${escapeHtml(EXAMPLE_URL)}</code></div>
+          </div>`;
+        const ex = document.getElementById("example-link");
+        if (ex) ex.addEventListener("click", () => { input.value = EXAMPLE_URL; input.focus(); onInput(); });
+      } else {
+        list.innerHTML = `<div class="empty"><p class="empty-title">没有「${statusText[currentFilter] || currentFilter}」的任务</p></div>`;
+      }
       return;
     }
 
-    list.innerHTML = jobs.map((job) => {
-      const id = job.id ?? job.job_id ?? "";
-      const status = job.status || "pending";
-      const title = status === "done"
-        ? (job.title || job.url || "未命名内容")
-        : (job.title || job.url || "等待抽取");
-      const author = job.author || "未知作者";
-      const url = job.url || job.source_url || "";
-      const detailUrl = `/jobs/${encodeURIComponent(id)}`;
-      const source = url
-        ? `<a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer">${escapeHtml(url)}</a>`
-        : "无原始链接";
-      const error = status === "failed" && job.error_message
-        ? `<div class="error-box">${escapeHtml(job.error_message)}</div>`
-        : "";
-      const retryBtn = status === "failed" && url
-        ? `<button type="button" class="button small secondary retry-btn" data-url="${escapeHtml(url)}">重试</button>`
-        : "";
-
-      return `
-        <article class="job-item">
-          <div class="job-main">
-            <div>
-              <h3 class="job-title">${escapeHtml(title)}</h3>
-              <div class="job-meta">
-                <span>${escapeHtml(author)}</span>
-                <span>${source}</span>
-              </div>
-              ${error}
-            </div>
-            <div class="job-actions">
-              <span class="badge ${escapeHtml(status)}">${escapeHtml(statusText[status] || status)}</span>
-              ${retryBtn}
-              <a href="${detailUrl}">详情</a>
-            </div>
-          </div>
-        </article>
-      `;
+    const seen = knownIds;
+    list.innerHTML = view.map((job) => {
+      const id = String(job.id ?? job.job_id ?? "");
+      const isNew = seen !== null && !seen.has(id);   // 首次加载不全亮，之后才高亮新增
+      return cardHtml(job, isNew);
     }).join("");
+
+    knownIds = new Set(view.map((j) => String(j.id ?? j.job_id ?? "")));
+    tickTimers();
   }
 
   async function refreshJobs() {
     try {
       const response = await fetch("/api/jobs?limit=50");
-      if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
-      }
-      const payload = await response.json();
-      renderJobs(normalizeJobs(payload));
-      notice.textContent = "";
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      renderJobs(normalizeJobs(await response.json()));
     } catch (error) {
-      notice.textContent = `任务列表加载失败：${error.message}`;
+      if (lastSignature === null) {
+        list.innerHTML = `<div class="empty"><p class="empty-title">任务列表加载失败</p><div>${escapeHtml(error.message)}</div></div>`;
+      }
     }
+  }
+
+  // 输入即识别平台
+  function onInput() {
+    const url = input.value.trim();
+    if (!url) { hint.className = "submit-hint"; hint.textContent = ""; return; }
+    const p = detectPlatform(url);
+    if (p.key) {
+      hint.className = "submit-hint";
+      hint.innerHTML = `<span class="plat-chip"><span class="plat-dot ${p.key}"></span>${p.label}</span>`;
+    } else {
+      hint.className = "submit-hint";
+      hint.innerHTML = `<span class="plat-chip">未识别平台，确认是 B 站 / 小红书链接</span>`;
+    }
+  }
+  input.addEventListener("input", onInput);
+
+  async function submitUrl(url) {
+    const response = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+    return response.json();
   }
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
     const url = input.value.trim();
-    if (!url) {
-      return;
-    }
-
+    if (!url) return;
     button.disabled = true;
-    notice.textContent = "正在提交...";
     try {
-      const response = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url })
-      });
-      if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || `HTTP ${response.status}`);
-      }
+      await submitUrl(url);
       input.value = "";
-      notice.textContent = "已提交";
+      hint.className = "submit-hint";
+      hint.textContent = "";
+      window.rbToast("已提交，开始抽取", "success");
+      lastSignature = null;       // 强制立即重绘，让新任务高亮出现
       await refreshJobs();
     } catch (error) {
-      notice.textContent = `提交失败：${error.message}`;
+      window.rbToast(`提交失败：${error.message}`, "error");
     } finally {
       button.disabled = false;
     }
   });
 
-  // 重试按钮（事件委托：列表是动态渲染的）
+  // 重试（事件委托：列表动态渲染）
   list.addEventListener("click", async (event) => {
     const btn = event.target.closest(".retry-btn");
     if (!btn) return;
@@ -154,24 +246,30 @@
     btn.disabled = true;
     btn.textContent = "提交中...";
     try {
-      const response = await fetch("/api/jobs", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url: retryUrl })
-      });
-      if (!response.ok) {
-        throw new Error(await response.text() || `HTTP ${response.status}`);
-      }
-      notice.textContent = "已重新提交";
+      await submitUrl(retryUrl);
+      window.rbToast("已重新提交", "success");
+      lastSignature = null;
       await refreshJobs();
     } catch (error) {
-      notice.textContent = `重试失败：${error.message}`;
+      window.rbToast(`重试失败：${error.message}`, "error");
       btn.disabled = false;
       btn.textContent = "重试";
     }
   });
 
+  // 状态筛选
+  filtersEl.addEventListener("click", (event) => {
+    const chip = event.target.closest(".filter-chip");
+    if (!chip) return;
+    currentFilter = chip.dataset.filter;
+    filtersEl.querySelectorAll(".filter-chip").forEach((c) =>
+      c.setAttribute("aria-pressed", String(c === chip)));
+    lastSignature = null;
+    refreshJobs();
+  });
+
   refreshJobs();
   setInterval(refreshJobs, 2000);
+  setInterval(tickTimers, 1000);
 </script>
 {% endblock %}
