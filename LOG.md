@@ -92,6 +92,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-03 | 🔴 高 | P1 复盘（五段×三问，对标业界 agent 编码方法论）：赢在规划阶段把契约定成可执行的；输在执行/评审对"并行隔离"和"提交=所测"没设硬门 | [P1 复盘](docs/devlog/2026-06-03-retro-p1-claude-code.md) |
 | 2026-06-03 | 🔴 高 | pydoll 抓接口别用 JS 注入拦截器（页面早抓走原始 fetch 引用，覆盖钩不到，抓 0）→ 用原生 get_network_logs+get_network_response_body；扫码登录别用 web_session 判成功（游客也有），改按回车确认 | [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
 | 2026-06-02 | 🔴 高 | 并行 SubAgent TDD：成本在"合"不在"写"；worktree 可能从旧基线切致 agent 看不到契约而各自重建（接口分叉）；可执行契约(dataclass 桩)+把契约嵌进 prompt 才能收住 | [并行 SubAgent TDD 收获与教训](docs/devlog/2026-06-02-parallel-subagent-tdd-lessons.md) |
 | 2026-06-02 | 🔴 高 | 抓博主全量笔记别滚 DOM（触发风控+虚拟滚动丢数据），注入 XHR 拦截器抓 user_posted 接口 JSON，翻页收割；博主编号会乱（跳号/重复），核对按内容不按文件名 | [博主全量·XHR 拦截器](docs/devlog/2026-06-02-xhs-blogger-full-fetch-via-interceptor.md) |
