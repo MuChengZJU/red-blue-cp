@@ -92,7 +92,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
-| 2026-06-03 | 🔴 高 | 何时能并行=接缝契约冻没冻（不是PRD全不全）；依赖链型串行真不能并行；调研分功能层(冻哪儿)+技术层(冻得住吗)，技术调研要在 fan out 前做 spike | [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md) |
+| 2026-06-03 | 🔴 高 | 何时能并行=接缝锁定没（锁定=决策敲定+写成代码，不是PRD全不全）；依赖链型串行真不能并行；调研分功能层(锁哪儿)+技术层(锁得住吗)，技术调研要在 fan out 前做 spike | [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md) |
 | 2026-06-03 | 🔴 高 | P1 复盘（五段×三问，对标业界 agent 编码方法论）：赢在规划阶段把契约定成可执行的；输在执行/评审对"并行隔离"和"提交=所测"没设硬门 | [P1 复盘](docs/devlog/2026-06-03-retro-p1-claude-code.md) |
 | 2026-06-03 | 🔴 高 | pydoll 抓接口别用 JS 注入拦截器（页面早抓走原始 fetch 引用，覆盖钩不到，抓 0）→ 用原生 get_network_logs+get_network_response_body；扫码登录别用 web_session 判成功（游客也有），改按回车确认 | [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
 | 2026-06-02 | 🔴 高 | 并行 SubAgent TDD：成本在"合"不在"写"；worktree 可能从旧基线切致 agent 看不到契约而各自重建（接口分叉）；可执行契约(dataclass 桩)+把契约嵌进 prompt 才能收住 | [并行 SubAgent TDD 收获与教训](docs/devlog/2026-06-02-parallel-subagent-tdd-lessons.md) |
