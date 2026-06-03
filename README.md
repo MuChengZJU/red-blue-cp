@@ -8,7 +8,7 @@
 
 把 B 站和小红书的视频/图文内容转成纯文本，沉淀成本地 Markdown 知识库。
 
-**状态**：`v0.2.0`，MIT 开源。P0 单篇闭环（B站/小红书 视频+图文 → Markdown，多人对谈自动说话人分离）+ P1 小红书博主全量下载 / 评论提取 / 扫码登录。
+**状态**：`v0.3.0`，MIT 开源，已上 [PyPI](https://pypi.org/project/red-blue-cp/)。P0 单篇闭环（B站/小红书 视频+图文 → Markdown，多人对谈自动说话人分离）+ P1 小红书博主全量下载 / 评论提取 / 扫码登录。**v0.3 形态落地**：`pipx`/`uv tool` 一行装、WebUI 重做（红蓝品牌 + Markdown 渲染）、自部署远程可达（见 [部署指南](docs/deploy-wsl.md)）、CI/CD 打 tag 自动发布。
 仓库 `red-blue-cp` ｜ CLI `rbcp` ｜ 输出默认 `~/transcript/`
 
 ---
@@ -19,15 +19,26 @@
 
 ### 装 + 配
 
-前置：Python 3.13、[uv](https://docs.astral.sh/uv/)；ffmpeg（音频抽流兜底用）；Chrome/Edge（仅评论/批量用）。
+前置：Python ≥3.11；ffmpeg（音频抽流兜底用，按需）；Chrome/Edge（仅评论/批量用）。
 
 ```bash
-git clone <repo-url> && cd red-blue-cp
-uv sync
-cp .env.example .env        # 填入百炼 DASHSCOPE_API_KEY（单篇公开笔记不需 cookie）
+# A. 从 PyPI 装（推荐，命令直接是 rbcp）
+pipx install red-blue-cp        # 或 uv tool install red-blue-cp
+
+# B. 从源码装（开发用，命令前加 uv run）
+git clone <repo-url> && cd red-blue-cp && uv sync
+```
+
+配置（填百炼 `DASHSCOPE_API_KEY`，单篇公开笔记不需 cookie）：
+
+```bash
+cp .env.example .env            # 源码方式：放仓库根目录
+# PyPI 方式：放 ~/.config/rbcp/.env（发现顺序：环境变量 > ~/.config/rbcp/.env > 当前目录 .env）
 ```
 
 ### 用
+
+> PyPI 装的直接用 `rbcp ...`；源码装的命令前加 `uv run`（下面示例按源码写）。
 
 ```bash
 # 网页版：浏览器粘链接
