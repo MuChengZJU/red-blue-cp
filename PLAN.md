@@ -19,6 +19,22 @@ P2 = M3，按需（未启动）
 
 ---
 
+## v0.3 · 形态落地（发布里程碑）
+
+> Q1 形态决策（见下方开放问题 §Q1 / [devlog](docs/devlog/2026-06-03-product-form-and-v3-scope.md)）的首个落地版本：**可分发 + 可自部署 + WebUI 打磨**。
+
+| 工作流 | 内容 | 状态 |
+|---|---|---|
+| PyPI 上架 | 包元数据 + wheel 可发布（`pipx`/`uv tool` 装） | ✅ 打包配置就绪；发布待 PyPI pending publisher + tag |
+| CI/CD | ci.yml（PR/push 跑测试）+ publish.yml（tag 自动发，Trusted Publishing） | ✅ |
+| WSL 自部署 | 远程可达自部署指南（mirrored 网络 + Tailscale + 群晖同步） | ✅ 指南 [docs/deploy-wsl.md](docs/deploy-wsl.md)；作者实测跑通待验 |
+| WebUI 优化 | 红蓝品牌设计系统 + Markdown 渲染/源码切换 + QA | ✅ |
+
+**发布判据**：四块进 main → pyproject `version=0.3.0`（已 bump）→ 打 `v0.3.0` tag → CI 自动发 PyPI。
+**不在 v0.3**：Tauri 桌面 GUI（P2 门控）、知识库浏览页（Q2 待定）。
+
+---
+
 ## M0 · 研读上游 + 评估复杂度（0.5-1 天）
 
 > **参考移植**：研读上游 social-post-extractor-mcp 的代码，理解 SDK 调用和爬取逻辑，评估自实现复杂度。
