@@ -1,0 +1,55 @@
+name: Publish to PyPI
+
+# 打 tag（如 v0.3.0）时：跑测试 → build → 发布到 PyPI。
+#
+# 用 PyPI Trusted Publishing（OIDC），不在仓库存 token。一次性配置：
+#   1. 去 https://pypi.org/manage/account/publishing/ 加一个 "pending publisher"
+#      （项目还没发布过时用 pending；已发布过则在项目设置里加）：
+#        - PyPI Project Name: red-blue-cp
+#        - Owner: MuChengZJU
+#        - Repository name: red-blue-cp
+#        - Workflow name: publish.yml
+#        - Environment name: pypi
+#   2. 在 GitHub 仓库 Settings → Environments 建一个名为 `pypi` 的 environment。
+#   3. 之后 `git tag v0.3.0 && git push origin v0.3.0` 即自动发布。
+on:
+  push:
+    tags: ["v*"]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+        with:
+          enable-cache: true
+      - run: uv run pytest -q
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v5
+      - run: uv build
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/red-blue-cp
+    permissions:
+      id-token: write # Trusted Publishing 需要，用来向 PyPI 换取一次性令牌
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Publish to PyPI
+        uses: pypa/gh-action-pypi-publish@release/v1
