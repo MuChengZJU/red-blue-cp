@@ -59,7 +59,7 @@
   function typeTag(job) {
     const t = job.content_type || "";
     if (t === "video") return "视频";
-    if (t === "image_text" || t === "note" || t === "image") return "图文";
+    if (t === "image_text" || t === "image_note" || t === "note" || t === "image") return "图文";
     if (t === "article") return "文章";
     if (job.platform === "xiaohongshu") return "图文";
     if (job.platform === "bilibili") return "视频";
@@ -78,6 +78,14 @@
     if (!response.ok) throw new Error(`HTTP ${response.status}`);
     markdownText = await response.text();
     return markdownText;
+  }
+
+  // 去掉文件开头的 YAML frontmatter（--- ... ---）。它是给机器看的元信息，
+  // 渲染态会被 marked 误当成超大标题（一段文字紧跟 --- = setext H2）。
+  // 详情页头部已经显示作者/平台/时间，这里去掉更干净；源码态保留原文。
+  function stripFrontmatter(md) {
+    const m = /^﻿?---\r?\n[\s\S]*?\r?\n---\r?\n?/.exec(md);
+    return m ? md.slice(m[0].length) : md;
   }
 
   function renderMeta(job) {
@@ -99,7 +107,7 @@
       contentEl.innerHTML = `<pre class="source-view">${escapeHtml(markdownText)}</pre>`;
     } else {
       // marked 转 HTML，再用 DOMPurify 清洗（内容是爬来的，防 XSS 注入）
-      const rawHtml = marked.parse(markdownText, { gfm: true, breaks: true });
+      const rawHtml = marked.parse(stripFrontmatter(markdownText), { gfm: true, breaks: true });
       const clean = DOMPurify.sanitize(rawHtml, { ADD_ATTR: ["target", "rel"] });
       contentEl.innerHTML = `<article class="markdown-body">${clean}</article>`;
     }

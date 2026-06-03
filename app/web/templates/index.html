@@ -70,8 +70,10 @@
     return [];
   }
 
+  // 返回 m:ss；时间戳异常（负数 / 超过 24h，多半是跨时区或时钟问题）返回 null，
+  // 宁可不显示数字也不显示一个错的
   function fmtElapsed(ms) {
-    if (!Number.isFinite(ms) || ms < 0) ms = 0;
+    if (!Number.isFinite(ms) || ms < 0 || ms > 24 * 3600 * 1000) return null;
     const s = Math.floor(ms / 1000);
     const m = Math.floor(s / 60);
     return `${m}:${String(s % 60).padStart(2, "0")}`;
@@ -82,7 +84,8 @@
     const now = Date.now();
     document.querySelectorAll(".job-timer[data-start]").forEach((el) => {
       const start = Date.parse(el.dataset.start);
-      if (!Number.isNaN(start)) el.textContent = fmtElapsed(now - start);
+      const text = Number.isNaN(start) ? null : fmtElapsed(now - start);
+      el.textContent = text || "";
     });
   }
 

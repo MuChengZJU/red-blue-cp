@@ -133,6 +133,14 @@ class TestDetailPage:
         assert "DOMPurify" in html
         assert "DOMPurify.sanitize" in html
 
+    def test_strips_frontmatter_before_render(self, client, mock_storage):
+        """渲染态要去掉 YAML frontmatter，否则被 marked 当成超大标题（真实 md 都有 frontmatter）"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "stripFrontmatter" in html
+        # 渲染走 stripFrontmatter，源码态保留原文
+        assert "marked.parse(stripFrontmatter(" in html
+
     def test_download_uses_job_id(self, client, mock_storage):
         """下载走 job_id，不接受任意路径（不变量 #1）"""
         job_id = self._job(mock_storage)
