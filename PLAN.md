@@ -19,6 +19,22 @@ P2 = M3，按需（未启动）
 
 ---
 
+## v0.3 · 形态落地（发布里程碑）
+
+> Q1 形态决策（见下方开放问题 §Q1 / [devlog](docs/devlog/2026-06-03-product-form-and-v3-scope.md)）的首个落地版本：**可分发 + 可自部署 + WebUI 打磨**。
+
+| 工作流 | 内容 | 状态 |
+|---|---|---|
+| PyPI 上架 | 包元数据 + wheel 可发布（`pipx`/`uv tool` 装） | ✅ 打包配置就绪；发布待 PyPI pending publisher + tag |
+| CI/CD | ci.yml（PR/push 跑测试）+ publish.yml（tag 自动发，Trusted Publishing） | ✅ |
+| WSL 自部署 | 远程可达自部署指南（mirrored 网络 + Tailscale + 群晖同步） | ✅ 指南 [docs/deploy-wsl.md](docs/deploy-wsl.md)；作者实测跑通待验 |
+| WebUI 优化 | 红蓝品牌设计系统 + Markdown 渲染/源码切换 + QA | ✅ |
+
+**发布判据**：四块进 main → pyproject `version=0.3.0`（已 bump）→ 打 `v0.3.0` tag → CI 自动发 PyPI。
+**不在 v0.3**：Tauri 桌面 GUI（P2 门控）、知识库浏览页（Q2 待定）。
+
+---
+
 ## M0 · 研读上游 + 评估复杂度（0.5-1 天）
 
 > **参考移植**：研读上游 social-post-extractor-mcp 的代码，理解 SDK 调用和爬取逻辑，评估自实现复杂度。
@@ -272,17 +288,31 @@ P2 = M3，按需（未启动）
 
 > 记录还没拍板、需要专门讨论的方向。讨论清楚后转成 PRD/PLAN 的正式条目。
 
-### Q1 · 产品形态：自部署服务端 / 打包客户端 / 命令行 / 包？
+### Q1 · 产品形态：自部署服务端 / 打包客户端 / 命令行 / 包？ ✅ 已定（2026-06-03）
 
-当前是"自部署 + WebUI + CLI"混合形态。要不要收敛、往哪收敛，没定。候选：
+> 完整诊断与部署拓扑见 [产品形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md)。
 
-- **自部署服务端**：用户在自己机器跑 `rbcp serve`，浏览器用。优点：手机能访问、长任务后台跑；缺点：要会部署、要常驻进程。
-- **打包客户端**：做成桌面 App（如 Tauri/Electron 包住浏览器 + 后端）。优点：双击即用、最低门槛；缺点：打包/签名/更新维护重，跨平台成本高。
-- **纯命令行**：只留 `rbcp` CLI。优点：最轻、最适合 Agent/脚本；缺点：非技术用户用不了。
-- **Python 包**：发到 PyPI，`pip install red-blue-cp` 当库/CLI 用。优点：开发者友好、可嵌入别的项目；缺点：仍需用户有 Python 环境。
+候选（讨论时的四个方向）：自部署服务端 / 打包客户端(Tauri) / 纯 CLI / Python 包。
 
-**取舍维度**：目标用户是谁（技术/非技术/Agent）、维护成本、分发门槛、手机访问需求。
-**现状倾向**：CLI + 自部署 WebUI 已经覆盖"Agent + 技术用户 + 自己手机用"，打包客户端是面向非技术用户的额外投入，按需再说。**待与用户讨论后定。**
+**决策**：不收敛到单一入口，而是明确"投入哪条、明确不做哪条"：
+
+- **现在做**（零成本服务真实用户：作者 + 技术早期采用者 + Agent）：
+  1. 自部署 WebUI 做成**手机可远程访问**（远程访问首选 Tailscale 私有网；FRP 公网等加鉴权再上）。这解决作者本人不用它的根因——现状 localhost 自部署手机够不着。
+  2. 正式发 **PyPI**（`uv build`/`uv publish`；用户 `pipx install` 或 `uv tool install`，同一个包两种装法都行）。
+- **门控待触发（P2，不是否决）**：Tauri/Electron 桌面 GUI，触发两条缺一不做——(a) 有真实非技术用户开口；(b) API Key 上手路径想清楚。GUI 框架选型 + 视觉设计一并放这阶段。
+- **架构纪律（现在守）**：`service/` 核心保持前端无关（不 import fastapi/typer、无加载副作用）。现状 `service/` + `web/` + `cli.py` 已是"核心 + 多薄壳"，GUI 以后是第三层薄壳。**不为"将来三模式"提前抽 launcher**（违反反过度抽象红线）。
+
+**安全前提**：WebUI 现状 `serve` 绑 `0.0.0.0` 且无鉴权（`app/web/routes.py`）。私有网自用安全；**任何公网暴露前必须先加最简鉴权**，否则等于把百炼 API Key 钱包和知识库挂公网。
+
+**关键判断**：CLI/WebUI/包三者成本低且已建好，真正贵的只有 Tauri 这条非技术用户路（打包/Mac 公证/Windows 签名/ffmpeg 跨平台/自动更新/两套 CI）；零需求阶段不提前烧。GUI 不是"加启动 flag"，是独立的**第二条分发线**（桌面 app 不能 pipx 装）。
+
+**V3 范围（2026-06-03 确认）**：(1) 上架 PyPI；(2) 打通 WSL 自部署（mirrored 网络 + Tailscale 手机/Mac 访问 + 输出目录走 `/mnt/c` 给群晖 Synology Drive 同步到 Mac）；(3) GUI / 知识库浏览页后期，守 `service/` 干净留门。
+
+---
+
+### Q2 · 知识库文件的浏览与管理（远程/手机）
+
+知识库现状是 `~/transcript/`（或配 `RBCP_OUTPUT_DIR`）下一堆 Markdown + `_index.sqlite`。手机经 WebUI 看/复制文本够用；但作者要在 Mac 上**文件系统级**操作这批 md（Obsidian 类工具编辑管理），WebUI 给不了文件夹。V3 走"输出目录指到 Windows 本地盘 + 群晖 Synology Drive 同步到 Mac"过渡。后续是否给 WebUI 加知识库浏览页（列出/全文搜/读单篇）作为统一方案，**待 Q1 自部署跑起来后再定**。
 
 ---
 
