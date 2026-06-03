@@ -85,6 +85,7 @@
 | 2026-06-02 | M2 文档定稿 | done | 博主全量+评论设计/PRD/SPEC/PLAN/CLAUDE 改完，3 轮 Codex 审 |
 | 2026-06-03 | M2b/M2c 完成 | done | 博主全量+评论：并行 SubAgent 写解析层，pydoll 原生捕获写浏览器壳，加 rbcp login。真链路实测：清单 90 笔记 / 评论含楼中楼嵌套渲染。[详情](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md) |
 | 2026-06-03 | WebUI 重做（红蓝品牌）+ QA | done | 从零重做 WebUI 设计系统（方案3红蓝品牌）+ 详情页 Markdown 渲染/源码切换（marked+DOMPurify），gstack 浏览器自动化 QA 修 4 个 bug，264 单测全过。[详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
+| 2026-06-03 | v0.3.0 发布 | done | 形态落地版发布到 PyPI（`red-blue-cp` 0.3.0）：自部署 WebUI 手机可达 + CI/CD（Trusted Publishing 打 tag 自动发）+ WSL 部署指南 + WebUI 重做。`pipx`/`uv tool` 一行装。真链路验证：从 PyPI 装后 `rbcp --help` 正常。[形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
