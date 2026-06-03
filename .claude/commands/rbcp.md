@@ -1,20 +1,11 @@
 ---
 description: 调用 rbcp CLI 做 B 站/小红书内容转录和调研
-allowed-tools: Bash
+when_to_use: 用户想转录 B 站视频、小红书笔记、批量下载博主内容、调研某个博主的全部作品时触发
+argument-hint: "[链接 或 博主主页]"
+allowed-tools: Bash(rbcp *) Bash(jq *) Bash(cat /tmp/*)
 ---
 
-## rbcp 是什么
-
-Red Blue CP（红蓝CP）CLI，把 B 站和小红书的视频/图文内容转成本地 Markdown 知识库。
-安装方式：`pip install red-blue-cp`（PyPI）或源码 `uv run rbcp`。
-
-用途：当你需要把某个 B 站视频或小红书笔记的内容变成可检索的文本时，用这个工具。
-
-## 前置条件
-
-- `DASHSCOPE_API_KEY` 必须在环境变量或 `.env` 中配置（百炼 API Key，ASR/VLM/LLM 都靠它）
-- 小红书博主全量 / 评论功能需要先 `rbcp login` 扫码登录（存 cookie 到本地）
-- B 站公开视频不需要额外认证
+rbcp 把 B 站和小红书链接转成本地 Markdown。前置：`DASHSCOPE_API_KEY` 在环境变量或 `.env` 中；博主全量/评论需先 `rbcp login` 扫码登录。
 
 ## 命令速查
 
@@ -37,34 +28,12 @@ rbcp run "https://www.xiaohongshu.com/explore/xxxxx"
 rbcp list "https://www.xiaohongshu.com/user/profile/xxxxxx" --json
 ```
 
-**`--json` 输出结构：**
+`--json` 输出关键字段：
 
-```jsonc
-{
-  "user_id": "...",
-  "complete": true,           // true=拉全了；false=中途被风控/出错，是半份
-  "incomplete_reason": null,  // complete=false 时：risk_control | cookie_expired | network
-  "captured": 65,             // 实际抓到的笔记数
-  "estimated_total": null,    // 多数情况未知
-  "estimate": {
-    "image_notes": 40,
-    "video_notes": 25,
-    "vlm_calls": 40,
-    "asr_minutes": 120
-  },
-  "notes": [
-    {
-      "note_id": "...",
-      "title": "...",
-      "type": "image | video",
-      "liked_count": 128,
-      "xsec_token": "..."     // 拼单篇 URL 用的一次性令牌
-    }
-  ]
-}
-```
-
-**关键：`complete` 字段是硬契约。** 看到 `complete: false` 必须停下告知用户，不得当全量继续处理。半份清单的退出码非 0。
+- `complete`（布尔）— **硬契约**。`true`=拉全了，`false`=被风控/出错截断，是半份。看到 `false` 必须停下告知用户，不得当全量处理。退出码非 0。
+- `incomplete_reason` — `complete=false` 时：`risk_control` | `cookie_expired` | `network`
+- `captured` — 实际抓到的笔记数
+- `notes[]` — 每条含 `note_id / title / type / liked_count / xsec_token`（xsec_token 一次性，拼单篇 URL 用）
 
 ### `rbcp fetch <url> [选项]`
 
@@ -80,31 +49,9 @@ rbcp list "https://www.xiaohongshu.com/user/profile/xxxxxx" --json
 | `--json` | 输出机器可读 JSON |
 | `--yes` | `--all` 时跳过确认（`--json` 模式下必须加） |
 
-**单篇 `--json` 输出：**
+单篇 `--json`：`{"ok": true, "md_path": "...", "title": "..."}`（带评论多出 `comments_path / comment_count`；失败 `{"ok": false, "error": "..."}`）
 
-```jsonc
-// 成功
-{"ok": true, "md_path": "~/transcript/xhs/...", "title": "..."}
-// 带评论时多出
-{"ok": true, "md_path": "...", "title": "...", "comments_path": "...", "comment_count": 42}
-// 失败
-{"ok": false, "error": "错误描述"}
-```
-
-**博主全量 `--all --json --yes` 输出：**
-
-```jsonc
-{
-  "ok": true,
-  "captured": 65,       // 清单总数
-  "downloaded": 63,     // 成功数
-  "failed": 2,          // 失败数
-  "results": [
-    {"note_id": "...", "ok": true, "md_path": "...", "title": "..."},
-    {"note_id": "...", "ok": false, "error": "..."}
-  ]
-}
-```
+博主全量 `--all --json --yes`：`{"ok": true, "captured": 65, "downloaded": 63, "failed": 2, "results": [...]}`（results 每条同单篇格式）
 
 ### `rbcp login`
 
