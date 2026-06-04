@@ -2,12 +2,15 @@
 
 > 一次性技术验证，不是功能代码。验证完整个目录可删。
 >
-> **结果（2026-06-04）：PASS。** MV3 `world:"MAIN"`+`document_start` 钩子拦到了
-> 页面发的 `user_posted` XHR，连续 3 页各 30 条、`has_more:true`、`cursor` 翻页正常，
-> 慢滚未触发验证码。结构路径 `data.data.notes` 对得上。
-> 待确认：每条笔记的 `xsec_token` 是否在（样本需展开核对）。
-> 留意：日志出现过 `loginStatusInterceptor` 的"薯队长遇到点小麻烦"风控味提示
-> （在登录态检查接口，非 user_posted），印证 devlog 的"慢滚"纪律。
+> **结果（2026-06-04）：PASS（两个博主实测）。** MV3 `world:"MAIN"`+`document_start`
+> 钩子拦到页面发的 `user_posted` XHR。第二个博主**完整跑到 `has_more:false`**（端到端
+> 抓完整个博主，每页 30 条、cursor 翻页正常、慢滚无验证码）。结构路径 `data.data.notes` 对。
+> 页面自身有"滚到底自动翻页"机制（`getApiSnsWebV1UserPosted`→`fetchNotes`→`onListEnd` debounced），
+> 插件跟着接返回即可，不必自写翻页。
+> 账号/目标状态是变量：第一个博主页（账号已被软限流，封面图都加载不出）出现过
+> `loginStatusInterceptor` 的"薯队长遇到点小麻烦"，只翻 3 页；第二个干净账号跑到底。
+> → 守 devlog 纪律：慢滚 + 别用已被盯上的号。
+> 待确认：每条笔记 `xsec_token` 是否在（样本需展开核对）。
 
 ## 验什么
 
