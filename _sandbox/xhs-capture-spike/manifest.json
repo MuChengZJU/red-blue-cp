@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "XHS user_posted capture spike",
+  "version": "0.0.1",
+  "description": "一次性技术验证：MV3 main-world content script 能否在小红书页面自己发 fetch/XHR 之前 hook 住，抓到博主主页的 user_posted 分页响应。验证完即弃。",
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/*"],
+      "js": ["main-world-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}
