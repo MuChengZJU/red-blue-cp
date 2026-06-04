@@ -10,7 +10,12 @@
 > 账号/目标状态是变量：第一个博主页（账号已被软限流，封面图都加载不出）出现过
 > `loginStatusInterceptor` 的"薯队长遇到点小麻烦"，只翻 3 页；第二个干净账号跑到底。
 > → 守 devlog 纪律：慢滚 + 别用已被盯上的号。
-> 待确认：每条笔记 `xsec_token` 是否在（样本需展开核对）。
+>
+> **端到端闭环（2026-06-04，累计模式）：** 某博主一次滚动完整抓 **326 条**
+> （`has_more:false`），**带 xsec_token 326/326**，类型 normal 322 + video 4，
+> 自动导出 `xhs-notes-326.json`。每条 `{note_id, title, type, xsec_token, url}`，
+> url 形如 `https://www.xiaohongshu.com/explore/{id}?xsec_token=...&xsec_source=pc_user`，
+> 即 rbcp 单篇 fetch 可直接消费的格式。整条链路（插件抓全表→拼可用 URL→落 JSON→喂 rbcp）实测通。
 
 ## 验什么
 
