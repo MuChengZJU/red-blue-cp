@@ -31,6 +31,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
+| 2026-06-05 | 🔴 高 | 范围/架构 | 博主全量抓清单 pydoll→浏览器插件(MV3)，pydoll 降不稳定可选项（红线#9 改）；下载加代理（应对学校固定 IP）；立项 **M4 博主安全批量 + 错误地基**（M4a 地基串行→M4b‖M4c 并行） | [博主安全批量](docs/blogger-safe-batch-feature.md) / [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
 | 2026-06-03 | 🔴 高 | 范围 | Q1 形态定案：不收敛单一入口。现在做＝自部署 WebUI 手机可达（Tailscale）+ 发 PyPI（pipx/uv tool）；Tauri 桌面 GUI 门控 P2（真实非技术用户 + API Key 上手路径）。架构守 service 前端无关给 GUI 留门；公网暴露前必须加鉴权 | [形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 2026-06-03 | 🟡 中 | 工程 | WebUI 视觉从零重做为「红蓝品牌」设计系统；详情页 Markdown 渲染/源码切换（marked+DOMPurify，CDN 非 Python 依赖） | [详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-01 | 🟡 中 | 业务 | ASR 加说话人分离（paraformer-v2 diarization）：多人对谈标「说话人N：」，单人降级纯文本，一人多角色交 LLM 后处理 | SPEC §8.3 / PLAN §M1c |
