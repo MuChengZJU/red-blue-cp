@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import asyncio
+import os
+from pathlib import Path
 from urllib.parse import urlparse
 
 import requests
 
 from app.service.errors import ConfigError
+from app.service.extractor import extract_url
+from app.service.markdown import render_and_write
+from app.service.model import DashscopeProvider
 
 _ALLOWED_PROXY_SCHEMES = {"http", "https"}
 
@@ -38,3 +44,64 @@ def probe_exit_ip(proxies: dict[str, str] | None) -> str:
         trust_env=False,
         timeout=10,
     ).text.strip()
+
+
+def _provider_from_env(
+    api_key: str,
+    *,
+    proxies: dict[str, str] | None = None,
+    media_proxies: dict[str, str] | None = None,
+) -> DashscopeProvider:
+    asr_model = os.getenv("RBCP_ASR_MODEL", "paraformer-v2")
+    diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
+    speaker_count_raw = os.getenv("RBCP_ASR_SPEAKER_COUNT", "").strip()
+    speaker_count = int(speaker_count_raw) if speaker_count_raw.isdigit() else None
+    return DashscopeProvider(
+        api_key=api_key,
+        asr_model=asr_model,
+        diarization_enabled=diarization_enabled,
+        speaker_count=speaker_count,
+        proxies=proxies,
+        media_proxies=media_proxies,
+    )
+
+
+def fetch_single(
+    url: str,
+    *,
+    api_key: str,
+    output_dir: Path,
+    comments: bool = False,
+    sub: bool = True,
+    save_media: bool = False,
+    text_only: bool = False,
+    proxy: str | None = None,
+) -> dict:
+    """抓单篇笔记：正文转录（+可选媒体落盘/纯文本）+ 可选评论。返回结果摘要。
+
+    cli run/fetch 和 service/batch.py 都调它；cli 只做参数解析 + 输出。
+    proxy 走主站护 IP（explore 详情 + DashScope）；CDN 媒体字节默认不走。
+    """
+    proxies = build_proxies(proxy)
+    provider = _provider_from_env(api_key, proxies=proxies)
+    result = extract_url(
+        url, provider, text_only=text_only, save_media=save_media, proxies=proxies
+    )
+    md_path = render_and_write(result, output_dir=output_dir)
+    out: dict = {"md_path": str(md_path), "title": result.title}
+
+    if comments:
+        from app.service import discover
+        from app.service.comments import write_comments_md
+        from app.service.discover import note_id_from_url
+
+        note_comments = asyncio.run(discover.discover_comments(url, with_sub=sub))
+        comments_path = write_comments_md(
+            note_id_from_url(url), note_comments, output_dir, note_title=result.title
+        )
+        out["comments_path"] = str(comments_path)
+        out["comment_count"] = len(note_comments)
+
+    return out

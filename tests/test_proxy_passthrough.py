@@ -130,3 +130,34 @@ class TestModelProxies:
     def test_media_proxies_defaults_none(self):
         p = DashscopeProvider("k", proxies=PROXY)
         assert p._media_proxies is None
+
+
+# ── fetch_single：proxy 字符串 → build_proxies → 往下传（M4c 关键入口）──
+
+class TestFetchSingleProxyWiring:
+
+    @patch("app.service.pipeline.render_and_write")
+    @patch("app.service.pipeline.extract_url")
+    @patch("app.service.pipeline._provider_from_env")
+    def test_proxy_string_becomes_dict_to_extract_and_provider(
+        self, mock_provider, mock_extract, mock_render, tmp_path
+    ):
+        from app.service.pipeline import fetch_single
+        mock_extract.return_value = MagicMock(title="t")
+        mock_render.return_value = tmp_path / "out.md"
+        out = fetch_single("https://www.xiaohongshu.com/explore/x",
+                           api_key="k", output_dir=tmp_path, proxy="http://127.0.0.1:7897")
+        assert out == {"md_path": str(tmp_path / "out.md"), "title": "t"}
+        assert mock_extract.call_args.kwargs["proxies"] == PROXY
+        assert mock_provider.call_args.kwargs["proxies"] == PROXY
+
+    @patch("app.service.pipeline.render_and_write")
+    @patch("app.service.pipeline.extract_url")
+    @patch("app.service.pipeline._provider_from_env")
+    def test_no_proxy_passes_none(self, mock_provider, mock_extract, mock_render, tmp_path):
+        from app.service.pipeline import fetch_single
+        mock_extract.return_value = MagicMock(title="t")
+        mock_render.return_value = tmp_path / "out.md"
+        fetch_single("https://www.xiaohongshu.com/explore/x",
+                     api_key="k", output_dir=tmp_path)
+        assert mock_extract.call_args.kwargs["proxies"] is None

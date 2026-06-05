@@ -67,13 +67,19 @@ def test_list_incomplete_exits_nonzero(monkeypatch):
 
 @pytest.fixture
 def stub_single(monkeypatch):
-    """打桩单篇转录链路：provider/extract/render 全假。"""
-    monkeypatch.setattr(cli, "_provider_from_env", lambda api_key: object())
+    """打桩单篇转录链路：provider/extract/render 全假。
+
+    实现已从 cli 抽到 service.pipeline（M4a），patch 目标随之改到 pipeline.*。
+    """
+    import app.service.pipeline as pipeline
+    monkeypatch.setattr(pipeline, "_provider_from_env", lambda api_key, **kw: object())
     monkeypatch.setattr(
-        cli, "extract_url",
+        pipeline, "extract_url",
         lambda url, provider, **kw: types.SimpleNamespace(title="标题X", **kw),
     )
-    monkeypatch.setattr(cli, "render_and_write", lambda result, output_dir: output_dir / "out.md")
+    monkeypatch.setattr(
+        pipeline, "render_and_write", lambda result, output_dir: output_dir / "out.md"
+    )
 
 
 def test_fetch_single_plain(stub_single):
