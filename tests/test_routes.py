@@ -71,6 +71,19 @@ class TestCreateJob:
         resp = client.post("/api/jobs", json={"url": ""})
         assert resp.status_code in (400, 422)
 
+    def test_unsupported_platform_rejected_early(self, client, mock_storage):
+        """audit #4：非 B站/小红书链接提交时立即 400，别建 job 让用户白等一轮。"""
+        resp = client.post("/api/jobs", json={"url": "https://www.youtube.com/watch?v=x"})
+        assert resp.status_code == 400
+        assert "不支持" in resp.json().get("detail", "")
+        # 不该留下任何 job
+        assert mock_storage.list_jobs() == []
+
+    def test_supported_platform_still_creates_job(self, client):
+        resp = client.post("/api/jobs", json={"url": "https://www.xiaohongshu.com/explore/abc"})
+        assert resp.status_code in (200, 201, 202)
+        assert "job_id" in resp.json()
+
 
 # ── GET /api/jobs ─────────────────────────────────────────────
 
