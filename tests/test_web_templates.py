@@ -157,6 +157,26 @@ class TestDetailPage:
         html = client.get(f"/jobs/{job_id}").text
         assert 'id="copy-button"' in html
 
+    def test_failed_view_humanizes_error(self, client, mock_storage):
+        """audit #2：失败默认给一句人话（前端 JS 按 error_message 关键词映射）"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "humanizeError" in html
+
+    def test_failed_view_collapses_traceback(self, client, mock_storage):
+        """技术细节（error_message + log_excerpt）折叠进原生 <details>，默认不糊给用户"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "<details" in html
+
+    def test_failed_view_has_retry(self, client, mock_storage):
+        """详情页失败要能重试：复用列表卡片机制 POST /api/jobs 重提 job.url"""
+        job_id = self._job(mock_storage)
+        html = client.get(f"/jobs/{job_id}").text
+        assert "重试" in html
+        assert "/api/jobs" in html
+        assert "POST" in html
+
     def test_missing_job_returns_styled_html_not_json(self, client):
         """坏的 /jobs/{id} 要返回带样式的 404 页，而不是裸 JSON"""
         resp = client.get("/jobs/99999")

@@ -126,11 +126,71 @@
     }
   }
 
+  // 把技术异常 message 映射成一句人话。format_error_for_user 是 Python，前端调不到，
+  // 这里按 error_message 的关键词做轻量映射（零 schema 改动）。映射不中也有兜底，
+  // 技术细节始终在折叠的 <details> 里，不丢信息。
+  function humanizeError(raw) {
+    const s = String(raw || "").toLowerCase();
+    if (/unsupported url|unsupported_url|不支持/.test(s))
+      return "不支持的链接：只支持 B 站和小红书。";
+    if (/token expired|token_expired|300031|\/404/.test(s))
+      return "这条链接/清单已过期，需要重新获取链接或重新抓清单。";
+    if (/cookie|relogin|rbcp login|登录/.test(s))
+      return "登录已失效，请重跑 rbcp login 后再试。";
+    if (/risk|captcha|风控|412|\b403\b/.test(s))
+      return "可能触发了风控。建议稍后重试，或换网络节点 / 放慢速度。";
+    if (/timed out|timeout|content-length|connection|network|超时|网络/.test(s))
+      return "网络或超时问题。请检查网络 / 代理是否连通后重试。";
+    if (/parse|初始状态|initial_state|解析|missing data|missing task_id/.test(s))
+      return "页面解析失败（可能改版 / 空壳 / 风控）。稍后重试或反馈。";
+    if (/http 4|http 5|api|dashscope|oss/.test(s))
+      return "服务端报错。稍后重试，或展开下方详情查看技术信息。";
+    return "任务失败。展开下方「技术详情」查看具体原因，或点「重试」重新抽取。";
+  }
+
+  async function retryJob(url) {
+    // 复用列表卡片的重试机制：POST /api/jobs 重提同一个 url，成功后跳到新任务详情页。
+    const response = await fetch("/api/jobs", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ url }),
+    });
+    if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
+    return response.json();
+  }
+
   function renderFailed(job) {
     toolbar.hidden = true;
     titleEl.textContent = job.title || job.url || "任务失败";
-    const message = [job.error_message || "任务失败", job.log_excerpt || ""].filter(Boolean).join("\n\n");
-    contentEl.innerHTML = `<div class="error-box">${escapeHtml(message)}</div>`;
+
+    const human = humanizeError(job.error_message);
+    const detail = [job.error_message || "", job.log_excerpt || ""].filter(Boolean).join("\n\n");
+    const canRetry = Boolean(job.url);
+
+    contentEl.innerHTML = `
+      <div class="error-box">
+        <p class="error-human">${escapeHtml(human)}</p>
+        ${canRetry ? `<button id="retry-button" type="button" class="button small secondary" data-url="${escapeHtml(job.url)}">重试</button>` : ""}
+        ${detail ? `<details class="error-detail"><summary>技术详情</summary><pre class="source-view">${escapeHtml(detail)}</pre></details>` : ""}
+      </div>`;
+
+    const retryBtn = document.getElementById("retry-button");
+    if (retryBtn) {
+      retryBtn.addEventListener("click", async () => {
+        retryBtn.disabled = true;
+        retryBtn.textContent = "提交中...";
+        try {
+          const out = await retryJob(retryBtn.dataset.url);
+          window.rbToast("已重新提交", "success");
+          const newId = out.job_id ?? out.id;
+          window.location.href = newId != null ? `/jobs/${encodeURIComponent(newId)}` : "/";
+        } catch (error) {
+          window.rbToast(`重试失败：${error.message}`, "error");
+          retryBtn.disabled = false;
+          retryBtn.textContent = "重试";
+        }
+      });
+    }
   }
 
   function renderProcessing(job) {
