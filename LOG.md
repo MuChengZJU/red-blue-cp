@@ -96,6 +96,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-05 | 🔴 高 | Codex 独立 review 博主批量方案：实锤 `model.py` `trust_env=False` 致视频/ASR 下载绕过代理；并行相交面被低估（storage 隐藏耦合 / 批量必依赖 service 异常）→ **先串行锁地基（errors.py+抽_fetch_single+storage模型+修代理）再并行**；异常契约改少类+结构化字段；阶段1降范围只 CLI batch | [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
 | 2026-06-05 | 🔴 高 | 小红书博主批量全链路验通（探索，未立项）：插件 MV3 抓列表 + CLI 下载转录。换详情需 xsec_token（门票非用户身份，已在导出JSON）、不需 cookie，不带 token 返空壳；下载是 IP 风险非账号风险，海外代理可行（30条8并发1.5s零封）、CDN 下字节12并发零失败；固定共享IP（校园网）必须走代理 | [插件抓列表+批量下载 spike](docs/devlog/2026-06-05-xhs-blogger-batch-spike.md) |
 | 2026-06-03 | 🔴 高 | 合成/seed 测试数据丢了真实数据关键特征(frontmatter/脏URL)就给假"通过"，比没测更危险；"做了 e2e"≠"验证有效"，要追问喂的数据像不像真的 | [WebUI 假测复盘](docs/devlog/2026-06-03-retro-webui-fake-test-data.md) |
 | 2026-06-03 | 🟡 中 | 自测数据缺真实数据的关键特征就测不出真实 bug（手写无 frontmatter 的 md 掩盖了 marked 把 frontmatter 渲成巨大 setext 标题）；`[hidden]` 会被 `display:flex` 静默盖掉；改 routes.py 须重启 uvicorn（模板热重载 / Python 模块不重载） | [WebUI 重做+QA](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
