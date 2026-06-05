@@ -1,0 +1,14 @@
+{
+  "manifest_version": 3,
+  "name": "Red Blue CP — 小红书清单抓取",
+  "version": "0.1.0",
+  "description": "在你登录态的小红书博主主页，随滚动接住 user_posted 分页，攒出整个博主的清单并导出 notes.json，喂给 rbcp batch 走代理批量下载。只抓清单，不下载、不上传，风险落你自己的会话与 IP。",
+  "content_scripts": [
+    {
+      "matches": ["https://www.xiaohongshu.com/*"],
+      "js": ["main-world-hook.js"],
+      "run_at": "document_start",
+      "world": "MAIN"
+    }
+  ]
+}

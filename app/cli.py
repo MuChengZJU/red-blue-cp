@@ -12,7 +12,7 @@ import typer
 import uvicorn
 from dotenv import load_dotenv
 
-from app.service.errors import format_error_for_user
+from app.service.errors import RbcpError, format_error_for_user
 from app.service.extractor import extract_url
 from app.service.markdown import render_and_write
 from app.service.pipeline import (
@@ -299,3 +299,63 @@ def _fetch_all(
              "failed": failed, "results": results}, ensure_ascii=False))
     else:
         typer.echo(f"完成：成功 {ok}，失败 {failed}。")
+
+
+@app.command("batch")
+def batch(
+    notes_json: Path,
+    proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
+    comments: bool = typer.Option(False, "--comments", help="附带抓评论"),
+    no_sub: bool = typer.Option(False, "--no-sub", help="评论只要一级，不要楼中楼"),
+    save_media: bool = typer.Option(False, "--save-media", help="额外存原始媒体到独立目录"),
+    text_only: bool = typer.Option(False, "--text-only", help="跳过 VLM/ASR，只取现成正文"),
+    allow_partial: bool = typer.Option(False, "--allow-partial", help="允许在半份清单上下载"),
+    json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
+) -> None:
+    """批量下载插件导出的 notes.json：走代理、断点续传、token 过期跳过、汇总成败。"""
+    load_dotenv()
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    proxy = proxy or os.getenv("RBCP_PROXY") or None
+
+    if proxy and comments:
+        # batch 标榜安全代理路径，但评论走 pydoll/Chrome，proxy 进不去 → 真实 IP（Codex P1）
+        typer.secho(
+            "⚠ --proxy 只覆盖正文下载；--comments 抓评论走浏览器（pydoll）真实 IP，不走代理。",
+            fg=typer.colors.YELLOW,
+        )
+
+    from app.service.batch import run_batch
+
+    try:
+        summary = run_batch(
+            notes_json,
+            api_key=api_key,
+            output_dir=output_dir,
+            proxy=proxy,
+            comments=comments,
+            sub=not no_sub,
+            save_media=save_media,
+            text_only=text_only,
+            allow_partial=allow_partial,
+        )
+    except RbcpError as error:
+        if json_out:
+            typer.echo(_json.dumps(
+                {"ok": False, "error": format_error_for_user(error)}, ensure_ascii=False))
+        else:
+            typer.secho(f"批量失败：{format_error_for_user(error)}", fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    if json_out:
+        typer.echo(_json.dumps(summary, ensure_ascii=False))
+        return
+
+    typer.echo(
+        f"完成：成功 {summary['ok']}，失败 {summary['failed']}，跳过 {summary['skipped']}。"
+    )
+    if summary["token_expired"]:
+        typer.secho(
+            f"⚠ 这些清单已过期，需重新抓清单：{', '.join(summary['token_expired'])}",
+            fg=typer.colors.YELLOW,
+        )
