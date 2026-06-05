@@ -116,7 +116,7 @@ class TestModelProxies:
 
     @patch("app.service.model.requests.post")
     def test_llm_clean_threads_proxies(self, mock_post):
-        resp = MagicMock()
+        resp = MagicMock(status_code=200)
         resp.json.return_value = {"choices": [{"message": {"content": "x"}}]}
         mock_post.return_value = resp
         DashscopeProvider("k", proxies=PROXY).llm_clean("t")
@@ -124,7 +124,7 @@ class TestModelProxies:
 
     @patch("app.service.model.requests.post")
     def test_vlm_threads_proxies(self, mock_post):
-        resp = MagicMock()
+        resp = MagicMock(status_code=200)
         resp.json.return_value = {"choices": [{"message": {"content": "x"}}]}
         mock_post.return_value = resp
         DashscopeProvider("k", proxies=PROXY).vlm("http://img")

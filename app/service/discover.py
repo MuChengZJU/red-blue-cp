@@ -584,7 +584,8 @@ async def discover_user_posts(user_url: str) -> dict:
             incomplete_reason = "cookie_expired"
         except Exception as exc:  # noqa: BLE001 - 壳层兜底，细节进 reason
             incomplete_reason = incomplete_reason or "network"
-            _ = exc
+            # 真实异常别丢：reason 只留机器码，详情进日志供排查（audit #5）
+            _log.warning("user_posted 抓取兜底异常：%s", exc, exc_info=True)
         finally:
             if chrome is not None:
                 try:

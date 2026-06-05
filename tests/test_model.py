@@ -183,7 +183,8 @@ class TestDashscopeAsr:
     def test_raises_on_task_failure(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get, task_status="FAILED")
         provider = DashscopeProvider(api_key="test-key")
-        with pytest.raises(RuntimeError):
+        from app.service.errors import ApiError
+        with pytest.raises(ApiError):
             provider.asr("https://example.com/audio.m4s")
 
     @patch("app.service.model.requests.get")

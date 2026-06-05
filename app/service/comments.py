@@ -20,11 +20,15 @@ write_comments_md(note_id, comments, output_dir, *, note_title="") -> Path
 
 from __future__ import annotations
 
+import logging
 import os
 from datetime import datetime, timezone
 from pathlib import Path
 
 from app.service.discover import Comment
+
+
+_log = logging.getLogger("rbcp.comments")
 
 
 def format_comments_md(
@@ -92,9 +96,11 @@ def write_comments_md(
         tmp_path.write_text(content, encoding="utf-8")
         os.replace(tmp_path, final_path)
     except Exception:
+        _log.error("写评论文件失败：%s", final_path, exc_info=True)
         tmp_path.unlink(missing_ok=True)
         raise
 
+    _log.info("写出评论：%s（%d 条一级）", final_path, len(comments))
     return final_path
 
 

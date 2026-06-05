@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
 from dataclasses import dataclass
@@ -11,7 +12,11 @@ from urllib.parse import urlparse
 import requests
 
 import app.service.fetcher as fetcher
+from app.service.errors import NetworkError, UnsupportedUrlError
 from app.service.model import ModelProvider
+
+
+_log = logging.getLogger("rbcp.extractor")
 
 
 @dataclass
@@ -37,7 +42,9 @@ def detect_platform(url: str) -> str:
         return "bilibili"
     if host == "xiaohongshu.com" or host.endswith(".xiaohongshu.com") or host == "xhslink.com" or host.endswith(".xhslink.com"):
         return "xiaohongshu"
-    raise ValueError(f"Unsupported URL platform: {url}")
+    raise UnsupportedUrlError(
+        f"Unsupported URL platform: {url}", operation="detect_platform"
+    )
 
 
 def extract_url(
@@ -56,7 +63,9 @@ def extract_url(
         info = fetcher.fetch_xiaohongshu(url, proxies=proxies)
         raw_text, metadata = _extract_xiaohongshu_text(info, provider, text_only=text_only)
     else:
-        raise ValueError(f"Unsupported URL platform: {url}")
+        raise UnsupportedUrlError(
+            f"Unsupported URL platform: {url}", operation="detect_platform"
+        )
 
     if save_media:
         media_dir = Path(os.getenv("RBCP_MEDIA_DIR", "~/transcript-media")).expanduser()
@@ -260,7 +269,21 @@ def _download_file(url: str, dest: Path, headers: dict[str, str]) -> bool:
 
     part_path = dest.with_suffix(dest.suffix + ".part")
     response = requests.get(url, headers=headers, timeout=60)
-    response.raise_for_status()
+    try:
+        response.raise_for_status()
+    except requests.HTTPError as exc:
+        body = ""
+        try:
+            body = (response.text or "")[:500]
+        except Exception:  # noqa: BLE001
+            body = ""
+        status = getattr(response, "status_code", None)
+        _log.error("[save_media] download HTTP %s url=%s body=%s", status, url, body)
+        raise NetworkError(
+            f"media download failed (HTTP {status})",
+            operation="save_media",
+            debug_context={"status": status, "url": url},
+        ) from exc
     part_path.write_bytes(response.content)
     os.replace(str(part_path), str(dest))
     return True

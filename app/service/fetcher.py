@@ -1,11 +1,53 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 from typing import Any
 from urllib.parse import urlparse
 
 import requests
+
+from app.service.errors import (
+    ApiError,
+    AuthError,
+    ParseError,
+    UnsupportedUrlError,
+)
+
+
+_log = logging.getLogger("rbcp.fetcher")
+
+_BODY_EXCERPT_LIMIT = 2000
+
+
+def _body_excerpt(response: requests.Response, limit: int = _BODY_EXCERPT_LIMIT) -> str:
+    """取 response body 摘要（≤2KB），供日志与 payload_excerpt 用。"""
+    try:
+        return (response.text or "")[:limit]
+    except Exception:  # noqa: BLE001 - 读 body 失败不能再抛
+        return ""
+
+
+def _raise_api_for_status(
+    response: requests.Response, *, operation: str, provider: str, platform: str
+) -> None:
+    """JSON API 非 2xx：先打 body 日志再抛 ApiError（带 api_code + payload）。"""
+    if response.status_code < 400:
+        return
+    body = _body_excerpt(response)
+    _log.error(
+        "[%s] %s API HTTP %s body=%s",
+        operation, provider, response.status_code, body,
+    )
+    raise ApiError(
+        f"{provider} API HTTP {response.status_code}",
+        provider=provider,
+        api_code=response.status_code,
+        payload_excerpt=body,
+        platform=platform,
+        operation=operation,
+    )
 
 
 DEFAULT_HEADERS = {
@@ -28,7 +70,13 @@ def fetch_bilibili(url: str, *, proxies: dict[str, str] | None = None) -> dict[s
     page_url = _resolve_bilibili_url(url, proxies=proxies)
     bvid = _extract_bvid(page_url)
     if not bvid:
-        raise ValueError(f"Could not find Bilibili BV id in URL: {url}")
+        _log.error("[fetch_bilibili] no BV id in url=%s (resolved=%s)", url, page_url)
+        raise UnsupportedUrlError(
+            f"Could not find Bilibili BV id in URL: {url}",
+            platform="bilibili",
+            operation="resolve_url",
+            user_message="这条 B 站链接不是视频页（没有 BV 号，可能是专栏/动态）。请换视频链接重试。",
+        )
 
     view_payload = _get_json(
         BILIBILI_VIEW_URL, params={"bvid": bvid}, referer=page_url, proxies=proxies
@@ -79,8 +127,22 @@ def fetch_xiaohongshu(url: str, *, proxies: dict[str, str] | None = None) -> dic
         allow_redirects=True,
         proxies=proxies,
     )
-    response.raise_for_status()
     final_url = response.url or url
+    # token 过期判定（spike 实证信号）：跟完重定向的 final_url 含 /404 或
+    # error_code=300031 → 这条清单/链接的 xsec_token 失效。必须在解析前查，
+    # 否则现状会捞到 noteDetailMap 里 'null' 键的空壳、title=None 蒙混过去。
+    # 放在 raise_for_status 之前：/404 页可能非 200，避免被当成普通 HTTP 错。
+    if "/404" in final_url or "error_code=300031" in final_url:
+        _log.warning("[fetch_xiaohongshu] token expired, redirected to %s", final_url)
+        raise AuthError(
+            f"Xiaohongshu token expired (redirected to {final_url})",
+            reason="token_expired",
+            platform="xiaohongshu",
+            operation="fetch_detail",
+        )
+    _raise_api_for_status(
+        response, operation="fetch_detail", provider="xiaohongshu", platform="xiaohongshu"
+    )
     initial_state = _extract_xhs_initial_state(response.text)
     note = _extract_xhs_note(initial_state)
 
@@ -120,7 +182,9 @@ def _resolve_bilibili_url(url: str, *, proxies: dict[str, str] | None = None) ->
         response = requests.get(
             url, headers=DEFAULT_HEADERS, timeout=30, allow_redirects=True, proxies=proxies
         )
-        response.raise_for_status()
+        _raise_api_for_status(
+            response, operation="resolve_url", provider="bilibili", platform="bilibili"
+        )
         return response.url or url
     return url
 
@@ -141,20 +205,41 @@ def _get_json(
     if referer:
         headers["Referer"] = referer
     response = requests.get(endpoint, params=params, headers=headers, timeout=30, proxies=proxies)
-    response.raise_for_status()
+    _raise_api_for_status(
+        response, operation="bilibili_api", provider="bilibili", platform="bilibili"
+    )
     payload = response.json()
     if not isinstance(payload, dict):
-        raise RuntimeError(f"Unexpected JSON response from {endpoint}: {payload!r}")
+        _log.error("[bilibili_api] non-dict JSON from %s: %r", endpoint, payload)
+        raise ParseError(
+            f"Unexpected JSON response from {endpoint}: {payload!r}",
+            platform="bilibili",
+            operation="bilibili_api",
+        )
     return payload
 
 
 def _api_data(payload: dict[str, Any], label: str) -> dict[str, Any]:
     code = payload.get("code", 0)
     if code not in (0, "0", None):
-        raise RuntimeError(f"{label} API returned error: {payload}")
+        excerpt = json.dumps(payload, ensure_ascii=False)[:_BODY_EXCERPT_LIMIT]
+        _log.error("[%s] API error code=%s payload=%s", label, code, excerpt)
+        raise ApiError(
+            f"{label} API returned error code {code}",
+            provider="bilibili",
+            api_code=code,
+            payload_excerpt=excerpt,
+            platform="bilibili",
+            operation="bilibili_api",
+        )
     data = payload.get("data")
     if not isinstance(data, dict):
-        raise RuntimeError(f"{label} API response missing data: {payload}")
+        _log.error("[%s] API response missing data: %r", label, payload)
+        raise ParseError(
+            f"{label} API response missing data",
+            platform="bilibili",
+            operation="bilibili_api",
+        )
     return data
 
 
@@ -210,11 +295,18 @@ def _extract_xhs_initial_state(html: str) -> dict[str, Any]:
     marker = "window.__INITIAL_STATE__"
     start = html.find(marker)
     if start == -1:
-        raise RuntimeError("Xiaohongshu page missing window.__INITIAL_STATE__")
+        _log.error("[xhs_parse] page missing window.__INITIAL_STATE__ (len=%d)", len(html or ""))
+        raise ParseError(
+            "Xiaohongshu page missing window.__INITIAL_STATE__",
+            platform="xiaohongshu", operation="parse",
+        )
 
     equals = html.find("=", start)
     if equals == -1:
-        raise RuntimeError("Xiaohongshu initial state assignment is malformed")
+        raise ParseError(
+            "Xiaohongshu initial state assignment is malformed",
+            platform="xiaohongshu", operation="parse",
+        )
 
     json_text = _read_js_object_literal(html, equals + 1)
     json_text = re.sub(r":\s*undefined", ":null", json_text)
@@ -222,9 +314,16 @@ def _extract_xhs_initial_state(html: str) -> dict[str, Any]:
     try:
         payload = json.loads(json_text)
     except json.JSONDecodeError as exc:
-        raise RuntimeError("Failed to parse Xiaohongshu initial state") from exc
+        _log.error("[xhs_parse] JSON decode failed: %s", exc)
+        raise ParseError(
+            "Failed to parse Xiaohongshu initial state",
+            platform="xiaohongshu", operation="parse",
+        ) from exc
     if not isinstance(payload, dict):
-        raise RuntimeError(f"Unexpected Xiaohongshu initial state: {payload!r}")
+        raise ParseError(
+            f"Unexpected Xiaohongshu initial state: {payload!r}",
+            platform="xiaohongshu", operation="parse",
+        )
     return payload
 
 
@@ -232,7 +331,10 @@ def _read_js_object_literal(text: str, start: int) -> str:
     while start < len(text) and text[start].isspace():
         start += 1
     if start >= len(text) or text[start] not in "[{":
-        raise RuntimeError("Xiaohongshu initial state does not start with JSON")
+        raise ParseError(
+            "Xiaohongshu initial state does not start with JSON",
+            platform="xiaohongshu", operation="parse",
+        )
 
     opening = text[start]
     closing = "}" if opening == "{" else "]"
@@ -260,7 +362,10 @@ def _read_js_object_literal(text: str, start: int) -> str:
             depth -= 1
             if depth == 0:
                 return text[start : index + 1]
-    raise RuntimeError("Xiaohongshu initial state JSON is incomplete")
+    raise ParseError(
+        "Xiaohongshu initial state JSON is incomplete",
+        platform="xiaohongshu", operation="parse",
+    )
 
 
 def _extract_xhs_note(initial_state: dict[str, Any]) -> dict[str, Any]:
@@ -275,7 +380,11 @@ def _extract_xhs_note(initial_state: dict[str, Any]) -> dict[str, Any]:
 
     note = _find_xhs_note(initial_state)
     if note is None:
-        raise RuntimeError("Xiaohongshu note detail not found in initial state")
+        _log.error("[xhs_parse] note detail not found in initial state")
+        raise ParseError(
+            "Xiaohongshu note detail not found in initial state",
+            platform="xiaohongshu", operation="parse",
+        )
     return note
 
 

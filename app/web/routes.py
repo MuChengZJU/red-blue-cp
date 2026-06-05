@@ -15,6 +15,8 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
+from app.service.errors import RbcpError, format_error_for_user
+from app.service.extractor import detect_platform
 from app.service.storage import Storage
 
 
@@ -121,6 +123,13 @@ async def create_job(
     storage: Storage = Depends(get_storage),
     pipeline_fn: Callable[[str], str] = Depends(get_pipeline_fn),
 ) -> dict[str, int]:
+    # audit #4：建 job 前先校验平台，非 B站/小红书立即 400 + 人话，
+    # 别让用户等异步任务跑到 detect_platform 才报错（白等一轮）。
+    try:
+        detect_platform(payload.url)
+    except RbcpError as exc:
+        raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
+
     job_id = storage.create_job(payload.url)
     asyncio.create_task(
         asyncio.to_thread(_run_job, job_id, payload.url, storage, pipeline_fn)

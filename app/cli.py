@@ -12,6 +12,7 @@ import typer
 import uvicorn
 from dotenv import load_dotenv
 
+from app.service.errors import format_error_for_user
 from app.service.extractor import extract_url
 from app.service.markdown import render_and_write
 from app.service.pipeline import (
@@ -58,9 +59,10 @@ def run_pipeline(url: str) -> str:
 def run(url: str) -> None:
     try:
         md_path = run_pipeline(url)
-    except Exception as error:
-        typer.echo(f"Failed: {error}")
-        return
+    except Exception as error:  # noqa: BLE001
+        # audit #3：失败要退出码非 0（脚本/CI 能感知）+ 翻人话，别糊裸异常。
+        typer.secho(format_error_for_user(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
 
     typer.echo(f"Done: {md_path}")
 
@@ -184,9 +186,13 @@ def fetch(
         )
     except Exception as error:  # noqa: BLE001
         if json_out:
-            typer.echo(_json.dumps({"ok": False, "error": str(error)}, ensure_ascii=False))
+            # JSON 给机器：error 留技术原因；message 给人话
+            typer.echo(_json.dumps(
+                {"ok": False, "error": str(error),
+                 "message": format_error_for_user(error)},
+                ensure_ascii=False))
         else:
-            typer.echo(f"Failed: {error}")
+            typer.secho(format_error_for_user(error), fg=typer.colors.RED)
         raise typer.Exit(code=1) from None
 
     if json_out:

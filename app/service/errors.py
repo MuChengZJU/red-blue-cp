@@ -137,7 +137,7 @@ def format_error_for_user(exc: Exception) -> str:
         return "触发风控，建议慢速 / 换节点 / 稍后重试。"
     if exc.kind == "auth":
         if exc.debug_context.get("reason") == "token_expired":
-            return "这条清单已过期，需重新抓清单。"
+            return "访问令牌已过期（xsec_token 失效）。单篇请重新复制分享链接；批量请重新抓清单。"
         return "登录已失效，请重跑 rbcp login。"
     if exc.kind == "parse":
         return "页面解析失败（可能改版 / 空壳 / 风控）。稍后重试或反馈。"
