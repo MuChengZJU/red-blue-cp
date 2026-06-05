@@ -13,7 +13,7 @@ status: active
 ## Codex 挖出的硬货
 
 ### 1. 代理覆盖不全（实锤，Top1 风险）
-`model.py:125` `session.trust_env = False`——**视频/ASR 的音频下载会绕过环境变量代理，用本机 IP 直连**。所以"走代理 = 安全"对视频笔记不成立（图文走代理 OK，视频音频下载漏了）。固定共享出口 IP（校园网）场景下尤其是洞。**修代理覆盖是地基的一部分。**
+`model.py:125` `session.trust_env = False`——**视频/ASR 的音频下载会绕过环境变量代理，用本机 IP 直连**。所以"走代理 = 安全"对视频笔记不成立（图文走代理 OK，视频音频下载漏了）。固定共享出口 IP（多人共用一个出口）场景下尤其是洞。**修代理覆盖是地基的一部分。**
 
 ### 2. 并行相交面被低估（推翻"先锁契约即可并行"的乐观）
 - 批量流"不碰 service"不成立：`_fetch_single` 穿过 `extract_url → fetcher/model/markdown`，批量错误 UX 必然依赖 service 异常契约。

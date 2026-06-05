@@ -184,4 +184,4 @@ P1g · 博主安全批量（插件抓清单 + 代理批量下载 + 错误地基�
 - 远期 LLM Wiki 不进需求文档，本项目交付 Markdown 文件库即可
 - 飞书移到 P2
 - P0 原则："产物正确"，不要"架构优雅"
-- 博主全量"抓清单"从 pydoll 改浏览器插件（pydoll 串行裸 IP 不安全、不可分发）；下载走代理（应对学校固定共享 IP）；pydoll 降为不稳定可选项。详见 [博主安全批量](docs/blogger-safe-batch-feature.md)（2026-06-05）
+- 博主全量"抓清单"从 pydoll 改浏览器插件（pydoll 串行裸 IP 不安全、不可分发）；下载走代理（应对固定共享出口 IP）；pydoll 降为不稳定可选项。详见 [博主安全批量](docs/blogger-safe-batch-feature.md)（2026-06-05）

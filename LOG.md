@@ -31,7 +31,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
-| 2026-06-05 | 🔴 高 | 范围/架构 | 博主全量抓清单 pydoll→浏览器插件(MV3)，pydoll 降不稳定可选项（红线#9 改）；下载加代理（应对学校固定 IP）；立项 **M4 博主安全批量 + 错误地基**（M4a 地基串行→M4b‖M4c 并行） | [博主安全批量](docs/blogger-safe-batch-feature.md) / [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
+| 2026-06-05 | 🔴 高 | 范围/架构 | 博主全量抓清单 pydoll→浏览器插件(MV3)，pydoll 降不稳定可选项（红线#9 改）；下载加代理（应对固定共享出口 IP）；立项 **M4 博主安全批量 + 错误地基**（M4a 地基串行→M4b‖M4c 并行） | [博主安全批量](docs/blogger-safe-batch-feature.md) / [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
 | 2026-06-03 | 🔴 高 | 范围 | Q1 形态定案：不收敛单一入口。现在做＝自部署 WebUI 手机可达（Tailscale）+ 发 PyPI（pipx/uv tool）；Tauri 桌面 GUI 门控 P2（真实非技术用户 + API Key 上手路径）。架构守 service 前端无关给 GUI 留门；公网暴露前必须加鉴权 | [形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 2026-06-03 | 🟡 中 | 工程 | WebUI 视觉从零重做为「红蓝品牌」设计系统；详情页 Markdown 渲染/源码切换（marked+DOMPurify，CDN 非 Python 依赖） | [详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-01 | 🟡 中 | 业务 | ASR 加说话人分离（paraformer-v2 diarization）：多人对谈标「说话人N：」，单人降级纯文本，一人多角色交 LLM 后处理 | SPEC §8.3 / PLAN §M1c |
@@ -98,7 +98,7 @@
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
 | 2026-06-05 | 🔴 高 | Codex 独立 review 博主批量方案：实锤 `model.py` `trust_env=False` 致视频/ASR 下载绕过代理；并行相交面被低估（storage 隐藏耦合 / 批量必依赖 service 异常）→ **先串行锁地基（errors.py+抽_fetch_single+storage模型+修代理）再并行**；异常契约改少类+结构化字段；阶段1降范围只 CLI batch | [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
-| 2026-06-05 | 🔴 高 | 小红书博主批量全链路验通（探索，未立项）：插件 MV3 抓列表 + CLI 下载转录。换详情需 xsec_token（门票非用户身份，已在导出JSON）、不需 cookie，不带 token 返空壳；下载是 IP 风险非账号风险，海外代理可行（30条8并发1.5s零封）、CDN 下字节12并发零失败；固定共享IP（校园网）必须走代理 | [插件抓列表+批量下载 spike](docs/devlog/2026-06-05-xhs-blogger-batch-spike.md) |
+| 2026-06-05 | 🔴 高 | 小红书博主批量全链路验通（探索，未立项）：插件 MV3 抓列表 + CLI 下载转录。换详情需 xsec_token（门票非用户身份，已在导出JSON）、不需 cookie，不带 token 返空壳；下载是 IP 风险非账号风险，海外代理可行（30条8并发1.5s零封）、CDN 下字节12并发零失败；固定共享出口 IP（多人共用出口）必须走代理 | [插件抓列表+批量下载 spike](docs/devlog/2026-06-05-xhs-blogger-batch-spike.md) |
 | 2026-06-03 | 🔴 高 | 合成/seed 测试数据丢了真实数据关键特征(frontmatter/脏URL)就给假"通过"，比没测更危险；"做了 e2e"≠"验证有效"，要追问喂的数据像不像真的 | [WebUI 假测复盘](docs/devlog/2026-06-03-retro-webui-fake-test-data.md) |
 | 2026-06-03 | 🟡 中 | 自测数据缺真实数据的关键特征就测不出真实 bug（手写无 frontmatter 的 md 掩盖了 marked 把 frontmatter 渲成巨大 setext 标题）；`[hidden]` 会被 `display:flex` 静默盖掉；改 routes.py 须重启 uvicorn（模板热重载 / Python 模块不重载） | [WebUI 重做+QA](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-03 | 🔴 高 | 何时能并行=接缝锁定没（锁定=决策敲定+写成代码，不是PRD全不全）；依赖链型串行真不能并行；调研分功能层(锁哪儿)+技术层(锁得住吗)，技术调研要在 fan out 前做 spike | [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md) |
