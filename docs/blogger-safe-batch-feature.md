@@ -153,3 +153,50 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 | Clash 轮替的复杂配置 | ✅ 交给 Agent 调用，不做专门 UI |
 | 一键转发方案 | ✅ 导入收信箱（人工确认，零配置，可全部开始/逐个确认/全部忽略，每批独立任务）|
 | 全项目错误 UX 缺口 | ✅ 审计完成，见 docs/error-handling-audit.md |
+| 断点续传粒度 | ✅ B：SQLite 批次表（batch/batch_item），storage 纳入串行地基先锁 |
+
+## 十二、阶段 1 实施计划（plan-eng-review 锁定 2026-06-05）
+
+### 执行结构：先串行地基 → 再并行两流
+
+```
+[串行地基 G]（一个人，按序，锁公共接缝）
+  G1  service/errors.py：异常最小集 + 结构化字段 + format_error_for_user()
+  G2  抽 _fetch_single → service/pipeline.py（cli / batch 共用）
+  G3  修代理覆盖：model.py trust_env，让媒体/ASR 下载也能走代理
+  G4  storage 扩展：batch / batch_item 表 + 迁移（锁定 schema）
+        ↓ 地基合并后
+[并行]
+  Lane E 错误流：各 service 填 errors 异常 + logging + body；detail.html 分层+重试；cli.py run 退出码
+  Lane B 批量流：service/batch.py + cli batch 命令 + 插件(抓清单导出 JSON) + schema 校验 + 断点(查 batch_item)
+```
+
+### 异常契约（Codex 最小集）
+`RbcpError`(基类，带 `kind/platform/operation/retryable/user_message/debug_context`) → `UnsupportedUrlError / ConfigError / NetworkError / ApiError(provider/api_code/payload_excerpt) / RiskControlError / AuthError(合 Cookie+Token) / ParseError`；`format_error_for_user(exc)` 出人话（CLI/Web 共用）。
+
+### _fetch_single 接口（G2）
+`service/pipeline.py: fetch_single(url, *, api_key, output_dir, comments, sub, save_media, text_only, proxy=None) -> dict`。cli / batch 都调它，cli 只做参数解析+输出。
+
+### storage 模型（G4，锁定）
+- `batch(id, source, user_id, count, complete, status, created_at)`
+- `batch_item(batch_id, note_id, url, status, md_path, error_message, finished_at)`
+- 沿用现有 `_init_schema` IF NOT EXISTS 模式建表。阶段 1 **不建 inbox 表**（收信箱阶段 2）。
+
+### 文件边界（防相交）
+- **地基（串行独占）**：`errors.py`(新)、`pipeline.py`(新)、`model.py`、`storage.py`。
+- **Lane E 碰**：`service/*.py`(在 G1/G2 锁定接口上填异常)、`detail.html`、`cli.py` 的 `run`。
+- **Lane B 碰**：`service/batch.py`(新)、`cli.py` 的 `batch`(新函数)、插件(新 JS)、web 导入入口。
+- `cli.py` 相交：Lane E 改 `run/fetch`，Lane B 加 `batch`(新函数) → 不同函数，git 自动合并。
+- `storage.py`：G4 锁定 schema 后，Lane E 用 `retry_count`(已有)、Lane B 用 `batch` 表 → 不再改结构。
+
+### 阶段 1 验收
+- `rbcp batch notes.json`：读 → schema 校验(`schema_version`) → 走单 URL 代理(**开跑前出口探测确认生效**) → 逐条下 → 断点跳已下 → 汇总 ok/failed/skipped。
+- 真链路：拿插件导出的真实 `notes.json` 跑 ≥5 条出 Markdown（**含 1 条视频，验证 trust_env 修复后音频走代理**）。
+- 错误：token 过期跳过继续 + 汇总列出；代理不通报错；各 service 抛结构化异常 + body 日志。
+- 测试：errors 映射单测；batch 断点/跳过/失败汇总单测；`pipeline.fetch_single` 单测；trust_env 代理生效测。
+
+### 边缘情况
+schema_version 不匹配→拒绝；complete=false→警告不当全量；空 notes→友好提示；token 过期→跳过+记 batch_item(reason=token_expired)；代理未生效(出口=本机)→开跑前报错。
+
+### NOT in scope（阶段 1）
+插件 popup UI（阶段 1 插件只导出 JSON）/ 收信箱 / 一键转发 / Clash 轮替 / WebUI 批量进度 / inbox 表 → 全部阶段 2。
