@@ -143,6 +143,48 @@ def test_fetch_all_incomplete_refuses(monkeypatch):
     assert "不在半份清单上做全量下载" in result.stdout
 
 
+def test_proxy_with_all_warns_browser_leg_not_proxied(monkeypatch):
+    # --proxy 撞 --all：抓清单走 pydoll/Chrome 真实 IP，必须警告（Codex P1）
+    async def fake(url):
+        return _fake_listing(complete=False, reason="x")
+
+    monkeypatch.setattr(discover, "discover_user_posts", fake)
+    result = runner.invoke(
+        cli.app,
+        ["fetch", "https://x/user/profile/u1", "--all", "--yes",
+         "--proxy", "http://127.0.0.1:7897"],
+    )
+    assert "真实 IP" in result.stdout
+
+
+def test_proxy_with_comments_warns(stub_single, monkeypatch):
+    # --proxy 撞 --comments：抓评论走 pydoll 真实 IP，必须警告（Codex P2）
+    async def fake_comments(url, *, with_sub):
+        return []
+
+    monkeypatch.setattr(discover, "discover_comments", fake_comments)
+    monkeypatch.setattr(
+        comments_mod, "write_comments_md",
+        lambda note_id, comments, output_dir, note_title="": output_dir / "c.md",
+    )
+    result = runner.invoke(
+        cli.app,
+        ["fetch", "https://www.xiaohongshu.com/explore/abc", "--comments",
+         "--proxy", "http://127.0.0.1:7897"],
+    )
+    assert "真实 IP" in result.stdout
+
+
+def test_proxy_single_no_warning(stub_single):
+    # 单篇 --proxy：下载全程走代理，不该有误导警告
+    result = runner.invoke(
+        cli.app,
+        ["fetch", "https://www.xiaohongshu.com/explore/abc",
+         "--proxy", "http://127.0.0.1:7897"],
+    )
+    assert "真实 IP" not in result.stdout
+
+
 def test_fetch_all_downloads_each(monkeypatch):
     async def fake(url):
         return _fake_listing(complete=True)

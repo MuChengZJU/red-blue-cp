@@ -148,6 +148,14 @@ def fetch(
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
+    if proxy and (all_ or comments):
+        # --proxy 只穿透下载层（requests）。抓清单/评论走 pydoll/Chrome，proxy 进不去 → 真实 IP。
+        typer.secho(
+            "⚠ --proxy 只覆盖下载；--all 抓清单 / --comments 抓评论走浏览器（pydoll）真实 IP，"
+            "不走代理。安全批量请用插件导出清单 + rbcp batch。",
+            fg=typer.colors.YELLOW,
+        )
+
     if all_:
         _fetch_all(
             url,
