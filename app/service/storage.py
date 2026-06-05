@@ -50,6 +50,39 @@ class Storage:
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_created_at ON jobs (created_at DESC)"
             )
+            # ── 博主批量（M4a-a4，断点续传用）。阶段 1 不建 inbox 表 ──
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS batch (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    source TEXT NOT NULL,
+                    user_id TEXT,
+                    count INTEGER NOT NULL DEFAULT 0,
+                    complete INTEGER NOT NULL DEFAULT 0,
+                    status TEXT NOT NULL,
+                    created_at TEXT NOT NULL
+                )
+                """
+            )
+            conn.execute(
+                """
+                CREATE TABLE IF NOT EXISTS batch_item (
+                    batch_id INTEGER NOT NULL,
+                    note_id TEXT NOT NULL,
+                    url TEXT NOT NULL,
+                    status TEXT NOT NULL,
+                    md_path TEXT,
+                    error_message TEXT,
+                    finished_at TEXT,
+                    PRIMARY KEY (batch_id, note_id),
+                    FOREIGN KEY (batch_id) REFERENCES batch (id)
+                )
+                """
+            )
+            conn.execute(
+                "CREATE INDEX IF NOT EXISTS idx_batch_item_status "
+                "ON batch_item (batch_id, status)"
+            )
 
     def create_job(
         self,
@@ -174,6 +207,92 @@ class Storage:
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
         return [dict(row) for row in rows]
+
+    # ── 博主批量（M4a-a4） ─────────────────────────────────────
+
+    def create_batch(
+        self,
+        *,
+        source: str,
+        user_id: str | None,
+        count: int,
+        complete: bool,
+    ) -> int:
+        now = datetime.now().isoformat()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                INSERT INTO batch (source, user_id, count, complete, status, created_at)
+                VALUES (?, ?, ?, ?, ?, ?)
+                """,
+                (source, user_id, count, int(complete), "pending", now),
+            )
+            return int(cursor.lastrowid)
+
+    def get_batch(self, batch_id: int) -> dict[str, Any] | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM batch WHERE id = ?", (batch_id,)
+            ).fetchone()
+        return dict(row) if row is not None else None
+
+    def mark_batch_status(self, batch_id: int, status: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE batch SET status = ? WHERE id = ?", (status, batch_id)
+            )
+
+    def add_batch_items(self, batch_id: int, items: list[dict[str, Any]]) -> None:
+        """登记待下条目。重复 note_id 用 OR IGNORE 跳过，不覆盖已有状态（断点续传幂等）。"""
+        with self._connect() as conn:
+            conn.executemany(
+                """
+                INSERT OR IGNORE INTO batch_item (batch_id, note_id, url, status)
+                VALUES (?, ?, ?, 'pending')
+                """,
+                [(batch_id, it["note_id"], it["url"]) for it in items],
+            )
+
+    def get_batch_item_statuses(self, batch_id: int) -> dict[str, str]:
+        """{note_id: status}，断点续传查这个跳过 done/skipped。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT note_id, status FROM batch_item WHERE batch_id = ?",
+                (batch_id,),
+            ).fetchall()
+        return {row["note_id"]: row["status"] for row in rows}
+
+    def mark_batch_item_done(self, batch_id: int, note_id: str, *, md_path: str) -> None:
+        now = datetime.now().isoformat()
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE batch_item
+                SET status = 'done', md_path = ?, error_message = NULL, finished_at = ?
+                WHERE batch_id = ? AND note_id = ?
+                """,
+                (md_path, now, batch_id, note_id),
+            )
+
+    def mark_batch_item_failed(
+        self,
+        batch_id: int,
+        note_id: str,
+        *,
+        error_message: str,
+        skipped: bool = False,
+    ) -> None:
+        now = datetime.now().isoformat()
+        status = "skipped" if skipped else "failed"
+        with self._connect() as conn:
+            conn.execute(
+                """
+                UPDATE batch_item
+                SET status = ?, error_message = ?, finished_at = ?
+                WHERE batch_id = ? AND note_id = ?
+                """,
+                (status, error_message, now, batch_id, note_id),
+            )
 
     def cleanup_running(self) -> int:
         now = datetime.now().isoformat()

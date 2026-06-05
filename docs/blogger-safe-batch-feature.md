@@ -58,6 +58,7 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 
 ```json
 {
+  "schema_version": 1,
   "source": "xhs_user_posted",
   "user_id": "<博主id>",
   "user_name": "<博主名>",
@@ -79,6 +80,7 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 }
 ```
 
+- `schema_version`：契约版本（当前 `1`）。rbcp `batch` 读入先校验，不匹配则拒绝（不猜测、不降级）。插件写、batch 校验，两端用同一常量。
 - 导出文件名：`xhs-{user_id}-{YYYYMMDD}-{count}notes.json`。
 - `complete=false`（被风控截断半份）→ rbcp 必须**警告**，不当全量处理。
 

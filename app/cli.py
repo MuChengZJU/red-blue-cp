@@ -12,31 +12,16 @@ import typer
 import uvicorn
 from dotenv import load_dotenv
 
-from app.service.discover import note_id_from_url as _note_id_from_url
 from app.service.extractor import extract_url
 from app.service.markdown import render_and_write
-from app.service.model import DashscopeProvider
+from app.service.pipeline import (
+    _provider_from_env,
+    build_proxies,
+    fetch_single as _fetch_single,
+)
 
 
 app = typer.Typer()
-
-
-def _provider_from_env(api_key: str) -> DashscopeProvider:
-    asr_model = os.getenv("RBCP_ASR_MODEL", "paraformer-v2")
-    diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
-        "1",
-        "true",
-        "yes",
-        "on",
-    }
-    speaker_count_raw = os.getenv("RBCP_ASR_SPEAKER_COUNT", "").strip()
-    speaker_count = int(speaker_count_raw) if speaker_count_raw.isdigit() else None
-    return DashscopeProvider(
-        api_key=api_key,
-        asr_model=asr_model,
-        diarization_enabled=diarization_enabled,
-        speaker_count=speaker_count,
-    )
 
 
 def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]:
@@ -84,36 +69,6 @@ def run(url: str) -> None:
 def serve() -> None:
     load_dotenv()
     uvicorn.run("app.web.routes:app", host="0.0.0.0", port=8000, workers=1)
-
-
-def _fetch_single(
-    url: str,
-    *,
-    api_key: str,
-    output_dir: Path,
-    comments: bool = False,
-    sub: bool = True,
-    save_media: bool = False,
-    text_only: bool = False,
-) -> dict:
-    """抓单篇笔记：正文转录（+可选媒体落盘/纯文本）+ 可选评论。返回结果摘要。"""
-    provider = _provider_from_env(api_key)
-    result = extract_url(url, provider, text_only=text_only, save_media=save_media)
-    md_path = render_and_write(result, output_dir=output_dir)
-    out: dict = {"md_path": str(md_path), "title": result.title}
-
-    if comments:
-        from app.service import discover
-        from app.service.comments import write_comments_md
-
-        note_comments = asyncio.run(discover.discover_comments(url, with_sub=sub))
-        comments_path = write_comments_md(
-            _note_id_from_url(url), note_comments, output_dir, note_title=result.title
-        )
-        out["comments_path"] = str(comments_path)
-        out["comment_count"] = len(note_comments)
-
-    return out
 
 
 def _build_note_url(note_id: str, xsec_token: str) -> str:
@@ -185,11 +140,21 @@ def fetch(
     text_only: bool = typer.Option(False, "--text-only", help="跳过 VLM/ASR，只取现成正文"),
     json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
     yes: bool = typer.Option(False, "--yes", help="--all 时跳过确认"),
+    proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
 ) -> None:
     """抓单篇笔记，或用 --all 抓整个博主。"""
     load_dotenv()
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    proxy = proxy or os.getenv("RBCP_PROXY") or None
+
+    if proxy and (all_ or comments):
+        # --proxy 只穿透下载层（requests）。抓清单/评论走 pydoll/Chrome，proxy 进不去 → 真实 IP。
+        typer.secho(
+            "⚠ --proxy 只覆盖下载；--all 抓清单 / --comments 抓评论走浏览器（pydoll）真实 IP，"
+            "不走代理。安全批量请用插件导出清单 + rbcp batch。",
+            fg=typer.colors.YELLOW,
+        )
 
     if all_:
         _fetch_all(
@@ -202,6 +167,7 @@ def fetch(
             text_only=text_only,
             yes=yes,
             json_out=json_out,
+            proxy=proxy,
         )
         return
 
@@ -214,6 +180,7 @@ def fetch(
             sub=not no_sub,
             save_media=save_media,
             text_only=text_only,
+            proxy=proxy,
         )
     except Exception as error:  # noqa: BLE001
         if json_out:
@@ -241,6 +208,7 @@ def _fetch_all(
     text_only: bool,
     yes: bool,
     json_out: bool = False,
+    proxy: str | None = None,
 ) -> None:
     """博主全量：列清单 → 预览 → 确认 → 逐条下载。半份清单默认拒绝继续。"""
     from app.service import discover
@@ -304,6 +272,7 @@ def _fetch_all(
                 sub=sub,
                 save_media=save_media,
                 text_only=text_only,
+                proxy=proxy,
             )
             ok += 1
             results.append({"note_id": note["note_id"], "ok": True, **out})

@@ -46,13 +46,14 @@ def extract_url(
     *,
     text_only: bool = False,
     save_media: bool = False,
+    proxies: dict[str, str] | None = None,
 ) -> ExtractResult:
     platform = detect_platform(url)
     if platform == "bilibili":
-        info = fetcher.fetch_bilibili(url)
+        info = fetcher.fetch_bilibili(url, proxies=proxies)
         raw_text, metadata = _extract_bilibili_text(info, provider, text_only=text_only)
     elif platform == "xiaohongshu":
-        info = fetcher.fetch_xiaohongshu(url)
+        info = fetcher.fetch_xiaohongshu(url, proxies=proxies)
         raw_text, metadata = _extract_xiaohongshu_text(info, provider, text_only=text_only)
     else:
         raise ValueError(f"Unsupported URL platform: {url}")
