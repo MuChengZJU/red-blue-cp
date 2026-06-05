@@ -11,7 +11,6 @@ import pytest
 from app.service import fetcher
 from app.service.errors import (
     UnsupportedUrlError,
-    NetworkError,
     ApiError,
     AuthError,
     ParseError,
@@ -55,15 +54,18 @@ class TestFetchXiaohongshuErrors:
         assert ei.value.reason == "token_expired"
 
     @patch("app.service.fetcher.requests.get")
-    def test_http_error_raises_network_error_and_logs_body(self, mock_get, caplog):
+    def test_http_error_raises_api_error_and_logs_body(self, mock_get, caplog):
+        # 服务器响应了非 2xx（reach 到站点）→ ApiError 而非 NetworkError，
+        # 否则 format_error_for_user 会把它说成"代理未生效"，误导用户（Codex P2）。
         mock_get.return_value = _resp(
             status_code=503, text="风控页面 body 内容",
             url="https://www.xiaohongshu.com/explore/x",
         )
         with caplog.at_level("ERROR"):
-            with pytest.raises(NetworkError) as ei:
+            with pytest.raises(ApiError) as ei:
                 fetcher.fetch_xiaohongshu("https://www.xiaohongshu.com/explore/x")
         assert ei.value.platform == "xiaohongshu"
+        assert ei.value.api_code == 503
         assert "风控页面 body 内容" in caplog.text
 
     @patch("app.service.fetcher.requests.get")
@@ -125,7 +127,7 @@ class TestFetchBilibiliErrors:
             fetcher._get_json("https://api.bilibili.com/x", params={})
 
     @patch("app.service.fetcher.requests.get")
-    def test_resolve_bilibili_url_http_error_raises_network(self, mock_get):
+    def test_resolve_bilibili_url_http_error_raises_api(self, mock_get):
         mock_get.return_value = _resp(status_code=500, text="boom", url="https://b23.tv/x")
-        with pytest.raises(NetworkError):
+        with pytest.raises(ApiError):
             fetcher._resolve_bilibili_url("https://b23.tv/x")

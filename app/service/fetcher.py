@@ -11,7 +11,6 @@ import requests
 from app.service.errors import (
     ApiError,
     AuthError,
-    NetworkError,
     ParseError,
     UnsupportedUrlError,
 )
@@ -28,25 +27,6 @@ def _body_excerpt(response: requests.Response, limit: int = _BODY_EXCERPT_LIMIT)
         return (response.text or "")[:limit]
     except Exception:  # noqa: BLE001 - 读 body 失败不能再抛
         return ""
-
-
-def _raise_network_for_status(
-    response: requests.Response, *, operation: str, platform: str
-) -> None:
-    """非 2xx/3xx 的页面/CDN 抓取：先打 body 日志再抛 NetworkError。"""
-    if response.status_code < 400:
-        return
-    body = _body_excerpt(response)
-    _log.error(
-        "[%s] HTTP %s %s body=%s",
-        operation, response.status_code, getattr(response, "url", "?"), body,
-    )
-    raise NetworkError(
-        f"HTTP {response.status_code} fetching {operation}",
-        platform=platform,
-        operation=operation,
-        debug_context={"status": response.status_code, "body": body},
-    )
 
 
 def _raise_api_for_status(
@@ -95,6 +75,7 @@ def fetch_bilibili(url: str, *, proxies: dict[str, str] | None = None) -> dict[s
             f"Could not find Bilibili BV id in URL: {url}",
             platform="bilibili",
             operation="resolve_url",
+            user_message="这条 B 站链接不是视频页（没有 BV 号，可能是专栏/动态）。请换视频链接重试。",
         )
 
     view_payload = _get_json(
@@ -159,7 +140,9 @@ def fetch_xiaohongshu(url: str, *, proxies: dict[str, str] | None = None) -> dic
             platform="xiaohongshu",
             operation="fetch_detail",
         )
-    _raise_network_for_status(response, operation="fetch_detail", platform="xiaohongshu")
+    _raise_api_for_status(
+        response, operation="fetch_detail", provider="xiaohongshu", platform="xiaohongshu"
+    )
     initial_state = _extract_xhs_initial_state(response.text)
     note = _extract_xhs_note(initial_state)
 
@@ -199,7 +182,9 @@ def _resolve_bilibili_url(url: str, *, proxies: dict[str, str] | None = None) ->
         response = requests.get(
             url, headers=DEFAULT_HEADERS, timeout=30, allow_redirects=True, proxies=proxies
         )
-        _raise_network_for_status(response, operation="resolve_url", platform="bilibili")
+        _raise_api_for_status(
+            response, operation="resolve_url", provider="bilibili", platform="bilibili"
+        )
         return response.url or url
     return url
 
