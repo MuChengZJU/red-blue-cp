@@ -236,6 +236,17 @@ class Storage:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def find_active_batch(self, source: str, user_id: str | None) -> int | None:
+        """按 (source, user_id) 找回最近一个批次 id，供 batch 断点续传复用。无则 None。"""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT id FROM batch WHERE source = ? "
+                "AND (user_id = ? OR (user_id IS NULL AND ? IS NULL)) "
+                "ORDER BY id DESC LIMIT 1",
+                (source, user_id, user_id),
+            ).fetchone()
+        return int(row["id"]) if row is not None else None
+
     def mark_batch_status(self, batch_id: int, status: str) -> None:
         with self._connect() as conn:
             conn.execute(
