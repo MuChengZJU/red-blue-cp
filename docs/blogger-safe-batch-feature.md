@@ -95,7 +95,7 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 
 **所有可能出错的点都要：① 落日志 ② 提醒用户**，不许默默失败/默默存假数据。
 
-> ⚠️ 范围说明：错误处理是**整个项目各处**的横切关注点，不止本功能。现有 app/ 各处（CLI/WebUI/service）的错误日志与 UI/UX 现状正在调研（subagent 进行中），结果出来后补一节「全项目错误 UX 缺口清单 + 补齐计划」。下表先列本功能相关的：
+> ⚠️ 范围说明：错误处理是**整个项目各处**的横切关注点，不止本功能。全项目错误日志/UX 审计已完成，见 **[docs/error-handling-audit.md](error-handling-audit.md)**（5 条横向问题 + 3 个真 bug + Top 5 补齐项）。关键：service 层零 logging、异常不分层、`raise_for_status` 吞 body——**这三条不先补，本功能的错误提醒也只能拿到裸异常**。下表先列本功能相关的：
 
 | 出错点 | 检测 | 日志 | 用户提醒 |
 |---|---|---|---|
@@ -149,4 +149,4 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 | 插件 UI | ✅ 要 popup UI |
 | Clash 轮替的复杂配置 | ✅ 交给 Agent 调用，不做专门 UI |
 | 一键转发方案 | ⏳ 待挑：A 人工确认 / B 配对 token |
-| 全项目错误 UX 缺口 | ⏳ subagent 调研中，结果补 §六 |
+| 全项目错误 UX 缺口 | ✅ 审计完成，见 docs/error-handling-audit.md |
