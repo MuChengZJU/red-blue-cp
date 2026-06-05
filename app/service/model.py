@@ -55,6 +55,8 @@ class DashscopeProvider:
         llm_model: str = "qwen-plus",
         diarization_enabled: bool = True,
         speaker_count: int | None = None,
+        proxies: dict[str, str] | None = None,
+        media_proxies: dict[str, str] | None = None,
     ) -> None:
         self.api_key = api_key
         self.asr_model = asr_model
@@ -62,6 +64,9 @@ class DashscopeProvider:
         self.llm_model = llm_model
         self.diarization_enabled = diarization_enabled
         self.speaker_count = speaker_count
+        # 主站调用走 proxies；CDN 媒体字节走 media_proxies（默认 None=不走，护 IP 在主站层）
+        self._proxies = proxies
+        self._media_proxies = media_proxies
 
     def llm_clean(self, raw_text: str) -> str:
         payload = {
@@ -78,6 +83,7 @@ class DashscopeProvider:
             headers=self._json_auth_headers(),
             json=payload,
             timeout=(10, 180),
+            proxies=self._proxies,
         )
         response.raise_for_status()
         return _extract_chat_text(response.json())
@@ -100,6 +106,7 @@ class DashscopeProvider:
             headers=self._json_auth_headers(),
             json=payload,
             timeout=(10, 180),
+            proxies=self._proxies,
         )
         response.raise_for_status()
         return _extract_chat_text(response.json())
@@ -122,7 +129,9 @@ class DashscopeProvider:
             media_headers["Referer"] = referer
 
         with requests.Session() as session:
-            session.trust_env = False
+            session.trust_env = False  # 防环境变量代理把 CDN 媒体字节也带走
+            if self._media_proxies:
+                session.proxies.update(self._media_proxies)
             with session.get(
                 audio_url,
                 headers=media_headers,
@@ -174,6 +183,7 @@ class DashscopeProvider:
                 "model": self.asr_model,
             },
             timeout=60,
+            proxies=self._proxies,
         )
         response.raise_for_status()
         payload = response.json()
@@ -207,6 +217,7 @@ class DashscopeProvider:
             headers=headers,
             json=body,
             timeout=60,
+            proxies=self._proxies,
         )
         if response.status_code >= 400:
             raise RuntimeError(
@@ -229,6 +240,7 @@ class DashscopeProvider:
                 TASK_URL_TEMPLATE.format(task_id=task_id),
                 headers=headers,
                 timeout=60,
+                proxies=self._proxies,
             )
             response.raise_for_status()
             last_payload = response.json()
@@ -236,7 +248,7 @@ class DashscopeProvider:
             task_status = output.get("task_status")
 
             if task_status == "SUCCEEDED":
-                text = _extract_transcription_text(output)
+                text = _extract_transcription_text(output, proxies=self._proxies)
                 if text:
                     return text
                 raise RuntimeError(f"DashScope transcription succeeded without text: {last_payload}")
@@ -319,7 +331,9 @@ def _extract_chat_text(payload: dict[str, Any]) -> str:
     return str(content)
 
 
-def _extract_transcription_text(output: dict[str, Any]) -> str:
+def _extract_transcription_text(
+    output: dict[str, Any], *, proxies: dict[str, str] | None = None
+) -> str:
     result = output.get("result") or {}
     urls = []
     if result.get("transcription_url"):
@@ -329,7 +343,7 @@ def _extract_transcription_text(output: dict[str, Any]) -> str:
             urls.append(item["transcription_url"])
 
     for url in urls:
-        response = requests.get(url, timeout=60)
+        response = requests.get(url, timeout=60, proxies=proxies)
         response.raise_for_status()
         text = _format_transcription(response.json())
         if text:

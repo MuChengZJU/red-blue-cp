@@ -23,14 +23,16 @@ BILIBILI_PLAYURL_URL = "https://api.bilibili.com/x/player/playurl"
 BV_RE = re.compile(r"BV[0-9A-Za-z]{5,}")
 
 
-def fetch_bilibili(url: str) -> dict[str, Any]:
+def fetch_bilibili(url: str, *, proxies: dict[str, str] | None = None) -> dict[str, Any]:
     """Fetch Bilibili video metadata, subtitles, and media URLs."""
-    page_url = _resolve_bilibili_url(url)
+    page_url = _resolve_bilibili_url(url, proxies=proxies)
     bvid = _extract_bvid(page_url)
     if not bvid:
         raise ValueError(f"Could not find Bilibili BV id in URL: {url}")
 
-    view_payload = _get_json(BILIBILI_VIEW_URL, params={"bvid": bvid}, referer=page_url)
+    view_payload = _get_json(
+        BILIBILI_VIEW_URL, params={"bvid": bvid}, referer=page_url, proxies=proxies
+    )
     view_data = _api_data(view_payload, "Bilibili video info")
     pages = view_data.get("pages") or []
     first_page = pages[0] if pages else {}
@@ -39,12 +41,12 @@ def fetch_bilibili(url: str) -> dict[str, Any]:
 
     subtitle_text = None
     if cid:
-        subtitle_text = _fetch_bilibili_subtitle(page_url, bvid, cid)
+        subtitle_text = _fetch_bilibili_subtitle(page_url, bvid, cid, proxies=proxies)
 
     audio_url = None
     video_url = None
     if cid:
-        audio_url, video_url = _fetch_bilibili_media_urls(page_url, bvid, cid)
+        audio_url, video_url = _fetch_bilibili_media_urls(page_url, bvid, cid, proxies=proxies)
 
     owner = view_data.get("owner") or {}
     canonical_url = f"https://www.bilibili.com/video/{bvid}"
@@ -68,13 +70,14 @@ def fetch_bilibili(url: str) -> dict[str, Any]:
     )
 
 
-def fetch_xiaohongshu(url: str) -> dict[str, Any]:
+def fetch_xiaohongshu(url: str, *, proxies: dict[str, str] | None = None) -> dict[str, Any]:
     """Fetch Xiaohongshu note metadata from the page initial state."""
     response = requests.get(
         url,
         headers={**DEFAULT_HEADERS, "Referer": "https://www.xiaohongshu.com/"},
         timeout=30,
         allow_redirects=True,
+        proxies=proxies,
     )
     response.raise_for_status()
     final_url = response.url or url
@@ -111,10 +114,12 @@ def fetch_xiaohongshu(url: str) -> dict[str, Any]:
     )
 
 
-def _resolve_bilibili_url(url: str) -> str:
+def _resolve_bilibili_url(url: str, *, proxies: dict[str, str] | None = None) -> str:
     host = urlparse(url).netloc.lower()
     if host == "b23.tv" or host.endswith(".b23.tv"):
-        response = requests.get(url, headers=DEFAULT_HEADERS, timeout=30, allow_redirects=True)
+        response = requests.get(
+            url, headers=DEFAULT_HEADERS, timeout=30, allow_redirects=True, proxies=proxies
+        )
         response.raise_for_status()
         return response.url or url
     return url
@@ -130,11 +135,12 @@ def _get_json(
     *,
     params: dict[str, Any],
     referer: str | None = None,
+    proxies: dict[str, str] | None = None,
 ) -> dict[str, Any]:
     headers = dict(DEFAULT_HEADERS)
     if referer:
         headers["Referer"] = referer
-    response = requests.get(endpoint, params=params, headers=headers, timeout=30)
+    response = requests.get(endpoint, params=params, headers=headers, timeout=30, proxies=proxies)
     response.raise_for_status()
     payload = response.json()
     if not isinstance(payload, dict):
@@ -152,8 +158,12 @@ def _api_data(payload: dict[str, Any], label: str) -> dict[str, Any]:
     return data
 
 
-def _fetch_bilibili_subtitle(page_url: str, bvid: str, cid: Any) -> str | None:
-    payload = _get_json(BILIBILI_PLAYER_URL, params={"bvid": bvid, "cid": cid}, referer=page_url)
+def _fetch_bilibili_subtitle(
+    page_url: str, bvid: str, cid: Any, *, proxies: dict[str, str] | None = None
+) -> str | None:
+    payload = _get_json(
+        BILIBILI_PLAYER_URL, params={"bvid": bvid, "cid": cid}, referer=page_url, proxies=proxies
+    )
     data = _api_data(payload, "Bilibili player")
     subtitle_entries = ((data.get("subtitle") or {}).get("subtitles")) or []
     if not subtitle_entries:
@@ -163,7 +173,7 @@ def _fetch_bilibili_subtitle(page_url: str, bvid: str, cid: Any) -> str | None:
     if not subtitle_url:
         return None
     subtitle_url = _with_protocol(str(subtitle_url))
-    subtitle_payload = _get_json(subtitle_url, params={}, referer=page_url)
+    subtitle_payload = _get_json(subtitle_url, params={}, referer=page_url, proxies=proxies)
     body = subtitle_payload.get("body") or []
     lines = [
         str(item.get("content", "")).strip()
@@ -173,11 +183,14 @@ def _fetch_bilibili_subtitle(page_url: str, bvid: str, cid: Any) -> str | None:
     return "\n".join(lines) if lines else None
 
 
-def _fetch_bilibili_media_urls(page_url: str, bvid: str, cid: Any) -> tuple[str | None, str | None]:
+def _fetch_bilibili_media_urls(
+    page_url: str, bvid: str, cid: Any, *, proxies: dict[str, str] | None = None
+) -> tuple[str | None, str | None]:
     payload = _get_json(
         BILIBILI_PLAYURL_URL,
         params={"bvid": bvid, "cid": cid, "fnval": 16, "fourk": 1},
         referer=page_url,
+        proxies=proxies,
     )
     data = _api_data(payload, "Bilibili playurl")
     dash = data.get("dash") or {}
