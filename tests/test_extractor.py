@@ -9,6 +9,7 @@ from unittest.mock import patch, MagicMock, AsyncMock
 
 import pytest
 from app.service.extractor import extract_url, detect_platform, ExtractResult
+from app.service.errors import UnsupportedUrlError
 
 
 # ── URL 检测 ───────────────────────────────────────────────────
@@ -28,7 +29,7 @@ class TestDetectPlatform:
         assert detect_platform("https://xhslink.com/abc123") == "xiaohongshu"
 
     def test_unknown_url_raises(self):
-        with pytest.raises(ValueError):
+        with pytest.raises(UnsupportedUrlError):
             detect_platform("https://www.youtube.com/watch?v=xxx")
 
     def test_bilibili_mobile_url(self):
@@ -206,9 +207,9 @@ class TestXhsImageNoteExtraction:
 
 class TestErrorHandling:
 
-    def test_invalid_url_raises_value_error(self):
+    def test_invalid_url_raises_unsupported_url_error(self):
         provider = _mock_provider()
-        with pytest.raises(ValueError):
+        with pytest.raises(UnsupportedUrlError):
             extract_url("https://www.youtube.com/watch?v=xxx", provider)
 
     @patch("app.service.extractor.fetcher")
