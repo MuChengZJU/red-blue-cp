@@ -293,25 +293,30 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 > 完整设计见 [博主安全批量功能文档](docs/blogger-safe-batch-feature.md)。把博主全量从 M2b 的 pydoll 串行（"能跑的残次品"：自动化痕迹 + 串行裸 IP）补成**安全可用**：抓清单改浏览器插件、下载走代理。同时补全项目错误处理（见 [错误审计](docs/error-handling-audit.md)）。
 > 执行：先串行 **M4a** 打地基，再 **M4b ‖ M4c** 并行。
 
-### M4a · 错误地基（串行，锁公共接缝）
-- [ ] `service/errors.py`：异常最小集（RbcpError/UnsupportedUrlError/ConfigError/NetworkError/ApiError/RiskControlError/AuthError/ParseError）+ 结构化字段 + `format_error_for_user()`
-- [ ] 抽 `_fetch_single` → `service/pipeline.py`（cli/batch 共用）
-- [ ] 修代理覆盖：`model.py` `trust_env=False` 致视频/ASR 音频下载绕过代理
-- [ ] storage 扩展：`batch`/`batch_item` 表 + 迁移（锁定 schema）
+> 波1（并行写计划 + 契约交叉核对 + token 过期 spike）已完成，见 [M4 波1 契约 + spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md)。下方任务已据此细化。
+
+### M4a · 错误地基（串行，锁公共接缝）— 独占 `errors.py`(新)/`pipeline.py`(新)/`model.py`/`storage.py`/`extractor.py`+`fetcher.py`(仅 proxy 穿透)
+- [ ] `service/errors.py`：异常最小集（RbcpError/UnsupportedUrlError/ConfigError/NetworkError/ApiError/RiskControlError/AuthError(含 `reason`)/ParseError）+ 结构化字段 + `format_error_for_user()`
+- [ ] 抽 `_fetch_single` → `service/pipeline.py: fetch_single(url, *, api_key, output_dir, comments, sub, save_media, text_only, proxy=None)`（cli/batch 共用）+ `build_proxies()` + `probe_exit_ip()`
+- [ ] **proxy 穿透**（边界扩到 extractor/fetcher）：显式 `proxies=` 一路传到下载层；`model.py` 保持 `trust_env=False` 防环境变量漏代理。**主站走代理，CDN 媒体字节默认不走**（音频/图片，可配置开）。阶段 1 只支持 http/https（socks5 拒）
+- [ ] storage 扩展：`batch`/`batch_item` 表 + CRUD 方法 + 迁移（锁定 schema，IF NOT EXISTS）
+- [ ] 迁移 `test_p2_wiring.py` 的 mock 目标（`cli._fetch_single`→`pipeline.fetch_single`）
 
 ### M4b · 错误流填充（M4a 后，‖ M4c）
-- [ ] 各 service 把裸异常 / `raise_for_status` 换成 errors 类 + logging + 打 response body
-- [ ] `detail.html` 失败展示分层（人话 + 折叠 traceback）+ 重试按钮
-- [ ] `cli.py` `run` 退出码 bug 修复 + 错误文案翻人话
+- [ ] 各 service 把裸异常 / `raise_for_status` 换成 errors 类 + logging + 打 response body（重点 fetcher/model，audit #1）
+- [ ] **token 过期判定**：`fetch_xiaohongshu` 请求后查 `response.url` 含 `/404` 或 `error_code=300031` → 抛 `AuthError(reason="token_expired")`（spike 实证信号，**非** title 空判，须在解析前查）
+- [ ] `detail.html` 失败展示分层（人话 + 折叠 traceback）+ 重试按钮；前端轻量 JS 错误映射（audit #2）
+- [ ] `cli.py` `run` 退出码 bug 修复（`return`→`raise typer.Exit(1)`）+ 错误文案翻人话（audit #3）
+- [ ] `routes.py` `create_job` 平台早校验（audit #4，与 M4c 改同文件不同函数）
 
 ### M4c · 博主批量流（M4a 后，‖ M4b）
-- [ ] 浏览器插件（MV3）：抓 `user_posted` 清单 → 导出 `notes.json`（带 schema_version + 贪婪字段）
-- [ ] `service/batch.py` + CLI `rbcp batch <notes.json>`：schema 校验 → 单 URL 代理（开跑前出口探测）→ 逐条 `pipeline.fetch_single` → 断点（查 batch_item）→ 汇总 ok/failed/skipped
-- [ ] token 过期跳过继续；代理未生效报错
+- [ ] 浏览器插件（MV3）：抓 `user_posted` 清单 → 导出 `notes.json`（带 `schema_version: 1` + 贪婪字段）。阶段 1 只导出 JSON，无 popup
+- [ ] `service/batch.py` + CLI `rbcp batch <notes.json>`：schema_version 校验 → 单 URL 代理（开跑前 `probe_exit_ip` 出口探测，未生效报错）→ 逐条 `pipeline.fetch_single(proxy=)` → 断点（查 batch_item status）→ 汇总 ok/failed/skipped
+- [ ] token 过期（捕获 `AuthError(reason="token_expired")`）跳过继续、记 skipped、汇总列"需重新抓清单"；complete=false 半份默认拒绝（`--allow-partial` 覆盖）
 
 ### 验收
-- [ ] 真链路：插件导出真实 notes.json，`rbcp batch` 跑 ≥5 条出 Markdown（含 1 视频，验证 trust_env 修复后音频走代理）
-- [ ] 测试：errors 映射 / batch 断点-跳过-失败汇总 / pipeline.fetch_single / trust_env 代理生效
+- [ ] 真链路：插件导出真实 notes.json，`rbcp batch` 跑 ≥5 条出 Markdown（含 1 视频；验收口径 = **主站 API 走代理**，音频字节按设计默认不走）
+- [ ] 测试：errors 映射 / batch 断点-跳过-失败汇总 / pipeline.fetch_single + proxy 透传 / 出口探测 / token 过期信号
 
 ### NOT in scope（→ 阶段 2，M4 之后）
 插件 popup UI / 导入收信箱 / 一键转发 / Clash 轮替代理 / WebUI 批量进度 / inbox 表。
