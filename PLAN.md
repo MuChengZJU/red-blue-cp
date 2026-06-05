@@ -12,10 +12,14 @@
 | M1c | — | 说话人分离增强（P0 转录保真） | ✅ 完成 |
 | M2 | 3-5 | P1 规模化（按子优先级串行） | 🔄 进行中：M2b/M2c ✅ |
 | M3 | 按需 | P2 完善 | 未启动 |
+| M4 | 3-4 | 博主安全批量 + 错误地基（插件抓清单 + 代理批量下载，补 M2b 残次品） | 未启动 |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
-P1 = M2 ≈ 3-5 天（未启动）
+P1 = M2 ≈ 3-5 天（M2b/M2c ✅，M2a/d/e/f 未启动）
 P2 = M3，按需（未启动）
+M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安全批量）+ 横切的错误处理地基；不严格对应单一 P 层。
+
+> **编码说明（维持现状，别造新套）**：本项目两套阶段编码并存——**P0/P1/P2**（PRD 用，优先级/范围）与 **M0/M1/M2…**（PLAN 用，开发里程碑，子任务用小写字母如 M2a/M2b）。两者靠上面映射挂钩，注意**编号错位**：P0↔M1、P1↔M2、P2↔M3。新里程碑一律沿用 `M+数字+小写字母`，不另造第三套编码（曾出现过的 G/Lane 临时编码已废，统一为 M4a/b/c）。
 
 ---
 
@@ -212,7 +216,7 @@ P2 = M3，按需（未启动）
 - [ ] `POST /api/jobs/batch` 接受 URL 数组
 - [ ] CLI `rbcp batch <file>`
 
-### M2b · 博主全量（✅ 完成 2026-06-03）
+### M2b · 博主全量（✅ 完成 2026-06-03；抓清单主路径已演进为插件，见 M4，pydoll 转不稳定可选项）
 
 > 实现方式重定为 pydoll **原生网络捕获**（`enable_network_events` + `get_network_logs` + `get_network_response_body`）。设计见 [博主全量+评论设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)，实现踩坑见 [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md)。只做小红书；B 站另一套机制本期不做。
 > 真链路实测：清单抓 90 笔记（真标题/token/点赞），频率 ~14 请求/分钟。**新增 `rbcp login` 扫码登录命令**作为最终用户拿 cookie 的入口。
@@ -281,6 +285,39 @@ P2 = M3，按需（未启动）
 | 任务失败重试 / 断点续抓 / cooldown 自动调整 | 风控经常踩坑了 |
 
 不进时间盘。
+
+---
+
+## M4 · 博主安全批量 + 错误地基（3-4 天，未启动）
+
+> 完整设计见 [博主安全批量功能文档](docs/blogger-safe-batch-feature.md)。把博主全量从 M2b 的 pydoll 串行（"能跑的残次品"：自动化痕迹 + 串行裸 IP）补成**安全可用**：抓清单改浏览器插件、下载走代理。同时补全项目错误处理（见 [错误审计](docs/error-handling-audit.md)）。
+> 执行：先串行 **M4a** 打地基，再 **M4b ‖ M4c** 并行。
+
+### M4a · 错误地基（串行，锁公共接缝）
+- [ ] `service/errors.py`：异常最小集（RbcpError/UnsupportedUrlError/ConfigError/NetworkError/ApiError/RiskControlError/AuthError/ParseError）+ 结构化字段 + `format_error_for_user()`
+- [ ] 抽 `_fetch_single` → `service/pipeline.py`（cli/batch 共用）
+- [ ] 修代理覆盖：`model.py` `trust_env=False` 致视频/ASR 音频下载绕过代理
+- [ ] storage 扩展：`batch`/`batch_item` 表 + 迁移（锁定 schema）
+
+### M4b · 错误流填充（M4a 后，‖ M4c）
+- [ ] 各 service 把裸异常 / `raise_for_status` 换成 errors 类 + logging + 打 response body
+- [ ] `detail.html` 失败展示分层（人话 + 折叠 traceback）+ 重试按钮
+- [ ] `cli.py` `run` 退出码 bug 修复 + 错误文案翻人话
+
+### M4c · 博主批量流（M4a 后，‖ M4b）
+- [ ] 浏览器插件（MV3）：抓 `user_posted` 清单 → 导出 `notes.json`（带 schema_version + 贪婪字段）
+- [ ] `service/batch.py` + CLI `rbcp batch <notes.json>`：schema 校验 → 单 URL 代理（开跑前出口探测）→ 逐条 `pipeline.fetch_single` → 断点（查 batch_item）→ 汇总 ok/failed/skipped
+- [ ] token 过期跳过继续；代理未生效报错
+
+### 验收
+- [ ] 真链路：插件导出真实 notes.json，`rbcp batch` 跑 ≥5 条出 Markdown（含 1 视频，验证 trust_env 修复后音频走代理）
+- [ ] 测试：errors 映射 / batch 断点-跳过-失败汇总 / pipeline.fetch_single / trust_env 代理生效
+
+### NOT in scope（→ 阶段 2，M4 之后）
+插件 popup UI / 导入收信箱 / 一键转发 / Clash 轮替代理 / WebUI 批量进度 / inbox 表。
+
+### 与红线 #9
+抓清单 pydoll → 插件；pydoll 降为不稳定可选项。M2b（pydoll 版）保留为可选，不删。
 
 ---
 
