@@ -38,7 +38,7 @@ URL → Markdown 文件闭环目标已达成，145 个测试通过。
 ### 业务
 
 8. ~~不删 MCP 入口~~（**已废除**）。P0 采用参考移植方案，不 fork 上游，无 MCP 入口。如未来需要 MCP 能力，作为 P2 新建。
-9. **不引入 bilibili-cli / xiaohongshu-cli**。P0 不依赖；**P1 博主全量/评论改用 pydoll 拦截器，也不再用这两个 CLI**（见 [设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)）。
+9. **不引入 bilibili-cli / xiaohongshu-cli**。P0 不依赖。博主全量/评论的**抓清单**：**浏览器插件（MV3 拦 `user_posted`）为主路径**（见 [博主安全批量](docs/blogger-safe-batch-feature.md)）；**pydoll 拦截器降为不稳定、不保证维护的可选项**（M2b 已交付的 pydoll 版保留不删，留给无浏览器/脚本化场景）。仍不用这两个 CLI。
 10. **不自动判断 B 站字幕质量**。字幕优先是默认行为，"切 ASR" 是 P1 的手动按钮。不要写"如果字幕长度小于 X 就走 ASR"这种启发式。
 11. **小红书图文图片处理走双轨**：URL 优先喂 VLM，失败回退到 tempfile 下载（保留 `referer` 等 headers），喂完即删。不要把 URL 当唯一稳定路径。
 
@@ -127,7 +127,7 @@ P0 依赖（参考移植，从零写）：requests / ffmpeg-python / python-dote
 
 P0 新增的依赖**仅限**上述列表。其他任何包（dashscope / openai / celery / redis / paddleocr / mcp）都属于过早引入，禁止 install。ASR/VLM/LLM 全部用 requests 直接调 REST/OpenAI 兼容 HTTP。
 
-**P1 唯一新增依赖：`pydoll`**（博主全量/评论用，CDP 连系统 Chrome 拦截 user_posted/comment 接口，不打包 chromium）。宿主机器需装 Chrome/Edge。这是经 eng review 的决定，理由：不自己实现 x-s 签名（约季度失效，维护负担重），让浏览器代签。除 pydoll 外 P1 不得再加其他包。
+**P1 唯一新增依赖：`pydoll`**（博主全量/评论用，CDP 连系统 Chrome 拦截 user_posted/comment 接口，不打包 chromium）。宿主机器需装 Chrome/Edge。这是经 eng review 的决定，理由：不自己实现 x-s 签名（约季度失效，维护负担重），让浏览器代签。除 pydoll 外 P1 不得再加其他包。**M4（博主安全批量）抓清单改用浏览器插件 = 独立 JS 技术栈，不增 Python 包；M4 阶段 1 不新增 Python 依赖（代理走环境变量 + 已有 requests）。**
 
 ### 不要扩大 P0 范围
 

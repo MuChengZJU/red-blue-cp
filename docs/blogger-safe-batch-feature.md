@@ -160,15 +160,15 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 ### 执行结构：先串行地基 → 再并行两流
 
 ```
-[串行地基 G]（一个人，按序，锁公共接缝）
-  G1  service/errors.py：异常最小集 + 结构化字段 + format_error_for_user()
-  G2  抽 _fetch_single → service/pipeline.py（cli / batch 共用）
-  G3  修代理覆盖：model.py trust_env，让媒体/ASR 下载也能走代理
-  G4  storage 扩展：batch / batch_item 表 + 迁移（锁定 schema）
-        ↓ 地基合并后
-[并行]
-  Lane E 错误流：各 service 填 errors 异常 + logging + body；detail.html 分层+重试；cli.py run 退出码
-  Lane B 批量流：service/batch.py + cli batch 命令 + 插件(抓清单导出 JSON) + schema 校验 + 断点(查 batch_item)
+M4a 地基（一个人，串行，锁公共接缝）
+  a1  service/errors.py：异常最小集 + 结构化字段 + format_error_for_user()
+  a2  抽 _fetch_single → service/pipeline.py（cli / batch 共用）
+  a3  修代理覆盖：model.py trust_env，让媒体/ASR 下载也能走代理
+  a4  storage 扩展：batch / batch_item 表 + 迁移（锁定 schema）
+        ↓ M4a 合并后
+M4b ‖ M4c 并行
+  M4b 错误流：各 service 填 errors 异常 + logging + body；detail.html 分层+重试；cli.py run 退出码
+  M4c 批量流：service/batch.py + cli batch 命令 + 插件(抓清单导出 JSON) + schema 校验 + 断点(查 batch_item)
 ```
 
 ### 异常契约（Codex 最小集）
@@ -183,11 +183,11 @@ rbcp 目标：URL → 纯文本 Markdown 知识库。PRD 五层能力**已全部
 - 沿用现有 `_init_schema` IF NOT EXISTS 模式建表。阶段 1 **不建 inbox 表**（收信箱阶段 2）。
 
 ### 文件边界（防相交）
-- **地基（串行独占）**：`errors.py`(新)、`pipeline.py`(新)、`model.py`、`storage.py`。
-- **Lane E 碰**：`service/*.py`(在 G1/G2 锁定接口上填异常)、`detail.html`、`cli.py` 的 `run`。
-- **Lane B 碰**：`service/batch.py`(新)、`cli.py` 的 `batch`(新函数)、插件(新 JS)、web 导入入口。
-- `cli.py` 相交：Lane E 改 `run/fetch`，Lane B 加 `batch`(新函数) → 不同函数，git 自动合并。
-- `storage.py`：G4 锁定 schema 后，Lane E 用 `retry_count`(已有)、Lane B 用 `batch` 表 → 不再改结构。
+- **M4a（串行独占）**：`errors.py`(新)、`pipeline.py`(新)、`model.py`、`storage.py`。
+- **M4b 碰**：`service/*.py`(在 M4a 锁定接口上填异常)、`detail.html`、`cli.py` 的 `run`。
+- **M4c 碰**：`service/batch.py`(新)、`cli.py` 的 `batch`(新函数)、插件(新 JS)、web 导入入口。
+- `cli.py` 相交：M4b 改 `run/fetch`，M4c 加 `batch`(新函数) → 不同函数，git 自动合并。
+- `storage.py`：M4a 锁定 schema 后，M4b 用 `retry_count`(已有)、M4c 用 `batch` 表 → 不再改结构。
 
 ### 阶段 1 验收
 - `rbcp batch notes.json`：读 → schema 校验(`schema_version`) → 走单 URL 代理(**开跑前出口探测确认生效**) → 逐条下 → 断点跳已下 → 汇总 ok/failed/skipped。
