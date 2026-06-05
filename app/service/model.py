@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 import mimetypes
 import time
 import uuid
@@ -8,6 +9,36 @@ from typing import Any, Iterator, Protocol, runtime_checkable
 from urllib.parse import urlparse
 
 import requests
+
+from app.service.errors import ApiError, NetworkError, ParseError
+
+
+_log = logging.getLogger("rbcp.model")
+
+_BODY_EXCERPT_LIMIT = 2000
+
+
+def _body_excerpt(response: requests.Response, limit: int = _BODY_EXCERPT_LIMIT) -> str:
+    try:
+        return (response.text or "")[:limit]
+    except Exception:  # noqa: BLE001
+        return ""
+
+
+def _raise_dashscope_for_status(response: requests.Response, *, operation: str) -> None:
+    """DashScope JSON API 非 2xx：先打 body 日志再抛 ApiError（带 code + payload）。"""
+    if response.status_code < 400:
+        return
+    body = _body_excerpt(response)
+    _log.error("[dashscope %s] HTTP %s body=%s", operation, response.status_code, body)
+    raise ApiError(
+        f"DashScope {operation} HTTP {response.status_code}",
+        provider="dashscope",
+        api_code=response.status_code,
+        payload_excerpt=body,
+        platform="dashscope",
+        operation=operation,
+    )
 
 
 CHAT_COMPLETIONS_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
@@ -85,7 +116,7 @@ class DashscopeProvider:
             timeout=(10, 180),
             proxies=self._proxies,
         )
-        response.raise_for_status()
+        _raise_dashscope_for_status(response, operation="llm_clean")
         return _extract_chat_text(response.json())
 
     def vlm(self, image_url: str) -> str:
@@ -108,7 +139,7 @@ class DashscopeProvider:
             timeout=(10, 180),
             proxies=self._proxies,
         )
-        response.raise_for_status()
+        _raise_dashscope_for_status(response, operation="vlm")
         return _extract_chat_text(response.json())
 
     def asr(self, audio_url: str, referer: str | None = None) -> str:
@@ -139,7 +170,17 @@ class DashscopeProvider:
                 stream=True,
                 allow_redirects=True,
             ) as audio_response:
-                audio_response.raise_for_status()
+                if audio_response.status_code >= 400:
+                    body = _body_excerpt(audio_response)
+                    _log.error(
+                        "[download_media] HTTP %s url=%s body=%s",
+                        audio_response.status_code, audio_url, body,
+                    )
+                    raise NetworkError(
+                        f"audio download HTTP {audio_response.status_code}",
+                        operation="download_media",
+                        debug_context={"status": audio_response.status_code, "url": audio_url},
+                    )
                 content_length = _content_length(audio_response)
                 file_name = _filename_from_url(audio_url)
                 content_type = _content_type(audio_url, audio_response, file_name)
@@ -171,7 +212,17 @@ class DashscopeProvider:
                     },
                     timeout=(60, 1800),
                 )
-                upload_response.raise_for_status()
+                if upload_response.status_code >= 400:
+                    body = _body_excerpt(upload_response)
+                    _log.error("[oss_upload] HTTP %s body=%s", upload_response.status_code, body)
+                    raise ApiError(
+                        f"OSS upload HTTP {upload_response.status_code}",
+                        provider="oss",
+                        api_code=upload_response.status_code,
+                        payload_excerpt=body,
+                        platform="dashscope",
+                        operation="oss_upload",
+                    )
         return f"oss://{key}"
 
     def _get_upload_policy(self) -> dict[str, Any]:
@@ -185,11 +236,15 @@ class DashscopeProvider:
             timeout=60,
             proxies=self._proxies,
         )
-        response.raise_for_status()
+        _raise_dashscope_for_status(response, operation="get_upload_policy")
         payload = response.json()
         data = payload.get("data")
         if not isinstance(data, dict):
-            raise RuntimeError(f"DashScope upload policy response missing data: {payload}")
+            _log.error("[get_upload_policy] response missing data: %r", payload)
+            raise ParseError(
+                "DashScope upload policy response missing data",
+                platform="dashscope", operation="get_upload_policy",
+            )
         return data
 
     def _submit_transcription_task(self, oss_url: str) -> str:
@@ -220,14 +275,27 @@ class DashscopeProvider:
             proxies=self._proxies,
         )
         if response.status_code >= 400:
-            raise RuntimeError(
-                f"DashScope transcription submit {response.status_code}: "
-                f"body={body!r} resp={response.text}"
+            resp_body = _body_excerpt(response)
+            _log.error(
+                "[submit_transcription] HTTP %s req_body=%r resp=%s",
+                response.status_code, body, resp_body,
+            )
+            raise ApiError(
+                f"DashScope transcription submit HTTP {response.status_code}",
+                provider="dashscope",
+                api_code=response.status_code,
+                payload_excerpt=resp_body,
+                platform="dashscope",
+                operation="submit_transcription",
             )
         payload = response.json()
         task_id = (payload.get("output") or {}).get("task_id")
         if not task_id:
-            raise RuntimeError(f"DashScope transcription response missing task_id: {payload}")
+            _log.error("[submit_transcription] response missing task_id: %r", payload)
+            raise ParseError(
+                "DashScope transcription response missing task_id",
+                platform="dashscope", operation="submit_transcription",
+            )
         return task_id
 
     def _wait_for_transcription(self, task_id: str) -> str:
@@ -242,7 +310,7 @@ class DashscopeProvider:
                 timeout=60,
                 proxies=self._proxies,
             )
-            response.raise_for_status()
+            _raise_dashscope_for_status(response, operation="poll_transcription")
             last_payload = response.json()
             output = last_payload.get("output") or {}
             task_status = output.get("task_status")
@@ -251,13 +319,28 @@ class DashscopeProvider:
                 text = _extract_transcription_text(output, proxies=self._proxies)
                 if text:
                     return text
-                raise RuntimeError(f"DashScope transcription succeeded without text: {last_payload}")
+                _log.error("[poll_transcription] succeeded without text: %r", last_payload)
+                raise ParseError(
+                    "DashScope transcription succeeded without text",
+                    platform="dashscope", operation="poll_transcription",
+                )
             if task_status == "FAILED":
-                raise RuntimeError(f"DashScope transcription failed: {last_payload}")
+                excerpt = str(last_payload)[:_BODY_EXCERPT_LIMIT]
+                _log.error("[poll_transcription] task FAILED: %s", excerpt)
+                raise ApiError(
+                    "DashScope transcription failed",
+                    provider="dashscope",
+                    payload_excerpt=excerpt,
+                    platform="dashscope", operation="poll_transcription",
+                )
 
             time.sleep(2)
 
-        raise RuntimeError(f"DashScope transcription timed out: {last_payload}")
+        _log.error("[poll_transcription] timed out: %r", last_payload)
+        raise NetworkError(
+            "DashScope transcription timed out",
+            platform="dashscope", operation="poll_transcription",
+        )
 
 
 class StreamingMultipartForm:
@@ -344,7 +427,7 @@ def _extract_transcription_text(
 
     for url in urls:
         response = requests.get(url, timeout=60, proxies=proxies)
-        response.raise_for_status()
+        _raise_dashscope_for_status(response, operation="fetch_transcription_result")
         text = _format_transcription(response.json())
         if text:
             return text
@@ -411,7 +494,11 @@ def _content_length(response: requests.Response) -> int:
     except (TypeError, ValueError):
         length = 0
     if length <= 0:
-        raise RuntimeError("Remote audio is missing Content-Length")
+        _log.error("[download_media] remote audio missing Content-Length")
+        raise NetworkError(
+            "Remote audio is missing Content-Length",
+            operation="download_media",
+        )
     return length
 
 
