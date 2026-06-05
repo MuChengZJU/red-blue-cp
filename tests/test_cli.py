@@ -35,6 +35,22 @@ class TestRunCommand:
         result = runner.invoke(app, ["run"])
         assert result.exit_code != 0
 
+    @patch("app.cli.run_pipeline")
+    def test_run_failure_exits_nonzero(self, mock_run):
+        """audit #3：run 失败必须退出码非 0，否则脚本/CI 感知不到失败。"""
+        mock_run.side_effect = RuntimeError("连接超时")
+        result = runner.invoke(app, ["run", "https://www.bilibili.com/video/BV1test"])
+        assert result.exit_code == 1
+
+    @patch("app.cli.run_pipeline")
+    def test_run_failure_shows_human_message(self, mock_run):
+        """裸异常翻人话：不支持的链接给可操作提示，不糊 Python traceback。"""
+        from app.service.errors import UnsupportedUrlError
+        mock_run.side_effect = UnsupportedUrlError("douyin", operation="detect_platform")
+        result = runner.invoke(app, ["run", "https://www.douyin.com/video/1"])
+        assert result.exit_code == 1
+        assert "不支持" in result.stdout
+
 
 class TestServeCommand:
 

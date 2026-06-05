@@ -38,6 +38,7 @@ class TestRunPipeline:
 
         # LLM clean mock
         llm_resp = MagicMock()
+        llm_resp.status_code = 200
         llm_resp.raise_for_status = MagicMock()
         llm_resp.json.return_value = {
             "choices": [{"message": {"content": "清洗后的字幕内容"}}]
