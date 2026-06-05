@@ -37,13 +37,15 @@ def probe_exit_ip(proxies: dict[str, str] | None) -> str:
     """查当前出口 IP（走给定 proxies），用于开跑前确认代理真生效。
 
     trust_env=False 防环境变量代理干扰判定——只认显式传入的 proxies。
+    注意：trust_env 是 Session 的属性，不是 requests.get 的参数（直接传会 TypeError）。
     """
-    return requests.get(
-        "https://api.ipify.org",
-        proxies=proxies,
-        trust_env=False,
-        timeout=10,
-    ).text.strip()
+    with requests.Session() as session:
+        session.trust_env = False
+        return session.get(
+            "https://api.ipify.org",
+            proxies=proxies,
+            timeout=10,
+        ).text.strip()
 
 
 def _provider_from_env(

@@ -49,18 +49,21 @@ class TestBuildProxies:
 
 class TestProbeExitIp:
 
-    @patch("app.service.pipeline.requests.get")
-    def test_returns_ip_text(self, mock_get):
-        mock_get.return_value = MagicMock(text="203.0.113.5")
+    @patch("app.service.pipeline.requests.Session")
+    def test_returns_ip_text(self, mock_session_cls):
+        session = mock_session_cls.return_value.__enter__.return_value
+        session.get.return_value = MagicMock(text="203.0.113.5\n")
         assert probe_exit_ip(PROXY) == "203.0.113.5"
 
-    @patch("app.service.pipeline.requests.get")
-    def test_uses_proxies_and_disables_env(self, mock_get):
-        mock_get.return_value = MagicMock(text="1.1.1.1")
+    @patch("app.service.pipeline.requests.Session")
+    def test_disables_env_on_session_and_proxies_on_get(self, mock_session_cls):
+        session = mock_session_cls.return_value.__enter__.return_value
+        session.get.return_value = MagicMock(text="1.1.1.1")
         probe_exit_ip(PROXY)
-        kw = mock_get.call_args.kwargs
-        assert kw.get("proxies") == PROXY
-        assert kw.get("trust_env") is False
+        # trust_env 是 Session 属性，不能当 get 的 kwarg（否则真实 requests 抛 TypeError）
+        assert session.trust_env is False
+        assert session.get.call_args.kwargs.get("proxies") == PROXY
+        assert "trust_env" not in session.get.call_args.kwargs
 
 
 # ── fetcher 主站请求走 proxies ──────────────────────────────────
