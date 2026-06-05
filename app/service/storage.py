@@ -254,15 +254,32 @@ class Storage:
             )
 
     def add_batch_items(self, batch_id: int, items: list[dict[str, Any]]) -> None:
-        """登记待下条目。重复 note_id 用 OR IGNORE 跳过，不覆盖已有状态（断点续传幂等）。"""
+        """登记待下条目（断点续传幂等）。
+
+        - 新 note_id → 插入 pending。
+        - 已存在：默认保持原状态（done/failed/skipped 不动）。
+        - **例外**：原状态是 skipped（token 过期跳过）且 url 变了（重新抓清单换了
+          新 xsec_token）→ 重置 pending，让新 token 重试。同 url 的 skipped 不动
+          （死 token 重跑不必再试）。
+        """
         with self._connect() as conn:
-            conn.executemany(
-                """
-                INSERT OR IGNORE INTO batch_item (batch_id, note_id, url, status)
-                VALUES (?, ?, ?, 'pending')
-                """,
-                [(batch_id, it["note_id"], it["url"]) for it in items],
-            )
+            for it in items:
+                row = conn.execute(
+                    "SELECT status, url FROM batch_item WHERE batch_id = ? AND note_id = ?",
+                    (batch_id, it["note_id"]),
+                ).fetchone()
+                if row is None:
+                    conn.execute(
+                        "INSERT INTO batch_item (batch_id, note_id, url, status) "
+                        "VALUES (?, ?, ?, 'pending')",
+                        (batch_id, it["note_id"], it["url"]),
+                    )
+                elif row["status"] == "skipped" and row["url"] != it["url"]:
+                    conn.execute(
+                        "UPDATE batch_item SET url = ?, status = 'pending', "
+                        "error_message = NULL WHERE batch_id = ? AND note_id = ?",
+                        (it["url"], batch_id, it["note_id"]),
+                    )
 
     def get_batch_item_statuses(self, batch_id: int) -> dict[str, str]:
         """{note_id: status}，断点续传查这个跳过 done/skipped。"""

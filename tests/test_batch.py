@@ -291,3 +291,47 @@ class TestDownloadLoop:
         assert all("n1" not in u for u in seen)  # n1 没再下
         assert any("n2" in u for u in seen)      # n2 重试了
         assert second["ok"] == 1
+
+
+class TestResumeSkipped:
+    """Codex P2：token 过期(skipped)的断点续传——同清单别重试死 token，
+    重新抓清单(新 token=新 url)要重试。"""
+
+    def test_same_manifest_rerun_does_not_retry_expired(
+        self, write_notes, run_kwargs, monkeypatch
+    ):
+        def fake(url, **kw):
+            if "n1" in url:
+                raise AuthError("空壳", reason="token_expired")
+            return {"md_path": "/x/ok.md", "title": "t"}
+
+        monkeypatch.setattr(batch_mod, "fetch_single", fake)
+        p = write_notes(_envelope([_note("n1"), _note("n2")]))
+        first = run_batch(p, **run_kwargs)
+        assert first["skipped"] == 1
+
+        calls = []
+        monkeypatch.setattr(
+            batch_mod, "fetch_single",
+            lambda url, **kw: calls.append(url) or {"md_path": "/x.md", "title": "t"},
+        )
+        run_batch(p, **run_kwargs)  # 同一份清单重跑
+        assert all("n1" not in u for u in calls)  # 死 token 不再重试
+
+    def test_recapture_new_token_retries_expired(self, write_notes, run_kwargs, monkeypatch):
+        monkeypatch.setattr(
+            batch_mod, "fetch_single",
+            lambda url, **kw: (_ for _ in ()).throw(AuthError("空壳", reason="token_expired")),
+        )
+        old = _note("n1", url="https://www.xiaohongshu.com/explore/n1?xsec_token=OLD")
+        run_batch(write_notes(_envelope([old]), name="cap1.json"), **run_kwargs)
+
+        calls = []
+        monkeypatch.setattr(
+            batch_mod, "fetch_single",
+            lambda url, **kw: calls.append(url) or {"md_path": "/x/n1.md", "title": "t"},
+        )
+        new = _note("n1", url="https://www.xiaohongshu.com/explore/n1?xsec_token=NEW")
+        second = run_batch(write_notes(_envelope([new]), name="cap2.json"), **run_kwargs)
+        assert any("NEW" in u for u in calls)  # 新 token 重试了
+        assert second["ok"] == 1

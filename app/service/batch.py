@@ -118,8 +118,10 @@ def run_batch(
 
     for note in notes:
         note_id, url = note["note_id"], note["url"]
-        if resume and done_before.get(note_id) == "done":
-            continue  # 已下过，跳过不重复
+        if resume and done_before.get(note_id) in ("done", "skipped"):
+            # done=已下过；skipped=token 过期（同 url 重跑别再试死 token，
+            # add_batch_items 已把"换了新 token"的 skipped 重置成 pending）
+            continue
         try:
             result = fetch_single(
                 url, api_key=api_key, output_dir=output_dir,

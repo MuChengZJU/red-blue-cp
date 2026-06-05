@@ -318,6 +318,13 @@ def batch(
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
+    if proxy and comments:
+        # batch 标榜安全代理路径，但评论走 pydoll/Chrome，proxy 进不去 → 真实 IP（Codex P1）
+        typer.secho(
+            "⚠ --proxy 只覆盖正文下载；--comments 抓评论走浏览器（pydoll）真实 IP，不走代理。",
+            fg=typer.colors.YELLOW,
+        )
+
     from app.service.batch import run_batch
 
     try:

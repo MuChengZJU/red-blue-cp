@@ -63,6 +63,17 @@ def test_batch_config_error_exits_1(monkeypatch, tmp_path):
     assert "schema_version" in result.stdout or "清单" in result.stdout
 
 
+def test_batch_proxy_comments_warns_browser_leg(monkeypatch, tmp_path):
+    # --proxy + --comments：评论走 pydoll 真实 IP，必须警告（Codex P1）
+    monkeypatch.setattr("app.service.batch.run_batch", lambda path, **kw: _summary())
+    notes = tmp_path / "n.json"
+    notes.write_text("{}")
+    result = runner.invoke(
+        cli.app, ["batch", str(notes), "--proxy", "http://127.0.0.1:7897", "--comments"]
+    )
+    assert "真实 IP" in result.stdout
+
+
 def test_batch_json_output(monkeypatch, tmp_path):
     monkeypatch.setattr("app.service.batch.run_batch", lambda path, **kw: _summary())
     notes = tmp_path / "n.json"
