@@ -336,17 +336,17 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 ### M5a · 流式修超时 + 任务用量统计（高优先，一个 PR，0.4.1）
 
 **流式修超时**：
-- [ ] `llm_clean` 改流式 `stream=True`（解析 SSE 累加 `delta.content`，不引 SDK）：read 超时只需覆盖 token 间隔，长文不再撞 180s。根因见 devlog（非流式 + 180s read 超时 vs 长文 ~300s 生成）。
-- [ ] 顺带：流式路径下 `_retry_network` 对 llm_clean 别再当网络抖动重试 3 次放大等待；保留大默认超时（如 600s）兜底。
-- [ ] `vlm` 同样支持流式 / 大超时。
-- [ ] SSE 解析别写死 DashScope 专属字段（为以后切 provider 留门，但**本轮不做配置项**）。
+- [x] `llm_clean` 改流式 `stream=True`（解析 SSE 累加 `delta.content`，不引 SDK）：read 超时只需覆盖 token 间隔，长文不再撞 180s。根因见 devlog（非流式 + 180s read 超时 vs 长文 ~300s 生成）。
+- [x] 顺带：流式路径下 `_retry_network` 对 llm_clean 别再当网络抖动重试 3 次放大等待；保留大默认超时（如 600s）兜底。
+- [x] `vlm` 同样支持流式 / 大超时。
+- [x] SSE 解析别写死 DashScope 专属字段（为以后切 provider 留门，但**本轮不做配置项**）。
 
 **任务用量统计（P1h）**：
-- [ ] `model.py` 三个调用返回 usage：ASR（音频秒数 + 调用耗时）、VLM/LLM（prompt/completion token 数 + 耗时）。流式场景取最后一个 SSE 块的 usage 字段（OpenAI 兼容需 `stream_options: {"include_usage": true}`，DashScope 是否支持/默认带，实现前查官方文档实测）。
-- [ ] 单价表：查 DashScope 官方定价写成常量（paraformer-v2 按秒、qwen3-vl-flash / qwen-plus 按千 token），估算每任务费用。价格变了改一处。
-- [ ] storage：jobs 表加 `usage` 字段（JSON：各阶段用量/耗时/估算费用），迁移用 `ALTER TABLE ... IF NOT EXISTS` 风格与现有迁移一致。
-- [ ] WebUI 详情页展示用量明细（ASR x 秒 / LLM x token / 共 ¥y）；列表页顶部累计总费用。
-- [ ] 测试：SSE 流式解析（伪造分块响应）、usage 落库、费用估算、旧任务无 usage 字段时页面不崩。
+- [x] `model.py` 三个调用返回 usage：ASR（音频秒数 + 调用耗时）、VLM/LLM（prompt/completion token 数 + 耗时）。流式场景取最后一个 SSE 块的 usage 字段（OpenAI 兼容需 `stream_options: {"include_usage": true}`，DashScope 是否支持/默认带，实现前查官方文档实测）。
+- [x] 单价表：查 DashScope 官方定价写成常量（paraformer-v2 按秒、qwen3-vl-flash / qwen-plus 按千 token），估算每任务费用。价格变了改一处。
+- [x] storage：jobs 表加 `usage` 字段（JSON：各阶段用量/耗时/估算费用），迁移用 `ALTER TABLE ... IF NOT EXISTS` 风格与现有迁移一致。
+- [x] WebUI 详情页展示用量明细（ASR x 秒 / LLM x token / 共 ¥y）；列表页顶部累计总费用。
+- [x] 测试：SSE 流式解析（伪造分块响应）、usage 落库、费用估算、旧任务无 usage 字段时页面不崩。
 
 **移出本轮**：
 - ~~LLM/VLM `base_url+model+api_key` 做成 `.env` 可配（Gemini 入口）~~ → 用户暂无换模型需求，移入待办（见下）。调研结论保留在 devlog：可切，但 ASR 切不了；VLM 切非 DashScope 时图片须走 base64 data URL。
