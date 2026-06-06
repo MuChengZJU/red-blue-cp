@@ -211,8 +211,10 @@
       if (!response.ok) return;
       const stats = await response.json();
       const total = Number(stats.total_cost_yuan || 0);
+      // 小额别四舍五入成 ¥0.00（真用发现：¥0.002 显示成 0.00 误导）
+      const text = total >= 0.01 ? total.toFixed(2) : total.toFixed(4);
       document.getElementById("total-cost").textContent =
-        total > 0 ? `· 累计估算 ¥${total.toFixed(2)}` : "";
+        total > 0 ? `· 累计估算 ¥${text}` : "";
     } catch (_) { /* 静默：统计失败不影响主功能 */ }
   }
 
