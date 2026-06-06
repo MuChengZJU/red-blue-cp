@@ -126,8 +126,9 @@ def format_error_for_user(exc: Exception) -> str:
         return f"配置有误：{exc.message}。请检查 .env（API Key / 代理地址）。"
     if exc.kind == "network":
         exit_ip = exc.debug_context.get("exit_ip")
-        tail = f"（当前出口={exit_ip}）" if exit_ip else ""
-        return f"网络/代理未生效{tail}。请检查代理是否连通。"
+        if exit_ip:
+            return f"代理未生效（当前出口={exit_ip}）。请检查代理是否连通。"
+        return "网络不稳定或超时。请检查网络 / 代理后重试。"
     if exc.kind == "api":
         provider = exc.debug_context.get("provider") or "服务端"
         code = exc.debug_context.get("api_code")

@@ -142,6 +142,24 @@ async def create_job(
     return {"job_id": job_id}
 
 
+@app.post("/api/jobs/{job_id}/retry")
+async def retry_job(
+    job_id: int,
+    storage: Storage = Depends(get_storage),
+    pipeline_fn: Callable[[str], str] = Depends(get_pipeline_fn),
+) -> dict[str, int]:
+    """原地重试：复用同一条 job（不新建），重置为 pending 后再后台跑。
+    避免重试堆出一堆新任务，且这条记录能反映最终成没成。"""
+    job = storage.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+    storage.reset_for_retry(job_id)
+    asyncio.create_task(
+        asyncio.to_thread(_run_job, job_id, job["url"], storage, pipeline_fn)
+    )
+    return {"job_id": job_id}
+
+
 @app.get("/api/jobs")
 def list_jobs(
     limit: int = 20,

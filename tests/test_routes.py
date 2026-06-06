@@ -93,6 +93,40 @@ class TestCreateJob:
         assert "job_id" in resp.json()
 
 
+# ── POST /api/jobs/{id}/retry ─────────────────────────────────
+
+class TestRetryJob:
+
+    def test_retry_reuses_same_job_not_new(self, client, mock_storage):
+        job_id = mock_storage.create_job("https://www.bilibili.com/video/BV1x")
+        mock_storage.mark_running(job_id)
+        mock_storage.mark_failed(job_id, error_message="boom", log_excerpt="tb")
+        resp = client.post(f"/api/jobs/{job_id}/retry")
+        assert resp.status_code in (200, 201, 202)
+        assert resp.json()["job_id"] == job_id      # 同一条，不新建
+        assert len(mock_storage.list_jobs()) == 1    # 没堆出新任务
+
+    def test_retry_404_on_missing(self, client):
+        assert client.post("/api/jobs/99999/retry").status_code == 404
+
+
+class TestResetForRetry:
+    """storage.reset_for_retry 重置语义（直测，避开路由后台时序）。"""
+
+    def test_resets_failed_job_in_place(self, mock_storage):
+        job_id = mock_storage.create_job("https://x/1")
+        mock_storage.mark_running(job_id)
+        mock_storage.mark_failed(job_id, error_message="boom", log_excerpt="tb")
+        assert mock_storage.reset_for_retry(job_id) is True
+        job = mock_storage.get_job(job_id)
+        assert job["status"] == "pending"
+        assert job["error_message"] is None
+        assert job["retry_count"] == 1
+
+    def test_returns_false_on_missing(self, mock_storage):
+        assert mock_storage.reset_for_retry(99999) is False
+
+
 # ── GET /api/jobs ─────────────────────────────────────────────
 
 class TestListJobs:
