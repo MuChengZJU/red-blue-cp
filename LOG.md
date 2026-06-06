@@ -89,7 +89,8 @@
 | 2026-06-03 | v0.3.0 发布 | done | 形态落地版发布到 PyPI（`red-blue-cp` 0.3.0）：自部署 WebUI 手机可达 + CI/CD（Trusted Publishing 打 tag 自动发）+ WSL 部署指南 + WebUI 重做。`pipx`/`uv tool` 一行装。真链路验证：从 PyPI 装后 `rbcp --help` 正常。[形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 2026-06-06 | M4 阶段1 完成 | done | 博主安全批量+错误地基。波1 并行写计划+token过期 spike，波2 串行 M4a 锁契约(PR#16)→M4b‖M4c 并行(PR#17/#18)，三 PR 各过 Codex 独立 review（修 1 真 bug + 5 UX/安全项）。MV3 插件抓清单 + `rbcp batch` 走代理断点续传。真链路：真实 xhs URL 端到端出 Markdown + 断点续传 live 验证；插件↔batch 契约跨语言验证。367 单测全过。WebUI 导入入口推迟。[波1契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
 | 2026-06-06 | 0.4.0 发布 + UX 迭代 | done | M4 全合 + bump 0.4.0 + CHANGELOG。用户实测反馈一轮：能并行的派 agent(popup/剪贴板/重试/URL-CJK/调研)、耦合的自己做(URL清理接入/重试原地/traceback脱敏/输入框放行)。406 单测。[M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
-| 待定 | M5a/M5b | pending | 流式修超时+LLM/VLM provider env化(开 Gemini) / WebUI v2(单条批量整合+批次进列表+去重) |
+| 2026-06-07 | M5a 完成 + 0.4.1 发布 | done | 流式修长文超时（根因=非流式+180s read 超时撞 ~300s 生成）+ 任务用量/费用统计 P1h（ASR 秒数/token/耗时/目录价估算，jobs.usage JSON 列+旧库迁移+`/api/stats`）。范围调整：provider env 化（Gemini 入口）因无真实需求移出、进 PLAN 待办。全程 TDD 449 单测；spike 实证 include_usage 与 ASR usage.duration；真链路 B 站视频账单落库+页面渲染；Codex review 修 3 项（重试残留账单/流式连接泄漏/详情页跨重试残留）。PR#35，tag 自动发 PyPI |
+| 待定 | M5b | pending | WebUI v2：单条/批量整合进主页+批次进任务列表+导入重做+去重检测 |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---

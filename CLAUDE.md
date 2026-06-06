@@ -11,9 +11,9 @@
 
 ## 当前阶段
 
-**0.4.0 已发布**（PyPI + GitHub Release，MIT 开源）。已交付：P0 URL→Markdown 闭环（B站/小红书转录 + 图文 + 说话人分离）、博主全量/评论、**M4 博主安全批量**（浏览器插件抓清单 + `rbcp batch` 走代理 + 错误处理地基）。406 测试。
+**0.4.1 已发布**（PyPI + GitHub Release，MIT 开源）。已交付：P0 URL→Markdown 闭环（B站/小红书转录 + 图文 + 说话人分离）、博主全量/评论、M4 博主安全批量（浏览器插件抓清单 + `rbcp batch` 走代理 + 错误处理地基）、**M5a 流式修长文超时 + 任务用量/费用统计**（P1h，jobs.usage + `/api/stats`）。449 测试。
 
-**下一步（PLAN.md M5）**：M5a（流式修 `llm_clean` 超时 + LLM/VLM 的 base_url/model 做成 .env 可配，开 Gemini 入口）、M5b（WebUI v2：主页单条/批量整合 + 批次进任务列表 + 去重）。
+**下一步（PLAN.md M5b）**：WebUI v2——主页单条/批量整合 + 批次进任务列表 + 导入重做 + 去重检测。provider env 化（Gemini 入口）已移入 PLAN 待办区（无真实需求不做）。
 
 调整阶段/范围改 PLAN.md，加功能改 PRD.md，改实现改 SPEC.md——**改文档前对话里说一句**。
 
