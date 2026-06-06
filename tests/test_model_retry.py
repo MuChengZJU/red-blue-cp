@@ -23,10 +23,15 @@ def _resp(*, status_code=200, text="", json_data=None):
 
 
 def _chat_ok(text="cleaned"):
-    return _resp(
-        status_code=200,
-        json_data={"choices": [{"message": {"content": text}}]},
-    )
+    # M5a 起 chat/completions 走流式 SSE
+    import json as _json
+
+    r = _resp(status_code=200)
+    r.iter_lines.return_value = iter([
+        "data: " + _json.dumps({"choices": [{"delta": {"content": text}}]}),
+        "data: [DONE]",
+    ])
+    return r
 
 
 @pytest.fixture(autouse=True)
