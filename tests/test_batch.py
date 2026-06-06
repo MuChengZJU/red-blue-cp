@@ -151,21 +151,40 @@ class TestPartialAndEmpty:
 
 class TestExitProbe:
 
-    def test_proxy_not_effective_raises(
+    def test_proxy_same_egress_warns_not_raises(
         self, write_notes, tmp_path, monkeypatch
     ):
-        # 直连与代理出口相同 → 代理没生效 → 开跑前报错
+        # 直连==代理出口（TUN/系统代理常态）→ 不硬拦，给警告继续下
         monkeypatch.setattr(batch_mod, "probe_exit_ip", lambda proxies: "9.9.9.9")
+        monkeypatch.setattr(
+            batch_mod, "fetch_single",
+            lambda url, **kw: {"md_path": "/x/n1.md", "title": "t"},
+        )
+        p = write_notes(_envelope([_note("n1")]))
+        summary = run_batch(p, api_key="k", output_dir=tmp_path / "kb",
+                            proxy="http://127.0.0.1:7897")
+        assert summary["ok"] == 1               # 继续下了
+        assert summary["proxy_warning"]         # 但给了核对警告
+
+    def test_proxy_unreachable_raises(self, write_notes, tmp_path, monkeypatch):
+        # 代理连不上是唯一硬失败 → 不开跑
+        def probe(proxies):
+            if proxies:
+                raise ConnectionError("Connection refused")
+            return "1.1.1.1"
+
+        monkeypatch.setattr(batch_mod, "probe_exit_ip", probe)
         called = {"n": 0}
         monkeypatch.setattr(
             batch_mod, "fetch_single",
-            lambda url, **kw: called.__setitem__("n", called["n"] + 1) or {},
+            lambda url, **kw: called.__setitem__("n", called["n"] + 1)
+            or {"md_path": "/x.md", "title": "t"},
         )
         p = write_notes(_envelope([_note("n1")]))
         with pytest.raises(NetworkError):
             run_batch(p, api_key="k", output_dir=tmp_path / "kb",
                       proxy="http://127.0.0.1:7897")
-        assert called["n"] == 0  # 没生效不开跑
+        assert called["n"] == 0
 
     def test_proxy_effective_proceeds(
         self, write_notes, tmp_path, monkeypatch, patch_probe

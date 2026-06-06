@@ -351,6 +351,8 @@ def batch(
         typer.echo(_json.dumps(summary, ensure_ascii=False))
         return
 
+    if summary.get("proxy_warning"):
+        typer.secho(f"⚠ {summary['proxy_warning']}", fg=typer.colors.YELLOW)
     typer.echo(
         f"完成：成功 {summary['ok']}，失败 {summary['failed']}，跳过 {summary['skipped']}。"
     )
