@@ -96,6 +96,9 @@ def fetch_single(
     out: dict = {
         "md_path": str(md_path),
         "title": result.title,
+        "author": result.author,
+        "platform": result.platform,
+        "content_type": result.content_type,
         # P1h：provider 账本 → 费用汇总（没调模型则为 None）。
         # getattr 宽容：账本是尽力记账，不是 ModelProvider Protocol 的一部分。
         "usage": summarize_usage(getattr(provider, "usage_events", [])),

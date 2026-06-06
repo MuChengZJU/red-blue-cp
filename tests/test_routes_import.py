@@ -63,9 +63,9 @@ def test_list_batches_returns_counts(monkeypatch, tmp_path):
     assert batches[0]["counts"].get("pending") == 1
 
 
-def test_batches_page_renders(monkeypatch, tmp_path):
+def test_batches_page_redirects_home(monkeypatch, tmp_path):
+    # M5b：批量整合进主页，旧 /batches 入口 301 回主页
     monkeypatch.setenv("RBCP_OUTPUT_DIR", str(tmp_path))
-    r = client.get("/batches")
-    assert r.status_code == 200
-    assert "批量导入清单" in r.text
-    assert "/api/batches" in r.text  # 轮询端点在页面里
+    r = client.get("/batches", follow_redirects=False)
+    assert r.status_code == 301
+    assert r.headers["location"] == "/"

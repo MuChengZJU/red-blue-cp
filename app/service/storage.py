@@ -82,7 +82,8 @@ class Storage:
                     count INTEGER NOT NULL DEFAULT 0,
                     complete INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    title TEXT
                 )
                 """
             )
@@ -96,11 +97,26 @@ class Storage:
                     md_path TEXT,
                     error_message TEXT,
                     finished_at TEXT,
+                    title TEXT,
+                    job_id INTEGER,
                     PRIMARY KEY (batch_id, note_id),
                     FOREIGN KEY (batch_id) REFERENCES batch (id)
                 )
                 """
             )
+            # ── 迁移：0.4.1 及以前的库没有这几列（M5b 加），原地补列 ──
+            batch_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(batch)").fetchall()
+            }
+            if "title" not in batch_columns:
+                conn.execute("ALTER TABLE batch ADD COLUMN title TEXT")
+            item_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(batch_item)").fetchall()
+            }
+            if "title" not in item_columns:
+                conn.execute("ALTER TABLE batch_item ADD COLUMN title TEXT")
+            if "job_id" not in item_columns:
+                conn.execute("ALTER TABLE batch_item ADD COLUMN job_id INTEGER")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_batch_item_status "
                 "ON batch_item (batch_id, status)"
@@ -237,8 +253,16 @@ class Storage:
         *,
         limit: int | None = None,
         offset: int = 0,
+        exclude_batched: bool = False,
     ) -> list[dict[str, Any]]:
-        query = "SELECT * FROM jobs ORDER BY created_at DESC, id DESC"
+        # exclude_batched：批量产生的 job 在任务列表里住在批次卡片内，单卡不重复显示（M5b E8）
+        query = "SELECT * FROM jobs"
+        if exclude_batched:
+            query += (
+                " WHERE id NOT IN"
+                " (SELECT job_id FROM batch_item WHERE job_id IS NOT NULL)"
+            )
+        query += " ORDER BY created_at DESC, id DESC"
         params: list[int] = []
         if limit is not None:
             query += " LIMIT ? OFFSET ?"
@@ -250,6 +274,14 @@ class Storage:
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
         return [_parse_job_row(row) for row in rows]
+
+    def done_jobs_brief(self) -> list[tuple[int, str, str | None]]:
+        """成功任务的 (id, url, title) 轻量清单，供去重扫描（M5b E1/E2）。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, url, title FROM jobs WHERE status = 'done' ORDER BY id DESC"
+            ).fetchall()
+        return [(row["id"], row["url"], row["title"]) for row in rows]
 
     def total_cost_yuan(self) -> float:
         """全部任务累计估算费用（元）。无 usage / 脏 JSON 的行不参与。"""
@@ -272,15 +304,16 @@ class Storage:
         user_id: str | None,
         count: int,
         complete: bool,
+        title: str | None = None,
     ) -> int:
         now = datetime.now().isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO batch (source, user_id, count, complete, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO batch (source, user_id, count, complete, status, created_at, title)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (source, user_id, count, int(complete), "pending", now),
+                (source, user_id, count, int(complete), "pending", now, title),
             )
             return int(cursor.lastrowid)
 
@@ -292,7 +325,8 @@ class Storage:
         return dict(row) if row is not None else None
 
     def list_batches(self, *, limit: int | None = None) -> list[dict[str, Any]]:
-        """批次列表（最新在前），每条附 done/failed/skipped/pending 计数。供 WebUI 批量状态页。"""
+        """批次列表（最新在前），每条附状态计数 + 前 5 条预览（M5b 批次卡片）。
+        全量条目走 list_batch_items（展开时才取，列表轮询不背全量）。"""
         query = "SELECT * FROM batch ORDER BY id DESC"
         params: list[Any] = []
         if limit is not None:
@@ -310,7 +344,15 @@ class Storage:
                         (row["id"],),
                     ).fetchall()
                 }
-                out.append({**dict(row), "counts": counts})
+                preview = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT note_id, title, status, job_id FROM batch_item "
+                        "WHERE batch_id = ? ORDER BY rowid LIMIT 5",
+                        (row["id"],),
+                    ).fetchall()
+                ]
+                out.append({**dict(row), "counts": counts, "items_preview": preview})
         return out
 
     def find_active_batch(self, source: str, user_id: str | None) -> int | None:
@@ -347,9 +389,9 @@ class Storage:
                 ).fetchone()
                 if row is None:
                     conn.execute(
-                        "INSERT INTO batch_item (batch_id, note_id, url, status) "
-                        "VALUES (?, ?, ?, 'pending')",
-                        (batch_id, it["note_id"], it["url"]),
+                        "INSERT INTO batch_item (batch_id, note_id, url, status, title) "
+                        "VALUES (?, ?, ?, 'pending', ?)",
+                        (batch_id, it["note_id"], it["url"], it.get("title")),
                     )
                 elif row["status"] == "skipped" and row["url"] != it["url"]:
                     conn.execute(
@@ -357,6 +399,23 @@ class Storage:
                         "error_message = NULL WHERE batch_id = ? AND note_id = ?",
                         (it["url"], batch_id, it["note_id"]),
                     )
+
+    def set_batch_item_job(self, batch_id: int, note_id: str, job_id: int) -> None:
+        """条目 ↔ job 关联（M5b E4）：批次条目从此能进 /jobs/{id} 详情。"""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE batch_item SET job_id = ? WHERE batch_id = ? AND note_id = ?",
+                (job_id, batch_id, note_id),
+            )
+
+    def list_batch_items(self, batch_id: int) -> list[dict[str, Any]]:
+        """批次全部条目（登记顺序），供任务列表批次卡片渲染。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM batch_item WHERE batch_id = ? ORDER BY rowid",
+                (batch_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_batch_item_statuses(self, batch_id: int) -> dict[str, str]:
         """{note_id: status}，断点续传查这个跳过 done/skipped。"""

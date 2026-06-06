@@ -11,14 +11,14 @@ from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
 from app.service.errors import RbcpError, format_error_for_user
 from app.service.extractor import detect_platform
 from app.service.storage import Storage
-from app.service.urls import clean_url
+from app.service.urls import clean_url, dedup_key
 
 
 load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
@@ -45,6 +45,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 class CreateJobRequest(BaseModel):
     url: str = Field(..., min_length=1)
+    force: bool = False  # 已下过仍强制重下（M5b 去重）
 
 
 class UploaderPostsRequest(BaseModel):
@@ -61,12 +62,17 @@ def get_storage() -> Storage:
     return Storage(db_path / "_index.sqlite")
 
 
-def get_pipeline_fn() -> Callable[[str], str]:
-    from app.cli import _create_pipeline_fn
+def get_pipeline_fn() -> Callable[[str], dict]:
+    """WebUI 单条/重试的下载管道。走 pipeline.fetch_single 并吃 RBCP_PROXY——
+    批量产生的 job 在 UI 点重试也不会丢代理护 IP（Codex review P1）。"""
+    from app.service import pipeline as pipeline_mod
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
-    return _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
+    proxy = os.getenv("RBCP_PROXY") or None
+    return lambda url: pipeline_mod.fetch_single(
+        url, api_key=api_key, output_dir=output_dir, proxy=proxy
+    )
 
 
 def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
@@ -84,6 +90,17 @@ def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
         exc = exc.__cause__ or exc.__context__
         seen += 1
     return "\n".join(parts)
+
+
+def _find_done_duplicate(storage: Storage, url: str) -> dict | None:
+    """同内容（dedup_key 相同）的已成功任务；没有 / 解析不出 key → None。"""
+    key = dedup_key(url)
+    if key is None:
+        return None
+    for job_id, job_url, title in storage.done_jobs_brief():
+        if dedup_key(job_url) == key:
+            return {"job_id": job_id, "title": title}
+    return None
 
 
 def _run_job(
@@ -153,6 +170,17 @@ async def create_job(
     except RbcpError as exc:
         raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
 
+    # M5b 去重（E1）：同内容已成功保存过 → 409 给前端弹「是否重下」；force 才放行。
+    # 只拦 done（失败的旧任务不拦）；短链 dedup_key=None 不猜、不拦。
+    if not payload.force:
+        dup = _find_done_duplicate(storage, url)
+        if dup is not None:
+            raise HTTPException(status_code=409, detail={
+                "duplicate": True,
+                "existing_job_id": dup["job_id"],
+                "title": dup["title"],
+            })
+
     job_id = storage.create_job(url)
     asyncio.create_task(
         asyncio.to_thread(_run_job, job_id, url, storage, pipeline_fn)
@@ -182,9 +210,10 @@ async def retry_job(
 def list_jobs(
     limit: int = 20,
     offset: int = 0,
+    exclude_batched: bool = False,
     storage: Storage = Depends(get_storage),
 ) -> list[dict]:
-    return storage.list_jobs(limit=limit, offset=offset)
+    return storage.list_jobs(limit=limit, offset=offset, exclude_batched=exclude_batched)
 
 
 @app.get("/api/stats")
@@ -265,10 +294,14 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
 async def import_list(
     payload: dict = Body(...),
     allow_partial: bool = False,
+    force: bool = False,
+    title: str | None = None,
+    storage: Storage = Depends(get_storage),
 ) -> dict:
     """导入插件导出的 notes.json，后台跑 batch（走代理 / 断点续传 / token 跳过 / 汇总）。
 
-    早校验 schema：不合规立即 400，不开后台任务。开跑后到 /batches 看进度。
+    早校验 schema：不合规立即 400，不开后台任务。
+    M5b 去重（E2）：默认跳过已成功下过的笔记（按 note_id 对 dedup_key），force=true 全量重下。
     """
     from app.service import batch as batch_mod
 
@@ -276,6 +309,23 @@ async def import_list(
         batch_mod._load_and_validate(payload, allow_partial=allow_partial)
     except RbcpError as exc:
         raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
+
+    notes = payload.get("notes") or []
+    skipped_duplicates = 0
+    if not force:
+        done_keys = {dedup_key(job_url) for _, job_url, _ in storage.done_jobs_brief()}
+        done_keys.discard(None)
+        fresh = [
+            n for n in notes
+            if f"xhs:{str(n.get('note_id', '')).lower()}" not in done_keys
+        ]
+        skipped_duplicates = len(notes) - len(fresh)
+        notes = fresh
+        payload = {**payload, "notes": notes, "count": len(notes)}
+
+    if not notes:
+        # 全是已下过的：不开后台任务，直接报数
+        return {"ok": True, "count": 0, "skipped_duplicates": skipped_duplicates}
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
@@ -288,15 +338,24 @@ async def import_list(
             output_dir=output_dir,
             proxy=proxy,
             allow_partial=allow_partial,
+            title=title,
         )
     )
-    return {"ok": True, "count": len(payload.get("notes") or [])}
+    return {"ok": True, "count": len(notes), "skipped_duplicates": skipped_duplicates}
 
 
 @app.get("/api/batches")
 def api_list_batches(storage: Storage = Depends(get_storage)) -> dict:
-    """批次列表 + 每批的状态计数，供批量状态页轮询。"""
+    """批次列表 + 每批的状态计数，供任务列表批次卡片轮询。"""
     return {"batches": storage.list_batches(limit=50)}
+
+
+@app.get("/api/batches/{batch_id}/items")
+def api_batch_items(batch_id: int, storage: Storage = Depends(get_storage)) -> dict:
+    """批次全部条目（含 job_id，可点进 /jobs/{id} 详情）。"""
+    if storage.get_batch(batch_id) is None:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return {"items": storage.list_batch_items(batch_id)}
 
 
 @app.get("/")
@@ -305,9 +364,9 @@ def index(request: Request):
 
 
 @app.get("/batches")
-def batches_page(request: Request):
-    """批量导入 + 状态页：上传 notes.json，轮询看每批进度。"""
-    return templates.TemplateResponse(request, "batches.html", {"request": request})
+def batches_page():
+    """M5b：批量已整合进主页（批量标签 + 批次卡片），旧入口重定向回主页。"""
+    return RedirectResponse(url="/", status_code=301)
 
 
 @app.get("/jobs/{job_id}")

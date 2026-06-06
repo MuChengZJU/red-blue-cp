@@ -30,6 +30,26 @@ _XHS_KEEP = {"xsec_token", "xsec_source"}
 _TRAILING = "】>)）」』，。、,. \t\r\n"
 
 
+# 去重键（M5b E1）：同内容不同参数（xsec_token/追踪参数）归一到同一个键。
+# 短链（b23.tv/xhslink）不发请求解析不了内容 id → None（不猜，跳过去重）。
+_BV_RE = re.compile(r"/video/(BV[0-9A-Za-z]+)")
+_XHS_NOTE_RE = re.compile(r"/(?:explore|discovery/item|search_result|item)/([0-9a-fA-F]{8,})")
+
+
+def dedup_key(url: str) -> str | None:
+    """URL → 内容唯一键（'bili:BV…' / 'xhs:note_id'）；解析不出返回 None。"""
+    if not url:
+        return None
+    host = (urlsplit(url).netloc or "").lower()
+    if "bilibili.com" in host:
+        m = _BV_RE.search(url)
+        return f"bili:{m.group(1)}" if m else None
+    if "xiaohongshu.com" in host:
+        m = _XHS_NOTE_RE.search(url)
+        return f"xhs:{m.group(1).lower()}" if m else None
+    return None
+
+
 def clean_url(raw: str) -> str:
     if not raw:
         return raw

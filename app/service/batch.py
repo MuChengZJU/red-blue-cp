@@ -100,6 +100,7 @@ def run_batch(
     text_only: bool = False,
     resume: bool = True,
     allow_partial: bool = False,
+    title: str | None = None,
 ) -> dict[str, Any]:
     """批量下载一份清单。返回 {ok, failed, skipped, token_expired, results, batch_id}。"""
     envelope = _load_and_validate(notes_json_path, allow_partial=allow_partial)
@@ -128,16 +129,31 @@ def run_batch(
     # 断点续传：复用同 (source, user_id) 的批次，没有才新建
     batch_id = storage.find_active_batch(source, user_id) if resume else None
     if batch_id is None:
+        # 批次取名（M5b E3）：自定义优先，缺省自动生成
+        auto_title = (
+            f"博主 {user_id} · {len(notes)} 条" if user_id
+            else f"{source} · {len(notes)} 条"
+        )
         batch_id = storage.create_batch(
             source=source, user_id=user_id,
             count=len(notes), complete=bool(envelope.get("complete", False)),
+            title=title or auto_title,
         )
     summary["batch_id"] = batch_id
     storage.mark_batch_status(batch_id, "running")
     storage.add_batch_items(
-        batch_id, [{"note_id": n["note_id"], "url": n["url"]} for n in notes]
+        batch_id,
+        [{"note_id": n["note_id"], "url": n["url"], "title": n.get("title")}
+         for n in notes],
     )
     done_before = storage.get_batch_item_statuses(batch_id)
+    # 条目已有 job 的映射：重跑失败条目时原地重置同一条 job，不新建
+    # （新建会把旧 job 变成孤儿漏进主任务列表——Codex review P2）
+    existing_jobs = {
+        item["note_id"]: item["job_id"]
+        for item in storage.list_batch_items(batch_id)
+        if item.get("job_id")
+    }
 
     for note in notes:
         note_id, url = note["note_id"], note["url"]
@@ -145,6 +161,14 @@ def run_batch(
             # done=已下过；skipped=token 过期（同 url 重跑别再试死 token，
             # add_batch_items 已把"换了新 token"的 skipped 重置成 pending）
             continue
+        # M5b E4：批量条目也建 job——批次进任务列表、详情页/用量/重试全复用任务体系
+        job_id = existing_jobs.get(note_id)
+        if job_id is not None:
+            storage.reset_for_retry(job_id)
+        else:
+            job_id = storage.create_job(url, platform="xiaohongshu")
+            storage.set_batch_item_job(batch_id, note_id, job_id)
+        storage.mark_running(job_id)
         try:
             result = fetch_single(
                 url, api_key=api_key, output_dir=output_dir,
@@ -152,6 +176,13 @@ def run_batch(
                 text_only=text_only, proxy=proxy,
             )
             storage.mark_batch_item_done(batch_id, note_id, md_path=result["md_path"])
+            storage.mark_done(
+                job_id,
+                md_path=result["md_path"],
+                title=result.get("title") or note.get("title"),
+                platform="xiaohongshu",
+                usage=result.get("usage"),
+            )
             summary["ok"] += 1
             summary["results"].append({"note_id": note_id, "ok": True, **result})
         except AuthError as exc:
@@ -159,6 +190,7 @@ def run_batch(
                 storage.mark_batch_item_failed(
                     batch_id, note_id, error_message="token_expired", skipped=True
                 )
+                storage.mark_failed(job_id, error_message=format_error_for_user(exc))
                 summary["skipped"] += 1
                 summary["token_expired"].append(note_id)
                 summary["results"].append(
@@ -167,17 +199,19 @@ def run_batch(
                 )
                 _log.warning("第 %s 条 token 过期，已跳过", note_id)
             else:
-                _record_failure(storage, summary, batch_id, note_id, exc)
+                _record_failure(storage, summary, batch_id, note_id, exc, job_id=job_id)
         except Exception as exc:  # noqa: BLE001 - 单条失败不中断整批
-            _record_failure(storage, summary, batch_id, note_id, exc)
+            _record_failure(storage, summary, batch_id, note_id, exc, job_id=job_id)
 
     storage.mark_batch_status(batch_id, "done")
     return summary
 
 
-def _record_failure(storage, summary, batch_id, note_id, exc) -> None:
+def _record_failure(storage, summary, batch_id, note_id, exc, *, job_id=None) -> None:
     msg = format_error_for_user(exc)
     storage.mark_batch_item_failed(batch_id, note_id, error_message=msg)
+    if job_id is not None:
+        storage.mark_failed(job_id, error_message=msg)
     summary["failed"] += 1
     summary["results"].append({"note_id": note_id, "ok": False, "error": msg})
     _log.warning("第 %s 条失败：%s", note_id, exc)

@@ -147,11 +147,16 @@ class TestFetchSingleProxyWiring:
     ):
         from app.service.pipeline import fetch_single
         mock_provider.return_value.usage_events = []  # 空账本 → usage=None（M5a）
-        mock_extract.return_value = MagicMock(title="t")
+        mock_extract.return_value = MagicMock(
+            title="t", author="a", platform="xiaohongshu", content_type="video"
+        )
         mock_render.return_value = tmp_path / "out.md"
         out = fetch_single("https://www.xiaohongshu.com/explore/x",
                            api_key="k", output_dir=tmp_path, proxy="http://127.0.0.1:7897")
-        assert out == {"md_path": str(tmp_path / "out.md"), "title": "t", "usage": None}
+        assert out == {
+            "md_path": str(tmp_path / "out.md"), "title": "t", "author": "a",
+            "platform": "xiaohongshu", "content_type": "video", "usage": None,
+        }
         assert mock_extract.call_args.kwargs["proxies"] == PROXY
         assert mock_provider.call_args.kwargs["proxies"] == PROXY
 
