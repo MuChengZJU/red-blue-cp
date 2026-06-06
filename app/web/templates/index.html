@@ -13,7 +13,7 @@
 
 <section class="section">
   <div class="section-head">
-    <h2 class="section-title">任务</h2>
+    <h2 class="section-title">任务 <span id="total-cost" class="total-cost" title="所有任务的模型调用估算费用（目录价，不含免费额度）"></span></h2>
     <div id="filters" class="filters" role="group" aria-label="按状态筛选">
       <button type="button" class="filter-chip" data-filter="all" aria-pressed="true">全部 <span id="cnt-all">0</span></button>
       <button type="button" class="filter-chip" data-filter="running" aria-pressed="false"><span class="dot running"></span>处理中 <span id="cnt-running">0</span></button>
@@ -201,6 +201,19 @@
         list.innerHTML = `<div class="empty"><p class="empty-title">任务列表加载失败</p><div>${escapeHtml(error.message)}</div></div>`;
       }
     }
+    refreshTotalCost();
+  }
+
+  // P1h：累计估算费用（拿不到就留空，不挡任务列表）
+  async function refreshTotalCost() {
+    try {
+      const response = await fetch("/api/stats");
+      if (!response.ok) return;
+      const stats = await response.json();
+      const total = Number(stats.total_cost_yuan || 0);
+      document.getElementById("total-cost").textContent =
+        total > 0 ? `· 累计估算 ¥${total.toFixed(2)}` : "";
+    } catch (_) { /* 静默：统计失败不影响主功能 */ }
   }
 
   // 输入即识别平台

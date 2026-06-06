@@ -187,6 +187,12 @@ def list_jobs(
     return storage.list_jobs(limit=limit, offset=offset)
 
 
+@app.get("/api/stats")
+def get_stats(storage: Storage = Depends(get_storage)) -> dict:
+    """全局统计（P1h）：所有任务的累计估算费用。"""
+    return {"total_cost_yuan": storage.total_cost_yuan()}
+
+
 @app.get("/api/jobs/{job_id}")
 def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     job = storage.get_job(job_id)
