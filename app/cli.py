@@ -20,6 +20,7 @@ from app.service.pipeline import (
     build_proxies,
     fetch_single as _fetch_single,
 )
+from app.service.pricing import summarize_usage
 from app.service.urls import clean_url
 
 
@@ -42,6 +43,9 @@ def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]
             "author": result.author,
             "platform": result.platform,
             "content_type": result.content_type,
+            # P1h：provider 账本 → 费用汇总（text_only/纯字幕没调模型则为 None）。
+            # getattr 宽容：账本是尽力记账，不是 ModelProvider Protocol 的一部分。
+            "usage": summarize_usage(getattr(provider, "usage_events", [])),
         }
 
     return pipeline

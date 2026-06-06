@@ -36,13 +36,18 @@ class TestRunPipeline:
             "raw": {},
         }
 
-        # LLM clean mock
+        # LLM clean mock（M5a 起走流式 SSE）
+        import json as _json
+
         llm_resp = MagicMock()
         llm_resp.status_code = 200
         llm_resp.raise_for_status = MagicMock()
-        llm_resp.json.return_value = {
-            "choices": [{"message": {"content": "清洗后的字幕内容"}}]
-        }
+        llm_resp.iter_lines.return_value = iter([
+            "data: " + _json.dumps(
+                {"choices": [{"delta": {"content": "清洗后的字幕内容"}}]}
+            ),
+            "data: [DONE]",
+        ])
         mock_post.return_value = llm_resp
 
         from app.cli import _create_pipeline_fn

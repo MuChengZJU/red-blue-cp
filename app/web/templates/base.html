@@ -292,6 +292,21 @@
     .error-box .error-detail summary { cursor: pointer; font-size: 12.5px; color: var(--muted); user-select: none; }
     .error-box .error-detail pre { margin-top: 8px; max-height: 320px; overflow: auto; }
 
+    /* ── 用量账单（P1h） ──────────────────────────────────── */
+    .usage-detail summary { cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; font-weight: 600; }
+    .usage-row {
+      display: grid;
+      grid-template-columns: minmax(160px, 1.4fr) 1.4fr 0.8fr 0.7fr;
+      gap: 8px;
+      padding: 7px 2px;
+      font-size: 12.5px;
+      color: var(--muted);
+      border-bottom: 1px dashed var(--line);
+    }
+    .usage-row span:last-child { text-align: right; color: var(--text); font-variant-numeric: tabular-nums; }
+    #usage-rows { margin-top: 8px; }
+    .total-cost { font-size: 12.5px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
     /* ── Empty / loading ──────────────────────────────────── */
     .empty, .loading {
       padding: 40px 24px;

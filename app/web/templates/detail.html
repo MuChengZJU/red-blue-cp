@@ -21,6 +21,14 @@
 <section id="content" class="section">
   <div class="loading"><span class="spinner"></span>正在加载...</div>
 </section>
+
+<!-- P1h 用量账单：done 且有 usage 才显示；旧任务（0.4.0 前）没有 usage，保持隐藏 -->
+<section id="usage-panel" class="section" hidden>
+  <details class="usage-detail">
+    <summary id="usage-summary">用量与费用</summary>
+    <div id="usage-rows"></div>
+  </details>
+</section>
 {% endblock %}
 
 {% block scripts %}
@@ -113,8 +121,42 @@
     }
   }
 
+  // ── P1h 用量账单 ──────────────────────────────────────────
+  const stageText = { asr: "语音转写", vlm: "图片理解", llm_clean: "文本清洗" };
+
+  function formatYuan(v) {
+    return (v === null || v === undefined) ? "—" : `¥${Number(v).toFixed(4)}`;
+  }
+
+  function usageAmount(e) {
+    if (e.stage === "asr") {
+      return (e.audio_seconds === null || e.audio_seconds === undefined)
+        ? "用量未知" : `${e.audio_seconds} 秒音频`;
+    }
+    if (e.input_tokens === null || e.input_tokens === undefined) return "用量未知";
+    return `输入 ${e.input_tokens} + 输出 ${e.output_tokens} token`;
+  }
+
+  function renderUsage(job) {
+    const panel = document.getElementById("usage-panel");
+    const u = job.usage;
+    if (!u || !Array.isArray(u.events) || !u.events.length) { panel.hidden = true; return; }
+    const rows = u.events.map((e) => `
+      <div class="usage-row">
+        <span>${escapeHtml(stageText[e.stage] || e.stage)}（${escapeHtml(e.model || "")}）</span>
+        <span>${escapeHtml(usageAmount(e))}</span>
+        <span>耗时 ${escapeHtml(String(e.elapsed_seconds ?? "—"))}s</span>
+        <span>${escapeHtml(formatYuan(e.cost_yuan))}</span>
+      </div>`).join("");
+    document.getElementById("usage-summary").textContent =
+      `用量与费用 · 估算 ${formatYuan(u.total_cost_yuan)}`;
+    document.getElementById("usage-rows").innerHTML = rows;
+    panel.hidden = false;
+  }
+
   async function renderDone(job) {
     toolbar.hidden = false;
+    renderUsage(job);
     const tag = typeTag(job);
     titleEl.innerHTML = `${escapeHtml(job.title || job.url || "未命名任务")}${tag ? `<span class="type-tag">${escapeHtml(tag)}</span>` : ""}`;
     contentEl.innerHTML = '<div class="loading"><span class="spinner"></span>正在加载内容...</div>';
@@ -157,6 +199,8 @@
 
   function renderFailed(job) {
     toolbar.hidden = true;
+    // 跨重试别残留上一轮的账单（Codex review）
+    document.getElementById("usage-panel").hidden = true;
     titleEl.textContent = job.title || job.url || "任务失败";
 
     const human = humanizeError(job.error_message);
@@ -190,6 +234,7 @@
 
   function renderProcessing(job) {
     toolbar.hidden = true;
+    document.getElementById("usage-panel").hidden = true;
     titleEl.textContent = job.title || job.url || "正在抽取...";
     contentEl.innerHTML = '<div class="loading"><span class="spinner"></span>处理中，完成后自动显示...</div>';
     setTimeout(loadJob, 2000);

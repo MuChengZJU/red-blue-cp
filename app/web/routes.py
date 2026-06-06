@@ -103,6 +103,7 @@ def _run_job(
             author=result.get("author"),
             platform=result.get("platform"),
             content_type=result.get("content_type"),
+            usage=result.get("usage"),
         )
         logger.info("[job %s] done: %s", job_id, result["md_path"])
     except Exception as error:
@@ -184,6 +185,12 @@ def list_jobs(
     storage: Storage = Depends(get_storage),
 ) -> list[dict]:
     return storage.list_jobs(limit=limit, offset=offset)
+
+
+@app.get("/api/stats")
+def get_stats(storage: Storage = Depends(get_storage)) -> dict:
+    """全局统计（P1h）：所有任务的累计估算费用。"""
+    return {"total_cost_yuan": storage.total_cost_yuan()}
 
 
 @app.get("/api/jobs/{job_id}")

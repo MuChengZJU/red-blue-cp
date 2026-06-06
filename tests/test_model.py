@@ -307,18 +307,19 @@ class TestDiarizationParams:
 # ── Helpers ────────────────────────────────────────────────────
 
 def _mock_chat_response(text: str) -> MagicMock:
+    # M5a 起 chat/completions 走流式 SSE（正文块 + usage 末块 + [DONE]）
+    import json as _json
+
     resp = MagicMock()
     resp.status_code = 200
     resp.raise_for_status = MagicMock()
-    resp.json.return_value = {
-        "choices": [
-            {
-                "message": {
-                    "content": text
-                }
-            }
-        ]
-    }
+    resp.iter_lines.return_value = iter([
+        "data: " + _json.dumps({"choices": [{"delta": {"content": text}}]}),
+        "data: " + _json.dumps(
+            {"choices": [], "usage": {"prompt_tokens": 1, "completion_tokens": 2}}
+        ),
+        "data: [DONE]",
+    ])
     return resp
 
 

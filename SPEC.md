@@ -129,6 +129,7 @@ P1 增加：
 POST /api/import-list               # 导入插件 notes.json（body=信封 dict）→ 后台批量下载
 GET  /api/batches                   # 批次列表 + done/failed/skipped/pending 计数（进度轮询）
 POST /api/jobs/{id}/retry           # 原地重试同一条 job（不新建，已交付 M4）
+GET  /api/stats                     # 累计估算费用 total_cost_yuan（已交付 M5a）
 POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR，待做）
 POST /api/uploaders/posts           # body: {user_url} → 列博主笔记清单(不下载) + 总数/预估
 POST /api/comments                  # body: {url, sub?} → 抓评论写 .comments.md
@@ -302,7 +303,9 @@ CREATE TABLE jobs (
   created_at    TEXT NOT NULL,
   updated_at    TEXT NOT NULL,
   started_at    TEXT,
-  finished_at   TEXT
+  finished_at   TEXT,
+  usage         TEXT            -- M5a/P1h：用量账单 JSON（events[] + total_cost_yuan）
+                                -- 旧库打开时 PRAGMA 检查 + ALTER TABLE 原地补列
 );
 
 CREATE INDEX idx_jobs_status ON jobs(status);
@@ -436,6 +439,23 @@ P1 引入持久化前不要做多进程部署。
 ```
 
 不要把"URL 直接喂模型"当作稳定主路径，必须做双轨。
+
+### 8.2b VLM/LLM 流式调用 + 用量采集（M5a）
+
+```
+llm_clean / vlm 统一走流式 chat/completions（修长文 180s read 超时根因）：
+
+- 请求 body 加 stream: true + stream_options: {"include_usage": true}
+- 解析 SSE：累加 delta.content；最后一个数据块 choices=[] 带 usage（实测验证）
+- 超时 (10, 600)：read 超时是「相邻 SSE 块间隔」不是整段生成时长
+- 建连阶段可重试（_retry_network）；流中断不重试（整段重跑会放大等待）
+
+用量账本（P1h）：provider.usage_events 每次调用追加一条 event——
+- llm_clean/vlm：input_tokens / output_tokens / elapsed_seconds
+- asr：audio_seconds（poll 响应顶层 usage.duration，计费秒数）/ elapsed_seconds
+pipeline 收尾用 pricing.summarize_usage() 补 cost_yuan + total_cost_yuan，
+随 mark_done 落 jobs.usage（JSON）。单价常量在 service/pricing.py（官方目录价）。
+```
 
 ### 8.3 视频音频 ASR 调用
 

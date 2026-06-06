@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import mimetypes
 import time
@@ -77,6 +78,35 @@ def _raise_dashscope_for_status(response: requests.Response, *, operation: str) 
     )
 
 
+# 流式超时：connect 10s；read 是「相邻 SSE 块的最大间隔」不是整段生成时长，
+# 600s 纯兜底（非流式时代 180s read 撞长文 ~300s 生成是 M5a 要修的根因）。
+_STREAM_TIMEOUT = (10, 600)
+
+
+def _parse_sse_stream(lines: Iterator[str]) -> tuple[str, dict[str, Any] | None]:
+    """解析 OpenAI 兼容 SSE 流：累加 delta.content，取末块 usage。
+
+    传 stream_options.include_usage 后最后一个数据块 choices=[] 且带 usage
+    （spike 实证，见 _sandbox/spike_usage/）。服务端不回 usage 时返回 None。
+    """
+    parts: list[str] = []
+    usage: dict[str, Any] | None = None
+    for line in lines:
+        if not line or not line.startswith("data:"):
+            continue
+        data = line[len("data:"):].strip()
+        if data == "[DONE]":
+            break
+        chunk = json.loads(data)
+        if isinstance(chunk.get("usage"), dict):
+            usage = chunk["usage"]
+        for choice in chunk.get("choices") or []:
+            content = (choice.get("delta") or {}).get("content")
+            if isinstance(content, str):
+                parts.append(content)
+    return "".join(parts), usage
+
+
 CHAT_COMPLETIONS_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
 UPLOAD_POLICY_URL = "https://dashscope.aliyuncs.com/api/v1/uploads"
 TRANSCRIPTION_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription"
@@ -134,6 +164,9 @@ class DashscopeProvider:
         # 主站调用走 proxies；CDN 媒体字节走 media_proxies（默认 None=不走，护 IP 在主站层）
         self._proxies = proxies
         self._media_proxies = media_proxies
+        # 用量账本（P1h）：每次模型调用追加一条 event，pipeline 收尾时读走。
+        # fetch_single / _create_pipeline_fn 每任务建新 provider，无跨任务串账。
+        self.usage_events: list[dict[str, Any]] = []
 
     def llm_clean(self, raw_text: str) -> str:
         payload = {
@@ -145,18 +178,8 @@ class DashscopeProvider:
                 }
             ],
         }
-        response = _retry_network(
-            "llm_clean",
-            lambda: requests.post(
-                CHAT_COMPLETIONS_URL,
-                headers=self._json_auth_headers(),
-                json=payload,
-                timeout=(10, 180),
-                proxies=self._proxies,
-            ),
-        )
-        _raise_dashscope_for_status(response, operation="llm_clean")
-        return _extract_chat_text(response.json())
+        text, usage = self._stream_chat_completion(payload, operation="llm_clean")
+        return text
 
     def vlm(self, image_url: str) -> str:
         payload = {
@@ -171,23 +194,71 @@ class DashscopeProvider:
                 }
             ],
         }
+        text, usage = self._stream_chat_completion(payload, operation="vlm")
+        return text
+
+    def _stream_chat_completion(
+        self, payload: dict[str, Any], *, operation: str
+    ) -> tuple[str, dict[str, Any] | None]:
+        """流式调 chat/completions：建连可重试，流中断不重试（整段重跑放大等待）。
+
+        usage 顺手记进 self.usage_events（token 数 + 耗时）。
+        """
+        body = {
+            **payload,
+            "stream": True,
+            "stream_options": {"include_usage": True},
+        }
+        t0 = time.monotonic()
         response = _retry_network(
-            "vlm",
+            operation,
             lambda: requests.post(
                 CHAT_COMPLETIONS_URL,
                 headers=self._json_auth_headers(),
-                json=payload,
-                timeout=(10, 180),
+                json=body,
+                timeout=_STREAM_TIMEOUT,
+                stream=True,
                 proxies=self._proxies,
             ),
         )
-        _raise_dashscope_for_status(response, operation="vlm")
-        return _extract_chat_text(response.json())
+        _raise_dashscope_for_status(response, operation=operation)
+        try:
+            text, usage = _parse_sse_stream(response.iter_lines(decode_unicode=True))
+        except (
+            requests.exceptions.Timeout,
+            requests.exceptions.ConnectionError,
+            requests.exceptions.ChunkedEncodingError,
+        ) as exc:
+            _log.error("[%s] SSE 流中断（不重试）：%s", operation, exc)
+            raise NetworkError(
+                f"DashScope {operation} 流式响应中断",
+                platform="dashscope",
+                operation=operation,
+            ) from exc
+        finally:
+            # [DONE] 即停不读到 EOF；不 close 会占住连接池里的连接（Codex review）
+            response.close()
+        self.usage_events.append({
+            "stage": operation,
+            "model": payload.get("model"),
+            "input_tokens": (usage or {}).get("prompt_tokens"),
+            "output_tokens": (usage or {}).get("completion_tokens"),
+            "elapsed_seconds": round(time.monotonic() - t0, 1),
+        })
+        return text, usage
 
     def asr(self, audio_url: str, referer: str | None = None) -> str:
+        t0 = time.monotonic()
         oss_url = self._upload_audio_to_oss(audio_url, referer=referer)
         task_id = self._submit_transcription_task(oss_url)
-        return self._wait_for_transcription(task_id)
+        text, audio_seconds = self._wait_for_transcription(task_id)
+        self.usage_events.append({
+            "stage": "asr",
+            "model": self.asr_model,
+            "audio_seconds": audio_seconds,
+            "elapsed_seconds": round(time.monotonic() - t0, 1),
+        })
+        return text
 
     def _json_auth_headers(self) -> dict[str, str]:
         return {
@@ -346,7 +417,11 @@ class DashscopeProvider:
             )
         return task_id
 
-    def _wait_for_transcription(self, task_id: str) -> str:
+    def _wait_for_transcription(self, task_id: str) -> tuple[str, int | None]:
+        """轮询转写任务到完成。返回 (文本, 计费音频秒数)。
+
+        计费秒数来自 poll 响应**顶层** usage.duration（spike 实证），不是 output 里。
+        """
         headers = self._json_auth_headers()
         deadline = time.monotonic() + 7200
         last_payload: dict[str, Any] | None = None
@@ -369,7 +444,8 @@ class DashscopeProvider:
             if task_status == "SUCCEEDED":
                 text = _extract_transcription_text(output, proxies=self._proxies)
                 if text:
-                    return text
+                    audio_seconds = (last_payload.get("usage") or {}).get("duration")
+                    return text, audio_seconds
                 _log.error("[poll_transcription] succeeded without text: %r", last_payload)
                 raise ParseError(
                     "DashScope transcription succeeded without text",
@@ -446,23 +522,6 @@ class StreamingMultipartForm:
             ).encode("utf-8")
         )
         return b"".join(parts)
-
-
-def _extract_chat_text(payload: dict[str, Any]) -> str:
-    choices = payload.get("choices") or []
-    if not choices:
-        return ""
-    message = choices[0].get("message") or {}
-    content = message.get("content", "")
-    if isinstance(content, str):
-        return content
-    if isinstance(content, list):
-        parts = []
-        for item in content:
-            if isinstance(item, dict) and isinstance(item.get("text"), str):
-                parts.append(item["text"])
-        return "\n".join(parts)
-    return str(content)
 
 
 def _extract_transcription_text(
