@@ -128,7 +128,7 @@ def format_error_for_user(exc: Exception) -> str:
         exit_ip = exc.debug_context.get("exit_ip")
         if exit_ip:
             return f"代理未生效（当前出口={exit_ip}）。请检查代理是否连通。"
-        return "网络不稳定或超时。请检查网络 / 代理后重试。"
+        return "网络或服务响应超时（可能内容过长，或网络 / 服务不稳）。请稍后重试。"
     if exc.kind == "api":
         provider = exc.debug_context.get("provider") or "服务端"
         code = exc.debug_context.get("api_code")
