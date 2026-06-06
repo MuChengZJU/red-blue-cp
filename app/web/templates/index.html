@@ -264,6 +264,10 @@
     const finished = done + failed + skipped;
     const pct = total ? Math.round((finished / total) * 100) : 0;
     const title = b.title || (b.user_id ? `博主 ${b.user_id}` : `批次 ${b.id}`);
+    // 批次费用 = 关联任务的账单汇总；历史任务（0.4.1 前）没记账，只算有账的
+    const cost = Number(b.cost_yuan || 0);
+    const costText = cost > 0
+      ? ` · 估算 ¥${cost >= 0.01 ? cost.toFixed(2) : cost.toFixed(4)}` : "";
     const expanded = expandedBatches.has(b.id);
     const items = expanded ? (batchItemsCache[b.id] || []) : (b.items_preview || []);
     const more = !expanded && total > items.length
@@ -275,7 +279,7 @@
         <div class="job-body" style="display:block">
           <div class="batch-head">
             <h3 class="job-title"><span class="plat-dot xiaohongshu"></span>${escapeHtml(title)}</h3>
-            <span class="batch-progress-text">${finished}/${total}${b.status === "running" ? ' · <span class="spinner"></span>' : ""}</span>
+            <span class="batch-progress-text">${finished}/${total}${escapeHtml(costText)}${b.status === "running" ? ' · <span class="spinner"></span>' : ""}</span>
           </div>
           <div class="job-meta batch-counts">
             <span>✓ ${done}</span><span class="sep">·</span><span>✗ ${failed}</span>
