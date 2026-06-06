@@ -205,3 +205,81 @@ class TestCodexFindings:
 
         get_pipeline_fn()("https://www.bilibili.com/video/BV1x")
         assert captured["proxy"] == "http://127.0.0.1:7897"
+
+
+class TestLegacyBackfill:
+    """0.5.0 用户实测：旧批次（升级前下载）条目没标题、点不进详情。
+    修复=打开库时给历史 done/failed 条目回填 job + 标题（取 md 文件名兜底）。"""
+
+    def _legacy_db(self, tmp_path):
+        db_path = tmp_path / "_index.sqlite"
+        conn = sqlite3.connect(db_path)
+        conn.executescript(
+            """
+            CREATE TABLE jobs (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                url TEXT NOT NULL, platform TEXT, content_type TEXT,
+                status TEXT NOT NULL, md_path TEXT, title TEXT, author TEXT,
+                error_message TEXT, log_excerpt TEXT,
+                retry_count INTEGER NOT NULL DEFAULT 0,
+                created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                started_at TEXT, finished_at TEXT
+            );
+            CREATE TABLE batch (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                source TEXT NOT NULL, user_id TEXT,
+                count INTEGER NOT NULL DEFAULT 0,
+                complete INTEGER NOT NULL DEFAULT 0,
+                status TEXT NOT NULL, created_at TEXT NOT NULL
+            );
+            CREATE TABLE batch_item (
+                batch_id INTEGER NOT NULL, note_id TEXT NOT NULL,
+                url TEXT NOT NULL, status TEXT NOT NULL,
+                md_path TEXT, error_message TEXT, finished_at TEXT,
+                PRIMARY KEY (batch_id, note_id)
+            );
+            INSERT INTO batch (source, user_id, count, complete, status, created_at)
+            VALUES ('xhs_user_posted', '65d2420etest', 2, 1, 'done', '2026-06-05');
+            INSERT INTO batch_item (batch_id, note_id, url, status, md_path, finished_at)
+            VALUES (1, '68502a80000000002300269f', 'https://www.xiaohongshu.com/explore/68502a80000000002300269f',
+                    'done', '/data/transcript/xhs/某博主-真实笔记标题-68502a80.md', '2026-06-05');
+            INSERT INTO batch_item (batch_id, note_id, url, status, error_message)
+            VALUES (1, '6a168424000000000803f177', 'https://www.xiaohongshu.com/explore/6a168424000000000803f177',
+                    'failed', '下载失败');
+            """
+        )
+        conn.commit()
+        conn.close()
+        return db_path
+
+    def test_legacy_done_item_gets_job_and_title(self, tmp_path):
+        storage = Storage(self._legacy_db(tmp_path))
+        items = storage.list_batch_items(1)
+        done_item = next(i for i in items if i["status"] == "done")
+        assert done_item["job_id"] is not None, "旧 done 条目要回填 job"
+        assert "真实笔记标题" in (done_item["title"] or ""), "标题从 md 文件名兜底"
+        job = storage.get_job(done_item["job_id"])
+        assert job["status"] == "done"
+        assert job["md_path"] == "/data/transcript/xhs/某博主-真实笔记标题-68502a80.md"
+        assert "真实笔记标题" in (job["title"] or "")
+
+    def test_legacy_failed_item_gets_failed_job(self, tmp_path):
+        storage = Storage(self._legacy_db(tmp_path))
+        failed_item = next(i for i in storage.list_batch_items(1) if i["status"] == "failed")
+        assert failed_item["job_id"] is not None
+        job = storage.get_job(failed_item["job_id"])
+        assert job["status"] == "failed"
+        assert job["error_message"] == "下载失败"
+
+    def test_backfill_idempotent(self, tmp_path):
+        db_path = self._legacy_db(tmp_path)
+        Storage(db_path)
+        storage = Storage(db_path)  # 再开一次不重复回填
+        assert len(storage.list_jobs()) == 2
+
+    def test_reimport_refreshes_title_on_existing_items(self, storage):
+        # 重新导入清单时，已存在条目的标题要刷新（旧条目当年没存标题）
+        bid = storage.create_batch(source="s", user_id="u", count=1, complete=True)
+        storage.add_batch_items(bid, [{"note_id": NOTE_A, "url": "https://x/a"}])
+        storage.add_batch_items(bid, [{"note_id": NOTE_A, "url": "https://x/a", "title": "新标题"}])
+        assert storage.list_batch_items(bid)[0]["title"] == "新标题"

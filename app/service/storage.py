@@ -121,6 +121,37 @@ class Storage:
                 "CREATE INDEX IF NOT EXISTS idx_batch_item_status "
                 "ON batch_item (batch_id, status)"
             )
+            self._backfill_legacy_batch_jobs(conn)
+
+    @staticmethod
+    def _backfill_legacy_batch_jobs(conn: sqlite3.Connection) -> None:
+        """0.5.0 之前的批量条目没建 job（没详情/没标题/不参与去重）。
+        打开库时给历史 done/failed 条目回填 job 并关联；标题缺失用 md 文件名兜底。
+        只处理 job_id IS NULL 的行，天然幂等。"""
+        rows = conn.execute(
+            "SELECT batch_id, note_id, url, status, md_path, error_message, "
+            "finished_at, title FROM batch_item "
+            "WHERE job_id IS NULL AND status IN ('done', 'failed')"
+        ).fetchall()
+        now = datetime.now().isoformat()
+        for row in rows:
+            title = row["title"] or (Path(row["md_path"]).stem if row["md_path"] else None)
+            ts = row["finished_at"] or now
+            cursor = conn.execute(
+                """
+                INSERT INTO jobs (
+                    url, platform, status, md_path, title, error_message,
+                    retry_count, created_at, updated_at, finished_at
+                ) VALUES (?, 'xiaohongshu', ?, ?, ?, ?, 0, ?, ?, ?)
+                """,
+                (row["url"], row["status"], row["md_path"], title,
+                 row["error_message"], ts, ts, ts),
+            )
+            conn.execute(
+                "UPDATE batch_item SET job_id = ?, title = COALESCE(title, ?) "
+                "WHERE batch_id = ? AND note_id = ?",
+                (cursor.lastrowid, title, row["batch_id"], row["note_id"]),
+            )
 
     def create_job(
         self,
@@ -393,12 +424,20 @@ class Storage:
                         "VALUES (?, ?, ?, 'pending', ?)",
                         (batch_id, it["note_id"], it["url"], it.get("title")),
                     )
-                elif row["status"] == "skipped" and row["url"] != it["url"]:
-                    conn.execute(
-                        "UPDATE batch_item SET url = ?, status = 'pending', "
-                        "error_message = NULL WHERE batch_id = ? AND note_id = ?",
-                        (it["url"], batch_id, it["note_id"]),
-                    )
+                else:
+                    if it.get("title"):
+                        # 重新导入时刷新标题（旧条目当年没存标题——0.5.0 用户实测）
+                        conn.execute(
+                            "UPDATE batch_item SET title = ? "
+                            "WHERE batch_id = ? AND note_id = ?",
+                            (it["title"], batch_id, it["note_id"]),
+                        )
+                    if row["status"] == "skipped" and row["url"] != it["url"]:
+                        conn.execute(
+                            "UPDATE batch_item SET url = ?, status = 'pending', "
+                            "error_message = NULL WHERE batch_id = ? AND note_id = ?",
+                            (it["url"], batch_id, it["note_id"]),
+                        )
 
     def set_batch_item_job(self, batch_id: int, note_id: str, job_id: int) -> None:
         """条目 ↔ job 关联（M5b E4）：批次条目从此能进 /jobs/{id} 详情。"""
