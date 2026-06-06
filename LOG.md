@@ -98,7 +98,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
-| 2026-06-06 | 🔴 高 | 单测全绿 ≠ 没 bug：`probe_exit_ip` 用 `requests.get(trust_env=False)`（trust_env 是 Session 属性非 get 参数）真跑必 TypeError，但测试 mock 了 requests.get 把崩溃吞了——Codex 独立 review + 真链路执行才抓到。对外部调用别只信 mock 测试，留一处真链路；mock 会笑纳非法 kwarg。并行后台 agent 遇 ECONNRESET 会半途死（M4c 只留一个 RED 测试就断），salvage 测试 + 主会话接手比重派更稳。 |
+| 2026-06-06 | 🔴 高 | 挂机一夜自主完成 M4 复盘：波次法(串行锁契约→并行填充)多 agent 下成立；Codex review 当合并门抓到 mock 盲区(probe_exit_ip 用 requests.get(trust_env=) 真跑 TypeError，单测 mock 吞了)；后台长跑 agent 遇 ECONNRESET 半途死(M4c 只留 RED 测试)→salvage+主会话接手比重派稳；遇不可验证 scope(WebUI 浏览器 QA)主动停+写清楚。~1h12m/4 PR/367 测试/9 Codex 修 | [挂机自主 M4 复盘](docs/devlog/2026-06-06-overnight-autonomous-m4-retro.md) |
 | 2026-06-05 | 🔴 高 | M4 波1 契约交叉核对 + token 过期 spike：①`proxy` 契约穿不过原文件边界→M4a 扩到 extractor/fetcher 显式 `proxies=` 穿透；②小红书过期 token 可靠信号=`response.url` 跳 `/404`+`error_code=300031`（**非** title 空，避 Codex 误伤坑），须在解析前查；③proxy 口径=主站走代理、CDN 媒体字节默认不走 | [M4 波1 契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
 | 2026-06-05 | 🔴 高 | Codex 独立 review 博主批量方案：实锤 `model.py` `trust_env=False` 致视频/ASR 下载绕过代理；并行相交面被低估（storage 隐藏耦合 / 批量必依赖 service 异常）→ **先串行锁地基（errors.py+抽_fetch_single+storage模型+修代理）再并行**；异常契约改少类+结构化字段；阶段1降范围只 CLI batch | [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
 | 2026-06-05 | 🔴 高 | 小红书博主批量全链路验通（探索，未立项）：插件 MV3 抓列表 + CLI 下载转录。换详情需 xsec_token（门票非用户身份，已在导出JSON）、不需 cookie，不带 token 返空壳；下载是 IP 风险非账号风险，海外代理可行（30条8并发1.5s零封）、CDN 下字节12并发零失败；固定共享出口 IP（多人共用出口）必须走代理 | [插件抓列表+批量下载 spike](docs/devlog/2026-06-05-xhs-blogger-batch-spike.md) |
