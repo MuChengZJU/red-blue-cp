@@ -251,6 +251,14 @@ class Storage:
             rows = conn.execute(query, params).fetchall()
         return [_parse_job_row(row) for row in rows]
 
+    def done_jobs_brief(self) -> list[tuple[int, str, str | None]]:
+        """成功任务的 (id, url, title) 轻量清单，供去重扫描（M5b E1/E2）。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, url, title FROM jobs WHERE status = 'done' ORDER BY id DESC"
+            ).fetchall()
+        return [(row["id"], row["url"], row["title"]) for row in rows]
+
     def total_cost_yuan(self) -> float:
         """全部任务累计估算费用（元）。无 usage / 脏 JSON 的行不参与。"""
         with self._connect() as conn:

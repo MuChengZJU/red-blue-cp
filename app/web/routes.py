@@ -18,7 +18,7 @@ from pydantic import BaseModel, Field
 from app.service.errors import RbcpError, format_error_for_user
 from app.service.extractor import detect_platform
 from app.service.storage import Storage
-from app.service.urls import clean_url
+from app.service.urls import clean_url, dedup_key
 
 
 load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
@@ -45,6 +45,7 @@ templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 class CreateJobRequest(BaseModel):
     url: str = Field(..., min_length=1)
+    force: bool = False  # 已下过仍强制重下（M5b 去重）
 
 
 class UploaderPostsRequest(BaseModel):
@@ -84,6 +85,17 @@ def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
         exc = exc.__cause__ or exc.__context__
         seen += 1
     return "\n".join(parts)
+
+
+def _find_done_duplicate(storage: Storage, url: str) -> dict | None:
+    """同内容（dedup_key 相同）的已成功任务；没有 / 解析不出 key → None。"""
+    key = dedup_key(url)
+    if key is None:
+        return None
+    for job_id, job_url, title in storage.done_jobs_brief():
+        if dedup_key(job_url) == key:
+            return {"job_id": job_id, "title": title}
+    return None
 
 
 def _run_job(
@@ -152,6 +164,17 @@ async def create_job(
         detect_platform(url)
     except RbcpError as exc:
         raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
+
+    # M5b 去重（E1）：同内容已成功保存过 → 409 给前端弹「是否重下」；force 才放行。
+    # 只拦 done（失败的旧任务不拦）；短链 dedup_key=None 不猜、不拦。
+    if not payload.force:
+        dup = _find_done_duplicate(storage, url)
+        if dup is not None:
+            raise HTTPException(status_code=409, detail={
+                "duplicate": True,
+                "existing_job_id": dup["job_id"],
+                "title": dup["title"],
+            })
 
     job_id = storage.create_job(url)
     asyncio.create_task(
@@ -265,10 +288,13 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
 async def import_list(
     payload: dict = Body(...),
     allow_partial: bool = False,
+    force: bool = False,
+    storage: Storage = Depends(get_storage),
 ) -> dict:
     """导入插件导出的 notes.json，后台跑 batch（走代理 / 断点续传 / token 跳过 / 汇总）。
 
-    早校验 schema：不合规立即 400，不开后台任务。开跑后到 /batches 看进度。
+    早校验 schema：不合规立即 400，不开后台任务。
+    M5b 去重（E2）：默认跳过已成功下过的笔记（按 note_id 对 dedup_key），force=true 全量重下。
     """
     from app.service import batch as batch_mod
 
@@ -276,6 +302,23 @@ async def import_list(
         batch_mod._load_and_validate(payload, allow_partial=allow_partial)
     except RbcpError as exc:
         raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
+
+    notes = payload.get("notes") or []
+    skipped_duplicates = 0
+    if not force:
+        done_keys = {dedup_key(job_url) for _, job_url, _ in storage.done_jobs_brief()}
+        done_keys.discard(None)
+        fresh = [
+            n for n in notes
+            if f"xhs:{str(n.get('note_id', '')).lower()}" not in done_keys
+        ]
+        skipped_duplicates = len(notes) - len(fresh)
+        notes = fresh
+        payload = {**payload, "notes": notes, "count": len(notes)}
+
+    if not notes:
+        # 全是已下过的：不开后台任务，直接报数
+        return {"ok": True, "count": 0, "skipped_duplicates": skipped_duplicates}
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
@@ -290,7 +333,7 @@ async def import_list(
             allow_partial=allow_partial,
         )
     )
-    return {"ok": True, "count": len(payload.get("notes") or [])}
+    return {"ok": True, "count": len(notes), "skipped_duplicates": skipped_duplicates}
 
 
 @app.get("/api/batches")
