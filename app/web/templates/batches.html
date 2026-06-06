@@ -4,7 +4,8 @@
 <section class="submit-card">
   <h2 class="section-title" style="margin:0 0 6px">批量导入清单</h2>
   <p class="subtitle" style="margin:0 0 14px">
-    上传<b>插件导出的 notes.json</b>，走代理批量下载（断点续传、token 过期跳过、失败不中断）。
+    导入<b>插件导出的 notes.json</b>（上传文件，或直接粘贴内容），走代理批量下载
+    （断点续传、token 过期跳过、失败不中断）。远程服务器用上传/粘贴；本机服务以后可插件一键发送。
     <a href="/">← 回单篇</a>
   </p>
   <div class="submit-row" style="flex-wrap:wrap; gap:10px">
@@ -15,6 +16,12 @@
     </label>
     <button id="import-button" type="button">导入开跑</button>
   </div>
+  <details style="margin-top:10px">
+    <summary style="cursor:pointer; font-size:13px; color:var(--muted)">或直接粘贴 notes.json 内容 ▾</summary>
+    <textarea id="paste-input" rows="5" placeholder='{"schema_version":1,"source":"xhs_user_posted",...}'
+              style="width:100%; margin-top:8px; font-family:ui-monospace,monospace; font-size:12px;
+                     padding:8px; border:1px solid var(--border); border-radius:8px; box-sizing:border-box"></textarea>
+  </details>
   <div id="import-hint" class="submit-hint" aria-live="polite"></div>
 </section>
 
@@ -76,10 +83,14 @@
   document.getElementById("import-button").addEventListener("click", async () => {
     const hint = document.getElementById("import-hint");
     const f = document.getElementById("file-input").files[0];
-    if (!f) { hint.textContent = "请先选一个 notes.json 文件"; return; }
+    const pasted = document.getElementById("paste-input").value.trim();
+    let raw;
+    if (f) { raw = await f.text(); }
+    else if (pasted) { raw = pasted; }
+    else { hint.textContent = "请上传一个 notes.json 文件，或在下方粘贴内容"; return; }
     let envelope;
-    try { envelope = JSON.parse(await f.text()); }
-    catch (e) { hint.textContent = "这个文件不是合法 JSON"; return; }
+    try { envelope = JSON.parse(raw); }
+    catch (e) { hint.textContent = "内容不是合法 JSON"; return; }
     const allow = document.getElementById("allow-partial").checked;
     hint.textContent = "导入中...";
     try {
