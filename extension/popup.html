@@ -1,0 +1,79 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Red Blue CP</title>
+  <style>
+    :root {
+      --red: #e23744;
+      --blue: #2456e2;
+      --ink: #1a1a1a;
+      --muted: #888;
+      --bg: #ffffff;
+      --line: #ececec;
+    }
+    * { box-sizing: border-box; }
+    body {
+      width: 280px;
+      margin: 0;
+      padding: 14px 16px 16px;
+      font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+      color: var(--ink);
+      background: var(--bg);
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 13px;
+      font-weight: 700;
+      margin-bottom: 12px;
+    }
+    .brand .dot {
+      width: 9px; height: 9px; border-radius: 50%;
+      background: var(--red);
+      box-shadow: 6px 0 0 var(--blue);
+      margin-right: 6px;
+    }
+    #status {
+      font-size: 13px;
+      line-height: 1.55;
+      min-height: 40px;
+    }
+    .count {
+      font-size: 22px;
+      font-weight: 700;
+      color: var(--red);
+    }
+    .ok { color: var(--blue); font-weight: 600; }
+    .hint { color: var(--muted); font-size: 12px; margin-top: 4px; }
+    button {
+      width: 100%;
+      margin-top: 12px;
+      padding: 9px 12px;
+      font-size: 13px;
+      font-weight: 600;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      font-family: inherit;
+    }
+    .btn-primary { background: var(--red); color: #fff; }
+    .btn-primary:hover { background: #c92d3a; }
+    .btn-secondary {
+      background: #fff;
+      color: var(--muted);
+      border: 1px solid var(--line);
+      font-weight: 500;
+    }
+    .btn-secondary:hover { color: var(--ink); border-color: #ccc; }
+  </style>
+</head>
+<body>
+  <div class="brand"><span class="dot"></span>Red Blue CP · 小红书清单</div>
+  <div id="status">读取中…</div>
+  <div id="actions"></div>
+  <script src="popup.js"></script>
+</body>
+</html>
