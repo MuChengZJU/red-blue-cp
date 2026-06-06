@@ -2,10 +2,25 @@
 
 from __future__ import annotations
 
+import json
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+
+def _parse_job_row(row: sqlite3.Row) -> dict[str, Any]:
+    """行 → dict，usage 列 JSON 反序列化（脏数据回 None，不让一行坏数据崩整页）。"""
+    job = dict(row)
+    raw_usage = job.get("usage")
+    if raw_usage:
+        try:
+            job["usage"] = json.loads(raw_usage)
+        except (json.JSONDecodeError, TypeError):
+            job["usage"] = None
+    else:
+        job["usage"] = None
+    return job
 
 
 class Storage:
@@ -40,10 +55,17 @@ class Storage:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     started_at TEXT,
-                    finished_at TEXT
+                    finished_at TEXT,
+                    usage TEXT
                 )
                 """
             )
+            # ── 迁移：0.4.0 及以前的库没有 usage 列（M5a/P1h 加），原地补列 ──
+            jobs_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(jobs)").fetchall()
+            }
+            if "usage" not in jobs_columns:
+                conn.execute("ALTER TABLE jobs ADD COLUMN usage TEXT")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_jobs_status ON jobs (status)"
             )
@@ -126,6 +148,7 @@ class Storage:
         author: str | None = None,
         platform: str | None = None,
         content_type: str | None = None,
+        usage: dict[str, Any] | None = None,
     ) -> None:
         now = datetime.now().isoformat()
         with self._connect() as conn:
@@ -138,6 +161,7 @@ class Storage:
                     author = ?,
                     platform = ?,
                     content_type = ?,
+                    usage = ?,
                     error_message = NULL,
                     log_excerpt = NULL,
                     updated_at = ?,
@@ -151,6 +175,7 @@ class Storage:
                     author,
                     platform,
                     content_type,
+                    json.dumps(usage, ensure_ascii=False) if usage else None,
                     now,
                     now,
                     job_id,
@@ -204,7 +229,7 @@ class Storage:
             ).fetchone()
         if row is None:
             return None
-        return dict(row)
+        return _parse_job_row(row)
 
     def list_jobs(
         self,
@@ -223,7 +248,19 @@ class Storage:
 
         with self._connect() as conn:
             rows = conn.execute(query, params).fetchall()
-        return [dict(row) for row in rows]
+        return [_parse_job_row(row) for row in rows]
+
+    def total_cost_yuan(self) -> float:
+        """全部任务累计估算费用（元）。无 usage / 脏 JSON 的行不参与。"""
+        with self._connect() as conn:
+            row = conn.execute(
+                """
+                SELECT COALESCE(SUM(json_extract(usage, '$.total_cost_yuan')), 0)
+                FROM jobs
+                WHERE usage IS NOT NULL AND json_valid(usage)
+                """
+            ).fetchone()
+        return float(row[0] or 0.0)
 
     # ── 博主批量（M4a-a4） ─────────────────────────────────────
 
