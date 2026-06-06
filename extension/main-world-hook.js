@@ -2,15 +2,15 @@
 //
 // 机制（spike 已实测：某博主 326/326 带 token，慢滚零验证码）：
 //   在页面自己发 fetch/XHR 之前 hook 住，接住博主主页翻页的 user_posted 分页响应，
-//   按 note_id 累计去重，滚到底（has_more=false）自动导出 notes.json 信封。
+//   按 note_id 累计去重，滚到底（has_more=false）置 completeSeen，等用户点插件图标导出。
 //
 // 用法：
 //   1. chrome://extensions 开开发者模式 → 加载已解压的扩展程序 → 选 extension/ 目录。
 //   2. 打开小红书博主主页（你已登录），手动慢慢滚到底（最安全；触发风控的是滚动轰炸，不是抓取）。
-//   3. 滚到底自动导出 xhs-{user_id}-{YYYYMMDD}-{count}notes.json。也可随时在 Console 跑 __rbcpDump()。
+//   3. 点插件图标看抓取状态，滚到底后点「导出 notes.json」。也可随时在 Console 跑 __rbcpDump()。
 //   4. 把 notes.json 交给 `rbcp batch notes.json --proxy ...` 走代理批量下。
 //
-// 阶段 1 只导出 JSON（无 popup UI）。只抓清单，不下载、不上传。
+// 导出不再自动触发（避免弹下载烦人），统一走 popup 按钮或 __rbcpDump()。只抓清单，不下载、不上传。
 
 (function () {
   "use strict";
@@ -22,7 +22,7 @@
   const store = new Map(); // note_id -> 贪婪字段
   window.__rbcpNotes = store;
   let completeSeen = false; // 见过 has_more=false 才算完整清单
-  let dumped = false;
+  window.__rbcpComplete = false; // 给 popup 读：是否已滚到底
 
   function buildUrl(noteId, xsec) {
     const q = xsec
@@ -91,11 +91,8 @@
     console.log(TAG, where, "本页", notes.length, "新增", added, "累计", store.size, "has_more:", hasMore);
     if (hasMore === false) {
       completeSeen = true;
-      if (!dumped) {
-        dumped = true;
-        console.log(TAG, "✅ 全部抓完，共", store.size, "条。自动导出：");
-        window.__rbcpDump();
-      }
+      window.__rbcpComplete = true;
+      console.log(TAG, "✅ 全部抓完，共", store.size, "条。点插件图标导出，或在 Console 跑 __rbcpDump()。");
     }
   }
 
@@ -185,5 +182,5 @@
     return _send.apply(this, arguments);
   };
 
-  console.log(TAG, "hook 已安装。在博主主页慢滚到底自动导出，或随时跑 __rbcpDump()。");
+  console.log(TAG, "hook 已安装。在博主主页慢滚到底后点插件图标导出，或随时跑 __rbcpDump()。");
 })();
