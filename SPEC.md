@@ -63,6 +63,7 @@ app/
 | `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
 | `RBCP_ASR_DIARIZATION` | 否 | `true` | 是否开启说话人分离（按声纹区分对谈中的不同人）。`true`/`1`/`yes` 为开 |
 | `RBCP_ASR_SPEAKER_COUNT` | 否 | — | 说话人数量提示（整数 2-100）。不填则自动判断；填了也只是辅助算法尽量输出该人数，不保证 |
+| `RBCP_PROXY` | 否 | — | (M4) 下载走代理护 IP（http/https，如 `http://127.0.0.1:7897`）。CLI `--proxy` 可覆盖；穿透到 explore 详情 + DashScope 主站调用，CDN 媒体字节默认不走 |
 | `RBCP_VLM_MODEL` | 否 | `qwen3-vl-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
 | `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清理 LLM 模型（OpenAI 兼容） |
 
@@ -125,8 +126,10 @@ GET  /api/jobs/{id}/download        # 下载 .md（带 Content-Disposition）
 P1 增加：
 
 ```
-POST /api/jobs/batch                # 批量提交
-POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR）
+POST /api/import-list               # 导入插件 notes.json（body=信封 dict）→ 后台批量下载
+GET  /api/batches                   # 批次列表 + done/failed/skipped/pending 计数（进度轮询）
+POST /api/jobs/{id}/retry           # 原地重试同一条 job（不新建，已交付 M4）
+POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR，待做）
 POST /api/uploaders/posts           # body: {user_url} → 列博主笔记清单(不下载) + 总数/预估
 POST /api/comments                  # body: {url, sub?} → 抓评论写 .comments.md
 GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）
@@ -146,7 +149,7 @@ rbcp serve                      # 启 WebUI
 P1 增加：
 
 ```
-rbcp batch <file>               # 批量，每行一个 URL
+rbcp batch <notes.json> [--proxy ...] [--allow-partial]  # 批量下载插件导出的 notes.json（JSON 信封 schema_version:1，非每行 URL）：走代理 / 断点续传 / token 过期跳过 / 汇总
 rbcp list  <博主url> [--json]    # 列博主笔记清单(id+标题+类型+日期+token+总数+预估)，不下载
 rbcp fetch <url> [开关]          # 下载：单篇 | --all 整博主
 ```
