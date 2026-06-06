@@ -90,7 +90,7 @@
 | 2026-06-06 | M4 阶段1 完成 | done | 博主安全批量+错误地基。波1 并行写计划+token过期 spike，波2 串行 M4a 锁契约(PR#16)→M4b‖M4c 并行(PR#17/#18)，三 PR 各过 Codex 独立 review（修 1 真 bug + 5 UX/安全项）。MV3 插件抓清单 + `rbcp batch` 走代理断点续传。真链路：真实 xhs URL 端到端出 Markdown + 断点续传 live 验证；插件↔batch 契约跨语言验证。367 单测全过。WebUI 导入入口推迟。[波1契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
 | 2026-06-06 | 0.4.0 发布 + UX 迭代 | done | M4 全合 + bump 0.4.0 + CHANGELOG。用户实测反馈一轮：能并行的派 agent(popup/剪贴板/重试/URL-CJK/调研)、耦合的自己做(URL清理接入/重试原地/traceback脱敏/输入框放行)。406 单测。[M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
 | 2026-06-07 | M5a 完成 + 0.4.1 发布 | done | 流式修长文超时（根因=非流式+180s read 超时撞 ~300s 生成）+ 任务用量/费用统计 P1h（ASR 秒数/token/耗时/目录价估算，jobs.usage JSON 列+旧库迁移+`/api/stats`）。范围调整：provider env 化（Gemini 入口）因无真实需求移出、进 PLAN 待办。全程 TDD 449 单测；spike 实证 include_usage 与 ASR usage.duration；真链路 B 站视频账单落库+页面渲染；Codex review 修 3 项（重试残留账单/流式连接泄漏/详情页跨重试残留）。PR#35，tag 自动发 PyPI。[M5a 详情](docs/devlog/2026-06-07-m5a-streaming-and-usage.md) |
-| 待定 | M5b | pending | WebUI v2：单条/批量整合进主页+批次进任务列表+导入重做+去重检测 |
+| 2026-06-07 | M5b 完成 + 0.5.0 发布 | done | WebUI v2：主页单条/批量两标签（去独立 /batches 页）+ 批次卡片进任务列表（取名/进度/前5条可滚/展开/条目进详情）+ **批量逐条建 job**（batch_item.job_id，详情/账单/重试复用任务体系，重跑原地重置）+ 去重检测（dedup_key 归一，单条 409 弹窗确认/批量跳过报数）+ serve --port。Eval E1-E12 先行逐条验收；TDD 475 单测；浏览器真链路核验；Codex review 修 2（P1 批量 job 重试绕过代理 / P2 重跑孤儿 job）。PR#37。[M5b 详情](docs/devlog/2026-06-07-m5b-webui-v2.md) |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
