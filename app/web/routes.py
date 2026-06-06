@@ -62,12 +62,17 @@ def get_storage() -> Storage:
     return Storage(db_path / "_index.sqlite")
 
 
-def get_pipeline_fn() -> Callable[[str], str]:
-    from app.cli import _create_pipeline_fn
+def get_pipeline_fn() -> Callable[[str], dict]:
+    """WebUI 单条/重试的下载管道。走 pipeline.fetch_single 并吃 RBCP_PROXY——
+    批量产生的 job 在 UI 点重试也不会丢代理护 IP（Codex review P1）。"""
+    from app.service import pipeline as pipeline_mod
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
-    return _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
+    proxy = os.getenv("RBCP_PROXY") or None
+    return lambda url: pipeline_mod.fetch_single(
+        url, api_key=api_key, output_dir=output_dir, proxy=proxy
+    )
 
 
 def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:

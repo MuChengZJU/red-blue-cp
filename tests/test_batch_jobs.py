@@ -162,3 +162,46 @@ class TestBatchItemsApi:
             assert client.get("/api/batches/99999/items").status_code == 404
         finally:
             app.dependency_overrides.clear()
+
+
+class TestCodexFindings:
+    """Codex review M5b：重试代理 + 重跑孤儿 job。"""
+
+    def test_rerun_failed_note_reuses_same_job(self, tmp_path):
+        # P2：批次重跑不新建 job——原地重置同一条，不留孤儿进主列表
+        with patch.object(batch_mod, "fetch_single", side_effect=RuntimeError("boom")):
+            batch_mod.run_batch(_env([NOTE_A]), api_key="k", output_dir=tmp_path)
+        storage = Storage(tmp_path / "_index.sqlite")
+        first_job = storage.list_jobs()[0]
+        assert first_job["status"] == "failed"
+
+        with patch.object(batch_mod, "fetch_single",
+                          return_value={"md_path": "/tmp/a.md", "title": "t", "usage": None}):
+            batch_mod.run_batch(_env([NOTE_A]), api_key="k", output_dir=tmp_path)
+
+        jobs = storage.list_jobs()
+        assert len(jobs) == 1, "重跑不应新建 job"
+        assert jobs[0]["id"] == first_job["id"]
+        assert jobs[0]["status"] == "done"
+        assert jobs[0]["retry_count"] == 1
+        # 主任务列表（排除批量）不应出现孤儿
+        assert storage.list_jobs(exclude_batched=True) == []
+
+    def test_web_pipeline_fn_honors_rbcp_proxy(self, monkeypatch, tmp_path):
+        # P1：WebUI 单条/重试管道也要吃 RBCP_PROXY，批量任务重试不丢代理
+        import app.service.pipeline as pipeline_mod
+        from app.web.routes import get_pipeline_fn
+
+        captured = {}
+
+        def fake_fetch_single(url, *, api_key, output_dir, proxy=None, **kw):
+            captured["proxy"] = proxy
+            return {"md_path": "/tmp/a.md", "title": "t", "usage": None}
+
+        monkeypatch.setattr(pipeline_mod, "fetch_single", fake_fetch_single)
+        monkeypatch.setenv("RBCP_PROXY", "http://127.0.0.1:7897")
+        monkeypatch.setenv("RBCP_OUTPUT_DIR", str(tmp_path))
+        monkeypatch.setenv("DASHSCOPE_API_KEY", "k")
+
+        get_pipeline_fn()("https://www.bilibili.com/video/BV1x")
+        assert captured["proxy"] == "http://127.0.0.1:7897"

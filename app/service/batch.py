@@ -147,6 +147,13 @@ def run_batch(
          for n in notes],
     )
     done_before = storage.get_batch_item_statuses(batch_id)
+    # 条目已有 job 的映射：重跑失败条目时原地重置同一条 job，不新建
+    # （新建会把旧 job 变成孤儿漏进主任务列表——Codex review P2）
+    existing_jobs = {
+        item["note_id"]: item["job_id"]
+        for item in storage.list_batch_items(batch_id)
+        if item.get("job_id")
+    }
 
     for note in notes:
         note_id, url = note["note_id"], note["url"]
@@ -155,8 +162,12 @@ def run_batch(
             # add_batch_items 已把"换了新 token"的 skipped 重置成 pending）
             continue
         # M5b E4：批量条目也建 job——批次进任务列表、详情页/用量/重试全复用任务体系
-        job_id = storage.create_job(url, platform="xiaohongshu")
-        storage.set_batch_item_job(batch_id, note_id, job_id)
+        job_id = existing_jobs.get(note_id)
+        if job_id is not None:
+            storage.reset_for_retry(job_id)
+        else:
+            job_id = storage.create_job(url, platform="xiaohongshu")
+            storage.set_batch_item_job(batch_id, note_id, job_id)
         storage.mark_running(job_id)
         try:
             result = fetch_single(

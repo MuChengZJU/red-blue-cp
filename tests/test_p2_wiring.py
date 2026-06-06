@@ -75,7 +75,10 @@ def stub_single(monkeypatch):
     monkeypatch.setattr(pipeline, "_provider_from_env", lambda api_key, **kw: object())
     monkeypatch.setattr(
         pipeline, "extract_url",
-        lambda url, provider, **kw: types.SimpleNamespace(title="标题X", **kw),
+        lambda url, provider, **kw: types.SimpleNamespace(
+            title="标题X", author="作者X", platform="xiaohongshu",
+            content_type="video", **kw,
+        ),
     )
     monkeypatch.setattr(
         pipeline, "render_and_write", lambda result, output_dir: output_dir / "out.md"
