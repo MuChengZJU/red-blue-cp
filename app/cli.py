@@ -74,9 +74,11 @@ def run(url: str) -> None:
 
 
 @app.command("serve")
-def serve() -> None:
+def serve(
+    port: int = typer.Option(8000, "--port", help="监听端口（多实例用不同端口错开）"),
+) -> None:
     load_dotenv()
-    uvicorn.run("app.web.routes:app", host="0.0.0.0", port=8000, workers=1)
+    uvicorn.run("app.web.routes:app", host="0.0.0.0", port=port, workers=1)
 
 
 def _build_note_url(note_id: str, xsec_token: str) -> str:

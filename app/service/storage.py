@@ -82,7 +82,8 @@ class Storage:
                     count INTEGER NOT NULL DEFAULT 0,
                     complete INTEGER NOT NULL DEFAULT 0,
                     status TEXT NOT NULL,
-                    created_at TEXT NOT NULL
+                    created_at TEXT NOT NULL,
+                    title TEXT
                 )
                 """
             )
@@ -96,11 +97,26 @@ class Storage:
                     md_path TEXT,
                     error_message TEXT,
                     finished_at TEXT,
+                    title TEXT,
+                    job_id INTEGER,
                     PRIMARY KEY (batch_id, note_id),
                     FOREIGN KEY (batch_id) REFERENCES batch (id)
                 )
                 """
             )
+            # ── 迁移：0.4.1 及以前的库没有这几列（M5b 加），原地补列 ──
+            batch_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(batch)").fetchall()
+            }
+            if "title" not in batch_columns:
+                conn.execute("ALTER TABLE batch ADD COLUMN title TEXT")
+            item_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(batch_item)").fetchall()
+            }
+            if "title" not in item_columns:
+                conn.execute("ALTER TABLE batch_item ADD COLUMN title TEXT")
+            if "job_id" not in item_columns:
+                conn.execute("ALTER TABLE batch_item ADD COLUMN job_id INTEGER")
             conn.execute(
                 "CREATE INDEX IF NOT EXISTS idx_batch_item_status "
                 "ON batch_item (batch_id, status)"
@@ -280,15 +296,16 @@ class Storage:
         user_id: str | None,
         count: int,
         complete: bool,
+        title: str | None = None,
     ) -> int:
         now = datetime.now().isoformat()
         with self._connect() as conn:
             cursor = conn.execute(
                 """
-                INSERT INTO batch (source, user_id, count, complete, status, created_at)
-                VALUES (?, ?, ?, ?, ?, ?)
+                INSERT INTO batch (source, user_id, count, complete, status, created_at, title)
+                VALUES (?, ?, ?, ?, ?, ?, ?)
                 """,
-                (source, user_id, count, int(complete), "pending", now),
+                (source, user_id, count, int(complete), "pending", now, title),
             )
             return int(cursor.lastrowid)
 
@@ -355,9 +372,9 @@ class Storage:
                 ).fetchone()
                 if row is None:
                     conn.execute(
-                        "INSERT INTO batch_item (batch_id, note_id, url, status) "
-                        "VALUES (?, ?, ?, 'pending')",
-                        (batch_id, it["note_id"], it["url"]),
+                        "INSERT INTO batch_item (batch_id, note_id, url, status, title) "
+                        "VALUES (?, ?, ?, 'pending', ?)",
+                        (batch_id, it["note_id"], it["url"], it.get("title")),
                     )
                 elif row["status"] == "skipped" and row["url"] != it["url"]:
                     conn.execute(
@@ -365,6 +382,23 @@ class Storage:
                         "error_message = NULL WHERE batch_id = ? AND note_id = ?",
                         (it["url"], batch_id, it["note_id"]),
                     )
+
+    def set_batch_item_job(self, batch_id: int, note_id: str, job_id: int) -> None:
+        """条目 ↔ job 关联（M5b E4）：批次条目从此能进 /jobs/{id} 详情。"""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE batch_item SET job_id = ? WHERE batch_id = ? AND note_id = ?",
+                (job_id, batch_id, note_id),
+            )
+
+    def list_batch_items(self, batch_id: int) -> list[dict[str, Any]]:
+        """批次全部条目（登记顺序），供任务列表批次卡片渲染。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM batch_item WHERE batch_id = ? ORDER BY rowid",
+                (batch_id,),
+            ).fetchall()
+        return [dict(row) for row in rows]
 
     def get_batch_item_statuses(self, batch_id: int) -> dict[str, str]:
         """{note_id: status}，断点续传查这个跳过 done/skipped。"""

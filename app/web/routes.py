@@ -289,6 +289,7 @@ async def import_list(
     payload: dict = Body(...),
     allow_partial: bool = False,
     force: bool = False,
+    title: str | None = None,
     storage: Storage = Depends(get_storage),
 ) -> dict:
     """导入插件导出的 notes.json，后台跑 batch（走代理 / 断点续传 / token 跳过 / 汇总）。
@@ -331,6 +332,7 @@ async def import_list(
             output_dir=output_dir,
             proxy=proxy,
             allow_partial=allow_partial,
+            title=title,
         )
     )
     return {"ok": True, "count": len(notes), "skipped_duplicates": skipped_duplicates}
@@ -338,8 +340,16 @@ async def import_list(
 
 @app.get("/api/batches")
 def api_list_batches(storage: Storage = Depends(get_storage)) -> dict:
-    """批次列表 + 每批的状态计数，供批量状态页轮询。"""
+    """批次列表 + 每批的状态计数，供任务列表批次卡片轮询。"""
     return {"batches": storage.list_batches(limit=50)}
+
+
+@app.get("/api/batches/{batch_id}/items")
+def api_batch_items(batch_id: int, storage: Storage = Depends(get_storage)) -> dict:
+    """批次全部条目（含 job_id，可点进 /jobs/{id} 详情）。"""
+    if storage.get_batch(batch_id) is None:
+        raise HTTPException(status_code=404, detail="Batch not found")
+    return {"items": storage.list_batch_items(batch_id)}
 
 
 @app.get("/")
