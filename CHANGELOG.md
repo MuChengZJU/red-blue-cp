@@ -1,0 +1,30 @@
+# Changelog
+
+本项目版本遵循语义化版本。日期为发布日。
+
+## 0.4.0 — 2026-06-06
+
+**主题：博主安全批量（M4）+ 错误处理地基 + 一批输入/报错 UX 修复。**
+
+### 新增
+- **博主安全批量下载**：MV3 浏览器插件抓小红书博主清单（`user_posted`，去重、滚到底导出 `notes.json`，popup 手动导出/复制到剪贴板）+ `rbcp batch` 走代理批量下载（schema 校验、开跑前出口探测、断点续传、token 过期跳过、失败不中断汇总）。
+- **WebUI 批量导入页** `/batches`：上传或粘贴 `notes.json` → 后台批量下载 + 进度轮询。
+- **结构化错误体系** `service/errors.py`：异常分层（网络/API/风控/认证/解析等）+ `format_error_for_user` 人话提示；service 层补 logging + 打 response body。
+- **代理支持**：`--proxy` / `RBCP_PROXY` 显式穿透到主站下载层（护 IP）。
+
+### 修复 / 改进
+- **报错不再泄漏**：失败任务展示人话；技术详情为脱敏异常链摘要，**完整 traceback 只进服务器日志**，不暴露文件路径/用户名。
+- **输入更宽容**：单篇输入框接受整段分享文案（带标题/中文尾/emoji），自动抽 URL + 去追踪参数（B 站去 `share_source`/`vd_source` 保 `p`/`t`；小红书保 `xsec_token`/`xsec_source`）。
+- **重试原地**：重试复用同一条任务（不再新建），历史不堆积。
+- **DashScope 调用**：超时/连接错误重试 3 次；`run` 退出码 bug 修复。
+- 小红书 token 过期可靠识别（`/404` + `error_code=300031`）；TUN/系统代理下出口探测不再误判。
+
+### 说明
+- 模型仍为 DashScope（ASR `paraformer-v2` / VLM `qwen3-vl-flash` / LLM `qwen-plus`），LLM/VLM 走 OpenAI 兼容端点。
+- 红线：抓清单主路径为浏览器插件（pydoll 降为可选）；不打包 chromium；媒体不进知识库。
+
+## 0.3.0
+形态落地：自部署 WebUI（红蓝品牌、手机可达）+ PyPI 发布 + CI/CD + 详情页 Markdown 渲染。
+
+## 0.2.0 / 0.1.0
+P0：URL → Markdown 闭环（B 站 / 小红书，视频转录 + 图文识别 + 说话人分离），CLI + WebUI 双入口。
