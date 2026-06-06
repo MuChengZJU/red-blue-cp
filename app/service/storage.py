@@ -236,6 +236,28 @@ class Storage:
             ).fetchone()
         return dict(row) if row is not None else None
 
+    def list_batches(self, *, limit: int | None = None) -> list[dict[str, Any]]:
+        """批次列表（最新在前），每条附 done/failed/skipped/pending 计数。供 WebUI 批量状态页。"""
+        query = "SELECT * FROM batch ORDER BY id DESC"
+        params: list[Any] = []
+        if limit is not None:
+            query += " LIMIT ?"
+            params.append(limit)
+        with self._connect() as conn:
+            rows = conn.execute(query, params).fetchall()
+            out = []
+            for row in rows:
+                counts = {
+                    r["status"]: r["c"]
+                    for r in conn.execute(
+                        "SELECT status, COUNT(*) AS c FROM batch_item "
+                        "WHERE batch_id = ? GROUP BY status",
+                        (row["id"],),
+                    ).fetchall()
+                }
+                out.append({**dict(row), "counts": counts})
+        return out
+
     def find_active_batch(self, source: str, user_id: str | None) -> int | None:
         """按 (source, user_id) 找回最近一个批次 id，供 batch 断点续传复用。无则 None。"""
         with self._connect() as conn:

@@ -21,15 +21,21 @@ _log = logging.getLogger("rbcp.batch")
 SUPPORTED_SCHEMA_VERSION = 1
 
 
-def _load_and_validate(notes_json_path: Path, *, allow_partial: bool) -> dict[str, Any]:
-    """读 + 校验 notes.json 信封。不合规一律抛 ConfigError（拒绝，不猜测）。"""
-    path = Path(notes_json_path)
-    if not path.exists():
-        raise ConfigError(f"清单文件不存在：{path}")
-    try:
-        envelope = json.loads(path.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
-        raise ConfigError(f"清单不是合法 JSON：{path}") from exc
+def _load_and_validate(
+    notes_json: "Path | str | dict[str, Any]", *, allow_partial: bool
+) -> dict[str, Any]:
+    """读 + 校验 notes.json 信封。接受文件路径或已解析的 dict（WebUI 直接传 envelope）。
+    不合规一律抛 ConfigError（拒绝，不猜测）。"""
+    if isinstance(notes_json, dict):
+        envelope = notes_json
+    else:
+        path = Path(notes_json)
+        if not path.exists():
+            raise ConfigError(f"清单文件不存在：{path}")
+        try:
+            envelope = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+            raise ConfigError(f"清单不是合法 JSON：{path}") from exc
 
     if not isinstance(envelope, dict):
         raise ConfigError("清单顶层必须是对象（带 schema_version/notes 的信封）")
@@ -83,7 +89,7 @@ def _check_proxy_egress(proxies: dict[str, str]) -> str | None:
 
 
 def run_batch(
-    notes_json_path: Path,
+    notes_json_path: "Path | str | dict[str, Any]",
     *,
     api_key: str,
     output_dir: Path,

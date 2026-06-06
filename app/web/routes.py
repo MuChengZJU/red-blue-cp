@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from dotenv import load_dotenv
-from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -214,9 +214,53 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
     }
 
 
+@app.post("/api/import-list")
+async def import_list(
+    payload: dict = Body(...),
+    allow_partial: bool = False,
+) -> dict:
+    """导入插件导出的 notes.json，后台跑 batch（走代理 / 断点续传 / token 跳过 / 汇总）。
+
+    早校验 schema：不合规立即 400，不开后台任务。开跑后到 /batches 看进度。
+    """
+    from app.service import batch as batch_mod
+
+    try:
+        batch_mod._load_and_validate(payload, allow_partial=allow_partial)
+    except RbcpError as exc:
+        raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
+
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    proxy = os.getenv("RBCP_PROXY") or None
+    asyncio.create_task(
+        asyncio.to_thread(
+            batch_mod.run_batch,
+            payload,
+            api_key=api_key,
+            output_dir=output_dir,
+            proxy=proxy,
+            allow_partial=allow_partial,
+        )
+    )
+    return {"ok": True, "count": len(payload.get("notes") or [])}
+
+
+@app.get("/api/batches")
+def api_list_batches(storage: Storage = Depends(get_storage)) -> dict:
+    """批次列表 + 每批的状态计数，供批量状态页轮询。"""
+    return {"batches": storage.list_batches(limit=50)}
+
+
 @app.get("/")
 def index(request: Request):
     return templates.TemplateResponse(request, "index.html", {"request": request})
+
+
+@app.get("/batches")
+def batches_page(request: Request):
+    """批量导入 + 状态页：上传 notes.json，轮询看每批进度。"""
+    return templates.TemplateResponse(request, "batches.html", {"request": request})
 
 
 @app.get("/jobs/{job_id}")
