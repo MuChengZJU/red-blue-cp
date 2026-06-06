@@ -88,6 +88,8 @@
 | 2026-06-03 | WebUI 重做（红蓝品牌）+ QA | done | 从零重做 WebUI 设计系统（方案3红蓝品牌）+ 详情页 Markdown 渲染/源码切换（marked+DOMPurify），gstack 浏览器自动化 QA 修 4 个 bug，264 单测全过。[详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
 | 2026-06-03 | v0.3.0 发布 | done | 形态落地版发布到 PyPI（`red-blue-cp` 0.3.0）：自部署 WebUI 手机可达 + CI/CD（Trusted Publishing 打 tag 自动发）+ WSL 部署指南 + WebUI 重做。`pipx`/`uv tool` 一行装。真链路验证：从 PyPI 装后 `rbcp --help` 正常。[形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 2026-06-06 | M4 阶段1 完成 | done | 博主安全批量+错误地基。波1 并行写计划+token过期 spike，波2 串行 M4a 锁契约(PR#16)→M4b‖M4c 并行(PR#17/#18)，三 PR 各过 Codex 独立 review（修 1 真 bug + 5 UX/安全项）。MV3 插件抓清单 + `rbcp batch` 走代理断点续传。真链路：真实 xhs URL 端到端出 Markdown + 断点续传 live 验证；插件↔batch 契约跨语言验证。367 单测全过。WebUI 导入入口推迟。[波1契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
+| 2026-06-06 | 0.4.0 发布 + UX 迭代 | done | M4 全合 + bump 0.4.0 + CHANGELOG。用户实测反馈一轮：能并行的派 agent(popup/剪贴板/重试/URL-CJK/调研)、耦合的自己做(URL清理接入/重试原地/traceback脱敏/输入框放行)。406 单测。[M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
+| 待定 | M5a/M5b | pending | 流式修超时+LLM/VLM provider env化(开 Gemini) / WebUI v2(单条批量整合+批次进列表+去重) |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
@@ -98,6 +100,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-06 | 🔴 高 | 单测绿但真用崩（再证"完工=真链路"）：①分享文案粘贴报错根因在前端——`<input type=url>` 浏览器提交前就拦下非纯 URL，后端 clean_url 早能抽；改 type=text。②traceback 把 `/home/用户名`/.venv 路径泄漏给用户——log_excerpt 改脱敏异常链摘要、完整 tb 只进服务器日志。③长文 llm_clean 超时根因=非流式+180s read 超时撞 ~300s 生成（不是网络/额度）→ 流式是正解 | [M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
 | 2026-06-06 | 🔴 高 | 挂机一夜自主完成 M4 复盘：波次法(串行锁契约→并行填充)多 agent 下成立；Codex review 当合并门抓到 mock 盲区(probe_exit_ip 用 requests.get(trust_env=) 真跑 TypeError，单测 mock 吞了)；后台长跑 agent 遇 ECONNRESET 半途死(M4c 只留 RED 测试)→salvage+主会话接手比重派稳；遇不可验证 scope(WebUI 浏览器 QA)主动停+写清楚。~1h12m/4 PR/367 测试/9 Codex 修 | [挂机自主 M4 复盘](docs/devlog/2026-06-06-overnight-autonomous-m4-retro.md) |
 | 2026-06-05 | 🔴 高 | M4 波1 契约交叉核对 + token 过期 spike：①`proxy` 契约穿不过原文件边界→M4a 扩到 extractor/fetcher 显式 `proxies=` 穿透；②小红书过期 token 可靠信号=`response.url` 跳 `/404`+`error_code=300031`（**非** title 空，避 Codex 误伤坑），须在解析前查；③proxy 口径=主站走代理、CDN 媒体字节默认不走 | [M4 波1 契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
 | 2026-06-05 | 🔴 高 | Codex 独立 review 博主批量方案：实锤 `model.py` `trust_env=False` 致视频/ASR 下载绕过代理；并行相交面被低估（storage 隐藏耦合 / 批量必依赖 service 异常）→ **先串行锁地基（errors.py+抽_fetch_single+storage模型+修代理）再并行**；异常契约改少类+结构化字段；阶段1降范围只 CLI batch | [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
