@@ -179,6 +179,23 @@ class Storage:
                 ("failed", error_message, log_excerpt, now, now, job_id),
             )
 
+    def reset_for_retry(self, job_id: int) -> bool:
+        """原地重试：把 job 重置为 pending、清错误、保留 url、retry_count+1。
+        返回 job 是否存在。重试不新建一条，避免历史堆积、且能看到这条最终成没成。"""
+        now = datetime.now().isoformat()
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                UPDATE jobs
+                SET status = 'pending', error_message = NULL, log_excerpt = NULL,
+                    md_path = NULL, started_at = NULL, finished_at = NULL,
+                    retry_count = retry_count + 1, updated_at = ?
+                WHERE id = ?
+                """,
+                (now, job_id),
+            )
+            return cursor.rowcount > 0
+
     def get_job(self, job_id: int) -> dict[str, Any] | None:
         with self._connect() as conn:
             row = conn.execute(

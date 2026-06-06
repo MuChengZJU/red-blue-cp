@@ -118,8 +118,8 @@
 
     const errorLine = status === "failed" && job.error_message
       ? `<div class="error-line">${escapeHtml(job.error_message)}</div>` : "";
-    const retryBtn = status === "failed" && url
-      ? `<button type="button" class="button small secondary retry-btn" data-url="${escapeHtml(url)}">重试</button>` : "";
+    const retryBtn = status === "failed" && id !== ""
+      ? `<button type="button" class="button small secondary retry-btn" data-id="${escapeHtml(id)}">重试</button>` : "";
 
     return `
       <article class="job-item${isNew ? " is-new" : ""}" data-platform="${escapeHtml(plat)}" data-id="${escapeHtml(id)}">
@@ -252,13 +252,15 @@
   list.addEventListener("click", async (event) => {
     const btn = event.target.closest(".retry-btn");
     if (!btn) return;
-    const retryUrl = btn.dataset.url;
-    if (!retryUrl) return;
+    const jobId = btn.dataset.id;
+    if (!jobId) return;
     btn.disabled = true;
-    btn.textContent = "提交中...";
+    btn.textContent = "重试中...";
     try {
-      await submitUrl(retryUrl);
-      window.rbToast("已重新提交", "success");
+      // 原地重试同一条 job，不新建
+      const resp = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
+      if (!resp.ok) throw new Error((await resp.json().catch(() => ({}))).detail || resp.status);
+      window.rbToast("已重新开始这条任务", "success");
       lastSignature = null;
       await refreshJobs();
     } catch (error) {

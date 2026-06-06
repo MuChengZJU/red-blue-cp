@@ -148,13 +148,9 @@
     return "任务失败。展开下方「技术详情」查看具体原因，或点「重试」重新抽取。";
   }
 
-  async function retryJob(url) {
-    // 复用列表卡片的重试机制：POST /api/jobs 重提同一个 url，成功后跳到新任务详情页。
-    const response = await fetch("/api/jobs", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
-    });
+  async function retryJob() {
+    // 原地重试同一条 job（不新建），重试后留在本页，轮询会自动反映状态。
+    const response = await fetch(`/api/jobs/${encodeURIComponent(jobId)}/retry`, { method: "POST" });
     if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
     return response.json();
   }
@@ -178,12 +174,11 @@
     if (retryBtn) {
       retryBtn.addEventListener("click", async () => {
         retryBtn.disabled = true;
-        retryBtn.textContent = "提交中...";
+        retryBtn.textContent = "重试中...";
         try {
-          const out = await retryJob(retryBtn.dataset.url);
-          window.rbToast("已重新提交", "success");
-          const newId = out.job_id ?? out.id;
-          window.location.href = newId != null ? `/jobs/${encodeURIComponent(newId)}` : "/";
+          await retryJob();
+          window.rbToast("已重新开始这条任务", "success");
+          // 留在本页，轮询会刷出 处理中 → 完成/失败
         } catch (error) {
           window.rbToast(`重试失败：${error.message}`, "error");
           retryBtn.disabled = false;
