@@ -292,6 +292,44 @@
     .error-box .error-detail summary { cursor: pointer; font-size: 12.5px; color: var(--muted); user-select: none; }
     .error-box .error-detail pre { margin-top: 8px; max-height: 320px; overflow: auto; }
 
+    /* ── 单条/批量标签 + 批量导入（M5b） ──────────────────── */
+    .submit-tabs { margin-bottom: 12px; display: inline-flex; }
+    .batch-import-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+    .file-pick { cursor: pointer; display: inline-flex; align-items: center; }
+    .file-name { font-size: 13px; color: var(--muted); overflow-wrap: anywhere; }
+    .batch-paste { margin: 0 0 10px; }
+    .batch-paste summary { cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; }
+    .batch-paste textarea {
+      width: 100%; margin-top: 8px; box-sizing: border-box;
+      font-family: ui-monospace, monospace; font-size: 12px; padding: 8px;
+      border: 1.5px solid var(--line); border-radius: var(--r-sm);
+    }
+    #batch-title-input {
+      flex: 1; min-width: 220px; min-height: 38px; padding: 0 12px;
+      border: 1.5px solid var(--line); border-radius: var(--r-sm); font-size: 13.5px;
+    }
+    .batch-options { font-size: 13px; color: var(--muted); }
+    .batch-options label { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; }
+    .batch-options .spacer { flex: 1; }
+
+    /* ── 批次卡片（M5b：批量进任务列表） ──────────────────── */
+    .batch-card { margin-bottom: 10px; }
+    .batch-head { display: flex; justify-content: space-between; align-items: center; gap: 10px; }
+    .batch-progress-text { font-size: 12.5px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+    .batch-counts { margin: 4px 0 8px; }
+    .partial-flag { color: var(--danger-text); }
+    .batch-progress { height: 6px; background: var(--soft-2); border-radius: 3px; overflow: hidden; margin-bottom: 8px; }
+    .batch-progress > div { height: 100%; background: linear-gradient(90deg, var(--red, #e23744), var(--blue, #2f6fed)); transition: width .4s; }
+    .batch-items { max-height: 132px; overflow-y: auto; }
+    .batch-items.expanded { max-height: 320px; }
+    .batch-item-row {
+      display: flex; align-items: center; gap: 8px; padding: 4px 2px;
+      font-size: 13px; border-bottom: 1px dashed var(--line); min-width: 0;
+    }
+    .batch-item-row a { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .badge.mini { font-size: 11px; padding: 1px 7px; min-width: 34px; justify-content: center; }
+    .batch-expand { margin-top: 8px; }
+
     /* ── 用量账单（P1h） ──────────────────────────────────── */
     .usage-detail summary { cursor: pointer; font-size: 13px; color: var(--muted); user-select: none; font-weight: 600; }
     .usage-row {

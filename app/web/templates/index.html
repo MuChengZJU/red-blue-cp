@@ -2,13 +2,47 @@
 
 {% block content %}
 <section class="submit-card">
-  <form id="job-form" class="submit-row">
-    <input id="url-input" type="text" name="url" placeholder="粘贴 B 站 / 小红书链接，或整段分享文案（带标题也行），回车抽取" required
-           autocomplete="off" spellcheck="false">
-    <button id="submit-button" type="submit">抽取</button>
-  </form>
-  <div id="submit-hint" class="submit-hint" aria-live="polite"></div>
-  <p style="margin:10px 0 0; font-size:13px"><a href="/batches">批量导入清单（博主全量，插件导出的 notes.json）→</a></p>
+  <div class="segmented submit-tabs" role="tablist" aria-label="提交方式">
+    <button id="tab-single" type="button" role="tab" aria-pressed="true">单条</button>
+    <button id="tab-batch" type="button" role="tab" aria-pressed="false">批量</button>
+  </div>
+
+  <!-- 单条面板 -->
+  <div id="panel-single" role="tabpanel">
+    <form id="job-form" class="submit-row">
+      <input id="url-input" type="text" name="url" placeholder="粘贴 B 站 / 小红书链接，或整段分享文案（带标题也行），回车抽取" required
+             autocomplete="off" spellcheck="false">
+      <button id="submit-button" type="submit">抽取</button>
+    </form>
+    <div id="submit-hint" class="submit-hint" aria-live="polite"></div>
+  </div>
+
+  <!-- 批量面板：导入插件导出的 notes.json -->
+  <div id="panel-batch" role="tabpanel" hidden>
+    <div class="batch-import-row">
+      <label class="button secondary file-pick" for="batch-file-input">
+        选择 notes.json
+        <input id="batch-file-input" type="file" accept="application/json,.json" hidden>
+      </label>
+      <span id="batch-file-name" class="file-name">未选择文件（也可在下方粘贴内容）</span>
+    </div>
+    <details class="batch-paste">
+      <summary>直接粘贴 notes.json 内容 ▾</summary>
+      <textarea id="batch-paste-input" rows="5"
+                placeholder='{"schema_version":1,"source":"xhs_user_posted",...}'></textarea>
+    </details>
+    <div class="batch-import-row">
+      <input id="batch-title-input" type="text" placeholder="批次名称（可选，默认按博主+条数自动取名）"
+             autocomplete="off">
+    </div>
+    <div class="batch-import-row batch-options">
+      <label><input id="force-redownload" type="checkbox"> 已下过的也重新下载</label>
+      <label><input id="allow-partial" type="checkbox"> 允许半份清单</label>
+      <span class="spacer"></span>
+      <button id="import-button" type="button">导入开跑</button>
+    </div>
+    <div id="import-hint" class="submit-hint" aria-live="polite"></div>
+  </div>
 </section>
 
 <section class="section">
@@ -21,6 +55,7 @@
       <button type="button" class="filter-chip" data-filter="failed" aria-pressed="false"><span class="dot failed"></span>失败 <span id="cnt-failed">0</span></button>
     </div>
   </div>
+  <div id="batch-list"></div>
   <div id="job-list" class="job-list">
     <div class="loading"><span class="spinner"></span>正在加载...</div>
   </div>
@@ -193,7 +228,8 @@
 
   async function refreshJobs() {
     try {
-      const response = await fetch("/api/jobs?limit=50");
+      // exclude_batched：批量任务住在批次卡片里，单卡不重复显示
+      const response = await fetch("/api/jobs?limit=50&exclude_batched=true");
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       renderJobs(normalizeJobs(await response.json()));
     } catch (error) {
@@ -201,8 +237,84 @@
         list.innerHTML = `<div class="empty"><p class="empty-title">任务列表加载失败</p><div>${escapeHtml(error.message)}</div></div>`;
       }
     }
+    refreshBatches();
     refreshTotalCost();
   }
+
+  // ── 批次卡片（M5b：批量进任务列表）────────────────────────
+  const batchListEl = document.getElementById("batch-list");
+  const expandedBatches = new Set();   // 展开过的批次 id
+  const batchItemsCache = {};          // batch_id -> 全量条目
+  let lastBatchSignature = null;
+
+  function itemRowHtml(item) {
+    const label = item.title || item.note_id || "";
+    const st = item.status || "pending";
+    const stText = { done: "完成", failed: "失败", skipped: "跳过", pending: "待下" }[st] || st;
+    const link = item.job_id
+      ? `<a href="/jobs/${encodeURIComponent(item.job_id)}">${escapeHtml(label)}</a>`
+      : escapeHtml(label);
+    return `<div class="batch-item-row"><span class="badge mini ${escapeHtml(st)}">${stText}</span>${link}</div>`;
+  }
+
+  function batchCardHtml(b) {
+    const c = b.counts || {};
+    const done = c.done || 0, failed = c.failed || 0, skipped = c.skipped || 0, pending = c.pending || 0;
+    const total = done + failed + skipped + pending;
+    const finished = done + failed + skipped;
+    const pct = total ? Math.round((finished / total) * 100) : 0;
+    const title = b.title || (b.user_id ? `博主 ${b.user_id}` : `批次 ${b.id}`);
+    const expanded = expandedBatches.has(b.id);
+    const items = expanded ? (batchItemsCache[b.id] || []) : (b.items_preview || []);
+    const more = !expanded && total > items.length
+      ? `<button type="button" class="button small ghost batch-expand" data-id="${b.id}">展开全部 ${total} 条</button>`
+      : "";
+    return `
+      <article class="job-item batch-card" data-platform="xiaohongshu">
+        <div class="job-bar"></div>
+        <div class="job-body" style="display:block">
+          <div class="batch-head">
+            <h3 class="job-title"><span class="plat-dot xiaohongshu"></span>${escapeHtml(title)}</h3>
+            <span class="batch-progress-text">${finished}/${total}${b.status === "running" ? ' · <span class="spinner"></span>' : ""}</span>
+          </div>
+          <div class="job-meta batch-counts">
+            <span>✓ ${done}</span><span class="sep">·</span><span>✗ ${failed}</span>
+            <span class="sep">·</span><span>⤼ ${skipped}</span><span class="sep">·</span><span>待 ${pending}</span>
+            ${b.complete ? "" : '<span class="sep">·</span><span class="partial-flag">半份清单</span>'}
+          </div>
+          <div class="batch-progress"><div style="width:${pct}%"></div></div>
+          <div class="batch-items${expanded ? " expanded" : ""}">${items.map(itemRowHtml).join("")}</div>
+          ${more}
+        </div>
+      </article>`;
+  }
+
+  async function refreshBatches() {
+    try {
+      const resp = await fetch("/api/batches");
+      if (!resp.ok) return;
+      const batches = (await resp.json()).batches || [];
+      // 展开的批次同步取全量条目（状态会变）
+      await Promise.all([...expandedBatches].map(async (id) => {
+        const r = await fetch(`/api/batches/${id}/items`);
+        if (r.ok) batchItemsCache[id] = (await r.json()).items || [];
+      }));
+      const signature = JSON.stringify(batches) + "|" + [...expandedBatches].join(",")
+        + "|" + Object.values(batchItemsCache).map((v) => v.length).join(",");
+      if (signature === lastBatchSignature) return;
+      lastBatchSignature = signature;
+      batchListEl.innerHTML = batches.map(batchCardHtml).join("");
+    } catch (_) { /* 轮询失败静默 */ }
+  }
+
+  batchListEl.addEventListener("click", async (event) => {
+    const btn = event.target.closest(".batch-expand");
+    if (!btn) return;
+    const id = Number(btn.dataset.id);
+    expandedBatches.add(id);
+    lastBatchSignature = null;
+    await refreshBatches();
+  });
 
   // P1h：累计估算费用（拿不到就留空，不挡任务列表）
   async function refreshTotalCost() {
@@ -233,12 +345,24 @@
   }
   input.addEventListener("input", onInput);
 
-  async function submitUrl(url) {
+  async function submitUrl(url, force = false) {
     const response = await fetch("/api/jobs", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ url }),
+      body: JSON.stringify({ url, force }),
     });
+    if (response.status === 409) {
+      // M5b 去重：已成功下过 → 问一句，强制才重下
+      const detail = ((await response.json()) || {}).detail || {};
+      if (detail.duplicate) {
+        const name = detail.title ? `「${detail.title}」` : "这条内容";
+        const again = window.confirm(
+          `${name}已经下载过（任务 #${detail.existing_job_id}）。\n还要重新下载一遍吗？`
+        );
+        if (again) return submitUrl(url, true);
+        return { skipped: true, existing_job_id: detail.existing_job_id };
+      }
+    }
     if (!response.ok) throw new Error((await response.text()) || `HTTP ${response.status}`);
     return response.json();
   }
@@ -249,17 +373,88 @@
     if (!url) return;
     button.disabled = true;
     try {
-      await submitUrl(url);
+      const result = await submitUrl(url);
       input.value = "";
       hint.className = "submit-hint";
       hint.textContent = "";
-      window.rbToast("已提交，开始抽取", "success");
+      if (result.skipped) {
+        window.rbToast(`已跳过：此前下载过（任务 #${result.existing_job_id}）`, "success");
+      } else {
+        window.rbToast("已提交，开始抽取", "success");
+      }
       lastSignature = null;       // 强制立即重绘，让新任务高亮出现
       await refreshJobs();
     } catch (error) {
       window.rbToast(`提交失败：${error.message}`, "error");
     } finally {
       button.disabled = false;
+    }
+  });
+
+  // ── 标签切换（M5b：单条/批量整合进主页）──────────────────
+  const tabSingle = document.getElementById("tab-single");
+  const tabBatch = document.getElementById("tab-batch");
+  const panelSingle = document.getElementById("panel-single");
+  const panelBatch = document.getElementById("panel-batch");
+
+  function setTab(which) {
+    const single = which === "single";
+    tabSingle.setAttribute("aria-pressed", String(single));
+    tabBatch.setAttribute("aria-pressed", String(!single));
+    panelSingle.hidden = !single;
+    panelBatch.hidden = single;
+    if (single) input.focus();
+  }
+  tabSingle.addEventListener("click", () => setTab("single"));
+  tabBatch.addEventListener("click", () => setTab("batch"));
+
+  // ── 批量导入（插件导出的 notes.json）──────────────────────
+  const fileInput = document.getElementById("batch-file-input");
+  const fileNameEl = document.getElementById("batch-file-name");
+  const pasteInput = document.getElementById("batch-paste-input");
+  const importHint = document.getElementById("import-hint");
+
+  fileInput.addEventListener("change", () => {
+    fileNameEl.textContent = fileInput.files[0]
+      ? fileInput.files[0].name : "未选择文件（也可在下方粘贴内容）";
+  });
+
+  document.getElementById("import-button").addEventListener("click", async () => {
+    const f = fileInput.files[0];
+    const pasted = pasteInput.value.trim();
+    let raw;
+    if (f) { raw = await f.text(); }
+    else if (pasted) { raw = pasted; }
+    else { importHint.textContent = "请选择 notes.json 文件，或在上方粘贴内容"; return; }
+
+    let envelope;
+    try { envelope = JSON.parse(raw); }
+    catch (_) { importHint.textContent = "内容不是合法 JSON"; return; }
+
+    const params = new URLSearchParams({
+      allow_partial: document.getElementById("allow-partial").checked,
+      force: document.getElementById("force-redownload").checked,
+    });
+    const batchTitle = document.getElementById("batch-title-input").value.trim();
+    if (batchTitle) params.set("title", batchTitle);
+
+    importHint.textContent = "导入中...";
+    try {
+      const r = await fetch(`/api/import-list?${params}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(envelope),
+      });
+      const d = await r.json();
+      if (!r.ok) { importHint.textContent = `导入失败：${d.detail || "未知错误"}`; return; }
+      const parts = [`已开跑 ${d.count || 0} 条`];
+      if (d.skipped_duplicates) parts.push(`跳过已下过的 ${d.skipped_duplicates} 条`);
+      if (!d.count) parts[0] = "没有新内容";
+      importHint.textContent = parts.join("，") + "。进度看下方批次卡片。";
+      lastBatchSignature = null;
+      refreshBatches();
+    } catch (e) {
+      importHint.textContent = `导入请求失败：${e}`;
     }
   });
 

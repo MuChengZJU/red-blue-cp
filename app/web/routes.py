@@ -11,7 +11,7 @@ from typing import Callable
 
 from dotenv import load_dotenv
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
@@ -205,9 +205,10 @@ async def retry_job(
 def list_jobs(
     limit: int = 20,
     offset: int = 0,
+    exclude_batched: bool = False,
     storage: Storage = Depends(get_storage),
 ) -> list[dict]:
-    return storage.list_jobs(limit=limit, offset=offset)
+    return storage.list_jobs(limit=limit, offset=offset, exclude_batched=exclude_batched)
 
 
 @app.get("/api/stats")
@@ -358,9 +359,9 @@ def index(request: Request):
 
 
 @app.get("/batches")
-def batches_page(request: Request):
-    """批量导入 + 状态页：上传 notes.json，轮询看每批进度。"""
-    return templates.TemplateResponse(request, "batches.html", {"request": request})
+def batches_page():
+    """M5b：批量已整合进主页（批量标签 + 批次卡片），旧入口重定向回主页。"""
+    return RedirectResponse(url="/", status_code=301)
 
 
 @app.get("/jobs/{job_id}")

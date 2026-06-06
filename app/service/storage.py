@@ -253,8 +253,16 @@ class Storage:
         *,
         limit: int | None = None,
         offset: int = 0,
+        exclude_batched: bool = False,
     ) -> list[dict[str, Any]]:
-        query = "SELECT * FROM jobs ORDER BY created_at DESC, id DESC"
+        # exclude_batched：批量产生的 job 在任务列表里住在批次卡片内，单卡不重复显示（M5b E8）
+        query = "SELECT * FROM jobs"
+        if exclude_batched:
+            query += (
+                " WHERE id NOT IN"
+                " (SELECT job_id FROM batch_item WHERE job_id IS NOT NULL)"
+            )
+        query += " ORDER BY created_at DESC, id DESC"
         params: list[int] = []
         if limit is not None:
             query += " LIMIT ? OFFSET ?"
@@ -317,7 +325,8 @@ class Storage:
         return dict(row) if row is not None else None
 
     def list_batches(self, *, limit: int | None = None) -> list[dict[str, Any]]:
-        """批次列表（最新在前），每条附 done/failed/skipped/pending 计数。供 WebUI 批量状态页。"""
+        """批次列表（最新在前），每条附状态计数 + 前 5 条预览（M5b 批次卡片）。
+        全量条目走 list_batch_items（展开时才取，列表轮询不背全量）。"""
         query = "SELECT * FROM batch ORDER BY id DESC"
         params: list[Any] = []
         if limit is not None:
@@ -335,7 +344,15 @@ class Storage:
                         (row["id"],),
                     ).fetchall()
                 }
-                out.append({**dict(row), "counts": counts})
+                preview = [
+                    dict(r)
+                    for r in conn.execute(
+                        "SELECT note_id, title, status, job_id FROM batch_item "
+                        "WHERE batch_id = ? ORDER BY rowid LIMIT 5",
+                        (row["id"],),
+                    ).fetchall()
+                ]
+                out.append({**dict(row), "counts": counts, "items_preview": preview})
         return out
 
     def find_active_batch(self, source: str, user_id: str | None) -> int | None:
