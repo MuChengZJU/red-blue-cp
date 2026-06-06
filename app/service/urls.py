@@ -12,7 +12,18 @@ from __future__ import annotations
 import re
 from urllib.parse import urlsplit, urlunsplit
 
-_URL_RE = re.compile(r"https?://[^\s　]+", re.IGNORECASE)
+# URL 提取：CJK 兼容——遇中文字符 / 全角标点 / CJK 标点 / emoji 即停止，
+# 避免把分享文案里紧跟 URL 的中文尾巴（如「，复制本条信息」）吞进 URL。
+_URL_RE = re.compile(
+    r"https?://[^"
+    r"\s"  # 任意空白（含半角空格 / 换行）
+    r"　-〿"  # CJK 符号和标点（含全角空格 　、。〈〉「」 等）
+    r"一-鿿"  # CJK 统一表意（汉字）
+    r"＀-￯"  # 全角 ASCII / 半宽片假名（含 ， 。 ！ ？ 【 】 等）
+    r"☀-➿⬀-⯿︀-️\U0001f000-\U0001faff"  # emoji / 杂项符号 / 变体选择符
+    r"]+",
+    re.IGNORECASE,
+)
 _BILI_KEEP = {"p", "t"}
 _XHS_KEEP = {"xsec_token", "xsec_source"}
 # 分享文案 URL 常见尾随包裹/标点

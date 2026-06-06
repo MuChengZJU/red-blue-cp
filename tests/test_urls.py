@@ -52,3 +52,25 @@ class TestEdge:
     def test_trailing_bracket_stripped(self):
         raw = "https://www.bilibili.com/video/BV1xx/】"
         assert clean_url(raw) == "https://www.bilibili.com/video/BV1xx/"
+
+
+class TestCJKTrailing:
+    """URL 后紧跟中文/全角标点没空格时，不能把中文尾巴吞进 URL。"""
+
+    def test_xhs_app_share_no_chinese_tail(self):
+        raw = (
+            "XX发布了一篇小红书笔记，快来看吧！ 😆 hQ3abc 😆 "
+            "http://xhslink.com/a/abc123，复制本条信息，打开【小红书】App查看精彩内容！"
+        )
+        assert clean_url(raw) == "http://xhslink.com/a/abc123"
+
+    def test_xhslink_m_short_link_kept(self):
+        assert clean_url("http://xhslink.com/m/1gJ5tOG6M1b") == "http://xhslink.com/m/1gJ5tOG6M1b"
+
+    def test_bili_app_share_chinese_tail(self):
+        raw = "【标题】 https://www.bilibili.com/video/BV1xx/?share_source=copy_web，复制打开"
+        assert clean_url(raw) == "https://www.bilibili.com/video/BV1xx/"
+
+    def test_emoji_glued_to_url(self):
+        raw = "😆http://xhslink.com/a/abc123😆复制本条信息"
+        assert clean_url(raw) == "http://xhslink.com/a/abc123"
