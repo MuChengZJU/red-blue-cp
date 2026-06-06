@@ -199,6 +199,8 @@
 
   function renderFailed(job) {
     toolbar.hidden = true;
+    // 跨重试别残留上一轮的账单（Codex review）
+    document.getElementById("usage-panel").hidden = true;
     titleEl.textContent = job.title || job.url || "任务失败";
 
     const human = humanizeError(job.error_message);
@@ -232,6 +234,7 @@
 
   function renderProcessing(job) {
     toolbar.hidden = true;
+    document.getElementById("usage-panel").hidden = true;
     titleEl.textContent = job.title || job.url || "正在抽取...";
     contentEl.innerHTML = '<div class="loading"><span class="spinner"></span>处理中，完成后自动显示...</div>';
     setTimeout(loadJob, 2000);

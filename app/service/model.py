@@ -235,6 +235,9 @@ class DashscopeProvider:
                 platform="dashscope",
                 operation=operation,
             ) from exc
+        finally:
+            # [DONE] 即停不读到 EOF；不 close 会占住连接池里的连接（Codex review）
+            response.close()
         self.usage_events.append({
             "stage": operation,
             "model": payload.get("model"),

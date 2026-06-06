@@ -216,3 +216,33 @@ class TestAsrUsage:
         assert event["model"] == "paraformer-v2"
         assert event["audio_seconds"] == 10
         assert event["elapsed_seconds"] >= 0
+
+
+class TestStreamResponseClosed:
+
+    @patch("app.service.model.requests.post")
+    def test_response_closed_after_parse(self, mock_post):
+        # Codex review P2：[DONE] 即停不读到 EOF，不 close 会占住连接池
+        resp = _mock_stream_response(["ok"], _USAGE)
+        mock_post.return_value = resp
+        provider = DashscopeProvider(api_key="test-key")
+        provider.llm_clean("raw")
+        resp.close.assert_called_once()
+
+    @patch("app.service.model.requests.post")
+    def test_response_closed_even_on_midstream_error(self, mock_post):
+        resp = MagicMock()
+        resp.status_code = 200
+
+        def _broken_lines(**kwargs):
+            raise requests.exceptions.ConnectionError("drop")
+            yield  # pragma: no cover
+
+        resp.iter_lines.side_effect = _broken_lines
+        mock_post.return_value = resp
+        provider = DashscopeProvider(api_key="test-key")
+        from app.service.errors import NetworkError
+
+        with pytest.raises(NetworkError):
+            provider.llm_clean("raw")
+        resp.close.assert_called_once()

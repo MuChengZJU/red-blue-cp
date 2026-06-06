@@ -214,6 +214,7 @@ class Storage:
                 UPDATE jobs
                 SET status = 'pending', error_message = NULL, log_excerpt = NULL,
                     md_path = NULL, started_at = NULL, finished_at = NULL,
+                    usage = NULL,
                     retry_count = retry_count + 1, updated_at = ?
                 WHERE id = ?
                 """,

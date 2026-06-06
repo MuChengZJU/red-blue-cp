@@ -109,3 +109,14 @@ class TestMigration:
         new_id = storage.create_job("https://b23.tv/new")
         storage.mark_done(new_id, md_path="/tmp/n.md", usage=_USAGE)
         assert storage.get_job(new_id)["usage"] == _USAGE
+
+
+class TestRetryClearsUsage:
+
+    def test_reset_for_retry_clears_usage(self, storage):
+        # Codex review P2：重试期间不能继续报上一轮的费用
+        job_id = storage.create_job("https://b23.tv/x")
+        storage.mark_done(job_id, md_path="/tmp/a.md", usage=_USAGE)
+        storage.reset_for_retry(job_id)
+        assert storage.get_job(job_id)["usage"] is None
+        assert storage.total_cost_yuan() == 0.0
