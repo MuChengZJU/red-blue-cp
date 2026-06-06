@@ -20,6 +20,7 @@ from app.service.pipeline import (
     build_proxies,
     fetch_single as _fetch_single,
 )
+from app.service.urls import clean_url
 
 
 app = typer.Typer()
@@ -49,6 +50,7 @@ def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]
 def run_pipeline(url: str) -> str:
     """Run the URL-to-Markdown pipeline and return the generated file path."""
     load_dotenv()
+    url = clean_url(url)  # 分享文案抽 URL + 去追踪参数（小红书保 token）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     pipeline = _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
@@ -146,6 +148,8 @@ def fetch(
 ) -> None:
     """抓单篇笔记，或用 --all 抓整个博主。"""
     load_dotenv()
+    if not all_:
+        url = clean_url(url)  # 单篇：分享文案抽 URL + 去追踪参数（--all 是博主主页 URL，不动）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     proxy = proxy or os.getenv("RBCP_PROXY") or None

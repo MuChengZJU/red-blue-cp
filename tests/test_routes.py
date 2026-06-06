@@ -63,6 +63,14 @@ class TestCreateJob:
         assert job is not None
         assert job["url"] == "https://www.bilibili.com/video/BV1test"
 
+    def test_cleans_share_text_url(self, client, mock_storage):
+        """粘贴 B 站分享文案（标题 + 追踪后缀）→ 存的是干净 URL。"""
+        raw = "【标题】 https://www.bilibili.com/video/BV1ZZ/?share_source=copy_web&vd_source=abc"
+        resp = client.post("/api/jobs", json={"url": raw})
+        assert resp.status_code in (200, 201, 202)
+        job = mock_storage.get_job(resp.json()["job_id"])
+        assert job["url"] == "https://www.bilibili.com/video/BV1ZZ/"
+
     def test_missing_url_returns_422(self, client):
         resp = client.post("/api/jobs", json={})
         assert resp.status_code == 422

@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from app.service.errors import RbcpError, format_error_for_user
 from app.service.extractor import detect_platform
 from app.service.storage import Storage
+from app.service.urls import clean_url
 
 
 load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
@@ -89,9 +90,11 @@ def _run_job(
         logger.info("[job %s] done: %s", job_id, result["md_path"])
     except Exception as error:
         tb = traceback.format_exc()
+        # error_message 存「人话」（列表/详情页直接显示，不再糊裸异常 + 长重定向 URL）；
+        # 技术细节进 log_excerpt（详情页折叠）。
         storage.mark_failed(
             job_id,
-            error_message=str(error),
+            error_message=format_error_for_user(error),
             log_excerpt=tb,
         )
         logger.error("[job %s] FAILED: %s\n%s", job_id, error, tb)
@@ -123,16 +126,18 @@ async def create_job(
     storage: Storage = Depends(get_storage),
     pipeline_fn: Callable[[str], str] = Depends(get_pipeline_fn),
 ) -> dict[str, int]:
+    # 分享文案抽 URL + 去追踪参数（小红书保 token）。粘贴带标题的分享串也能用。
+    url = clean_url(payload.url)
     # audit #4：建 job 前先校验平台，非 B站/小红书立即 400 + 人话，
     # 别让用户等异步任务跑到 detect_platform 才报错（白等一轮）。
     try:
-        detect_platform(payload.url)
+        detect_platform(url)
     except RbcpError as exc:
         raise HTTPException(status_code=400, detail=format_error_for_user(exc)) from None
 
-    job_id = storage.create_job(payload.url)
+    job_id = storage.create_job(url)
     asyncio.create_task(
-        asyncio.to_thread(_run_job, job_id, payload.url, storage, pipeline_fn)
+        asyncio.to_thread(_run_job, job_id, url, storage, pipeline_fn)
     )
     return {"job_id": job_id}
 
