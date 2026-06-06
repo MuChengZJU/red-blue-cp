@@ -56,16 +56,30 @@ def _load_and_validate(notes_json_path: Path, *, allow_partial: bool) -> dict[st
     return envelope
 
 
-def _assert_proxy_effective(proxies: dict[str, str]) -> None:
-    """开跑前出口探测：代理出口 == 直连出口 → 代理没生效，报错不开跑。"""
-    direct = probe_exit_ip(None)
-    via_proxy = probe_exit_ip(proxies)
-    if direct == via_proxy:
+def _check_proxy_egress(proxies: dict[str, str]) -> str | None:
+    """开跑前出口探测。返回警告字符串（或 None=明确生效）。**代理连不上才硬拦**。
+
+    出口==直连不再硬拦：TUN/系统代理模式下整机流量都走隧道，直连与代理出口
+    本就相同（用户其实受保护），硬拦会误伤。改成给警告让用户自己核对——
+    若没开 TUN 而出口相同，那才是真的没生效、暴露真实 IP。
+    """
+    try:
+        via_proxy = probe_exit_ip(proxies)
+    except Exception as exc:  # noqa: BLE001 - 代理连不上是唯一硬失败
         raise NetworkError(
-            "代理未生效（出口 IP 与直连相同），拒绝裸 IP 批量下载",
-            user_message=f"代理未生效，当前出口={via_proxy}。请检查 RBCP_PROXY / Clash。",
-            debug_context={"exit_ip": via_proxy},
+            f"代理连不上：{exc}",
+            user_message="代理连不上，请检查 RBCP_PROXY / Clash 是否在跑、端口对不对。",
+        ) from exc
+    try:
+        direct = probe_exit_ip(None)
+    except Exception:  # noqa: BLE001 - 直连探测失败不影响开跑
+        direct = None
+    if direct is not None and direct == via_proxy:
+        return (
+            f"代理出口与直连相同（{via_proxy}）：若你开了 TUN/系统代理，这是正常的"
+            f"（整机已走代理）；若没开，则当前用的是真实 IP、代理未生效，请核对后再批量下。"
         )
+    return None
 
 
 def run_batch(
@@ -87,15 +101,18 @@ def run_batch(
 
     summary: dict[str, Any] = {
         "ok": 0, "failed": 0, "skipped": 0,
-        "token_expired": [], "results": [], "batch_id": None,
+        "token_expired": [], "results": [], "batch_id": None, "proxy_warning": None,
     }
     if not notes:
         _log.info("清单为空，无可下载笔记")
         return summary
 
-    # 开跑前出口探测（仅在配了代理时）
+    # 开跑前出口探测（仅在配了代理时）。连不上硬拦；出口==直连只警告不拦。
     if proxy:
-        _assert_proxy_effective(build_proxies(proxy))
+        warning = _check_proxy_egress(build_proxies(proxy))
+        if warning:
+            summary["proxy_warning"] = warning
+            _log.warning(warning)
 
     output_dir = Path(output_dir)
     storage = Storage(output_dir / "_index.sqlite")
