@@ -69,6 +69,23 @@ def get_pipeline_fn() -> Callable[[str], str]:
     return _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
 
 
+def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
+    """给用户看的「技术详情」：异常链的 类型: 信息，**不含 traceback/文件路径**。
+
+    完整 traceback 只进服务器日志（logger）。绝不把 /home/用户名、.venv 路径、
+    源码行号这些泄漏到 WebUI——那会暴露服务器文件系统和用户名。
+    """
+    parts: list[str] = []
+    seen = 0
+    exc: BaseException | None = error
+    while exc is not None and seen < max_levels:
+        msg = str(exc).strip()
+        parts.append(f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__)
+        exc = exc.__cause__ or exc.__context__
+        seen += 1
+    return "\n".join(parts)
+
+
 def _run_job(
     job_id: int,
     url: str,
@@ -90,12 +107,12 @@ def _run_job(
         logger.info("[job %s] done: %s", job_id, result["md_path"])
     except Exception as error:
         tb = traceback.format_exc()
-        # error_message 存「人话」（列表/详情页直接显示，不再糊裸异常 + 长重定向 URL）；
-        # 技术细节进 log_excerpt（详情页折叠）。
+        # error_message 存「人话」；log_excerpt 存**脱敏的异常链摘要**（不含 traceback/
+        # 文件路径/用户名）。完整 traceback 只进服务器日志，绝不上 WebUI。
         storage.mark_failed(
             job_id,
             error_message=format_error_for_user(error),
-            log_excerpt=tb,
+            log_excerpt=_safe_error_detail(error),
         )
         logger.error("[job %s] FAILED: %s\n%s", job_id, error, tb)
 

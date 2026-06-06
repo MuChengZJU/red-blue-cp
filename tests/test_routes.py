@@ -127,6 +127,27 @@ class TestResetForRetry:
         assert mock_storage.reset_for_retry(99999) is False
 
 
+class TestSafeErrorDetail:
+    """log_excerpt 脱敏：异常链摘要，绝不泄漏文件路径 / 用户名 / traceback。"""
+
+    def test_no_paths_or_username_leak(self):
+        from app.web.routes import _safe_error_detail
+        from app.service.errors import NetworkError
+
+        try:
+            try:
+                raise TimeoutError("read timed out")
+            except TimeoutError as e:
+                raise NetworkError("DashScope llm_clean 网络重试 3 次仍失败") from e
+        except NetworkError as err:
+            detail = _safe_error_detail(err)
+
+        assert "NetworkError" in detail and "网络重试 3 次" in detail
+        assert "TimeoutError" in detail            # 异常链保留，便于排查
+        for leak in ("/home/", ".venv", "site-packages", 'File "', "line "):
+            assert leak not in detail, f"泄漏了 {leak!r}"
+
+
 # ── GET /api/jobs ─────────────────────────────────────────────
 
 class TestListJobs:
