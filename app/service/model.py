@@ -5,7 +5,7 @@ import mimetypes
 import time
 import uuid
 from pathlib import Path
-from typing import Any, Iterator, Protocol, runtime_checkable
+from typing import Any, Callable, Iterator, Protocol, TypeVar, runtime_checkable
 from urllib.parse import urlparse
 
 import requests
@@ -16,6 +16,42 @@ from app.service.errors import ApiError, NetworkError, ParseError
 _log = logging.getLogger("rbcp.model")
 
 _BODY_EXCERPT_LIMIT = 2000
+
+_RETRY_MAX_ATTEMPTS = 3
+
+_T = TypeVar("_T")
+
+
+def _retry_network(
+    operation: str,
+    fn: Callable[[], _T],
+    *,
+    max_attempts: int = _RETRY_MAX_ATTEMPTS,
+) -> _T:
+    """对网络抖动重试：仅捕 requests 的 Timeout/ConnectionError，指数退避（1/2/4s）。
+
+    最多 max_attempts 次，全失败抛 NetworkError（带 operation）。
+    非网络异常（含 HTTP 4xx 抛出的 ApiError）不重试，原样冒泡。
+    """
+    last_exc: Exception | None = None
+    for attempt in range(max_attempts):
+        try:
+            return fn()
+        except (requests.exceptions.Timeout, requests.exceptions.ConnectionError) as exc:
+            last_exc = exc
+            _log.warning(
+                "[%s] 网络异常第 %d/%d 次：%s",
+                operation, attempt + 1, max_attempts, exc,
+            )
+            if attempt + 1 < max_attempts:
+                time.sleep(2 ** attempt)
+    _log.error("[%s] 网络重试 %d 次仍失败", operation, max_attempts)
+    raise NetworkError(
+        f"DashScope {operation} 网络重试 {max_attempts} 次仍失败",
+        platform="dashscope",
+        operation=operation,
+        debug_context={"attempts": max_attempts},
+    ) from last_exc
 
 
 def _body_excerpt(response: requests.Response, limit: int = _BODY_EXCERPT_LIMIT) -> str:
@@ -109,12 +145,15 @@ class DashscopeProvider:
                 }
             ],
         }
-        response = requests.post(
-            CHAT_COMPLETIONS_URL,
-            headers=self._json_auth_headers(),
-            json=payload,
-            timeout=(10, 180),
-            proxies=self._proxies,
+        response = _retry_network(
+            "llm_clean",
+            lambda: requests.post(
+                CHAT_COMPLETIONS_URL,
+                headers=self._json_auth_headers(),
+                json=payload,
+                timeout=(10, 180),
+                proxies=self._proxies,
+            ),
         )
         _raise_dashscope_for_status(response, operation="llm_clean")
         return _extract_chat_text(response.json())
@@ -132,12 +171,15 @@ class DashscopeProvider:
                 }
             ],
         }
-        response = requests.post(
-            CHAT_COMPLETIONS_URL,
-            headers=self._json_auth_headers(),
-            json=payload,
-            timeout=(10, 180),
-            proxies=self._proxies,
+        response = _retry_network(
+            "vlm",
+            lambda: requests.post(
+                CHAT_COMPLETIONS_URL,
+                headers=self._json_auth_headers(),
+                json=payload,
+                timeout=(10, 180),
+                proxies=self._proxies,
+            ),
         )
         _raise_dashscope_for_status(response, operation="vlm")
         return _extract_chat_text(response.json())
@@ -226,15 +268,18 @@ class DashscopeProvider:
         return f"oss://{key}"
 
     def _get_upload_policy(self) -> dict[str, Any]:
-        response = requests.get(
-            UPLOAD_POLICY_URL,
-            headers=self._json_auth_headers(),
-            params={
-                "action": "getPolicy",
-                "model": self.asr_model,
-            },
-            timeout=60,
-            proxies=self._proxies,
+        response = _retry_network(
+            "get_upload_policy",
+            lambda: requests.get(
+                UPLOAD_POLICY_URL,
+                headers=self._json_auth_headers(),
+                params={
+                    "action": "getPolicy",
+                    "model": self.asr_model,
+                },
+                timeout=60,
+                proxies=self._proxies,
+            ),
         )
         _raise_dashscope_for_status(response, operation="get_upload_policy")
         payload = response.json()
@@ -267,12 +312,15 @@ class DashscopeProvider:
             "input": {"file_urls": [oss_url]},
             "parameters": parameters,
         }
-        response = requests.post(
-            TRANSCRIPTION_URL,
-            headers=headers,
-            json=body,
-            timeout=60,
-            proxies=self._proxies,
+        response = _retry_network(
+            "submit_transcription",
+            lambda: requests.post(
+                TRANSCRIPTION_URL,
+                headers=headers,
+                json=body,
+                timeout=60,
+                proxies=self._proxies,
+            ),
         )
         if response.status_code >= 400:
             resp_body = _body_excerpt(response)
@@ -304,11 +352,14 @@ class DashscopeProvider:
         last_payload: dict[str, Any] | None = None
 
         while time.monotonic() < deadline:
-            response = requests.get(
-                TASK_URL_TEMPLATE.format(task_id=task_id),
-                headers=headers,
-                timeout=60,
-                proxies=self._proxies,
+            response = _retry_network(
+                "poll_transcription",
+                lambda: requests.get(
+                    TASK_URL_TEMPLATE.format(task_id=task_id),
+                    headers=headers,
+                    timeout=60,
+                    proxies=self._proxies,
+                ),
             )
             _raise_dashscope_for_status(response, operation="poll_transcription")
             last_payload = response.json()
@@ -426,7 +477,10 @@ def _extract_transcription_text(
             urls.append(item["transcription_url"])
 
     for url in urls:
-        response = requests.get(url, timeout=60, proxies=proxies)
+        response = _retry_network(
+            "fetch_transcription_result",
+            lambda url=url: requests.get(url, timeout=60, proxies=proxies),
+        )
         _raise_dashscope_for_status(response, operation="fetch_transcription_result")
         text = _format_transcription(response.json())
         if text:
