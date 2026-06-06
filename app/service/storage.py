@@ -3,10 +3,34 @@
 from __future__ import annotations
 
 import json
+import re
 import sqlite3
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+
+
+# md 文件名形如 {YYYY-MM-DD}-{作者}-{标题}-{笔记ID}（markdown.sanitize_filename）
+_MD_STEM_RE = re.compile(r"^\d{4}-\d{2}-\d{2}-")
+
+
+def _title_from_md_stem(stem: str, note_id: str) -> str | None:
+    """从 md 文件名抠纯标题：剥日期前缀、尾部笔记 ID、作者段。
+
+    标题位本身是 note_id（当年没标题的占位）→ None（显示层退回 note_id，不装有标题）。
+    认不出格式 → 原样返回（比没有强）。
+    """
+    if not _MD_STEM_RE.match(stem):
+        return stem or None
+    rest = _MD_STEM_RE.sub("", stem)
+    if note_id and rest.endswith(f"-{note_id}"):
+        rest = rest[: -(len(note_id) + 1)]
+    # 剥作者段（作者名含 "-" 的极少数情况会切掉标题开头，可接受）
+    rest = rest.split("-", 1)[1] if "-" in rest else rest
+    if not rest or rest == note_id:
+        return None
+    return rest
 
 
 def _parse_job_row(row: sqlite3.Row) -> dict[str, Any]:
@@ -135,7 +159,10 @@ class Storage:
         ).fetchall()
         now = datetime.now().isoformat()
         for row in rows:
-            title = row["title"] or (Path(row["md_path"]).stem if row["md_path"] else None)
+            title = row["title"] or (
+                _title_from_md_stem(Path(row["md_path"]).stem, row["note_id"])
+                if row["md_path"] else None
+            )
             ts = row["finished_at"] or now
             cursor = conn.execute(
                 """
@@ -151,6 +178,31 @@ class Storage:
                 "UPDATE batch_item SET job_id = ?, title = COALESCE(title, ?) "
                 "WHERE batch_id = ? AND note_id = ?",
                 (cursor.lastrowid, title, row["batch_id"], row["note_id"]),
+            )
+        Storage._reclean_backfilled_titles(conn)
+
+    @staticmethod
+    def _reclean_backfilled_titles(conn: sqlite3.Connection) -> None:
+        """0.5.1 首版回填把整个 md 文件名当了标题（带日期/作者/ID 渣）。
+        识别「日期开头 + note_id 结尾」的脏标题，重抠纯标题，条目和 job 一起洗。"""
+        rows = conn.execute(
+            "SELECT batch_id, note_id, job_id, title FROM batch_item "
+            "WHERE job_id IS NOT NULL AND title LIKE '____-__-__-%'"
+        ).fetchall()
+        for row in rows:
+            title = row["title"] or ""
+            if not title.endswith(f"-{row['note_id']}"):
+                continue  # 不是文件名形态的标题，别动
+            clean = _title_from_md_stem(title, row["note_id"])
+            if clean == title:
+                continue
+            conn.execute(
+                "UPDATE batch_item SET title = ? WHERE batch_id = ? AND note_id = ?",
+                (clean, row["batch_id"], row["note_id"]),
+            )
+            conn.execute(
+                "UPDATE jobs SET title = ? WHERE id = ? AND title = ?",
+                (clean, row["job_id"], title),
             )
 
     def create_job(
@@ -383,7 +435,18 @@ class Storage:
                         (row["id"],),
                     ).fetchall()
                 ]
-                out.append({**dict(row), "counts": counts, "items_preview": preview})
+                cost_row = conn.execute(
+                    """
+                    SELECT COALESCE(SUM(json_extract(j.usage, '$.total_cost_yuan')), 0)
+                    FROM batch_item bi JOIN jobs j ON j.id = bi.job_id
+                    WHERE bi.batch_id = ? AND j.usage IS NOT NULL AND json_valid(j.usage)
+                    """,
+                    (row["id"],),
+                ).fetchone()
+                out.append({
+                    **dict(row), "counts": counts, "items_preview": preview,
+                    "cost_yuan": float(cost_row[0] or 0.0),
+                })
         return out
 
     def find_active_batch(self, source: str, user_id: str | None) -> int | None:

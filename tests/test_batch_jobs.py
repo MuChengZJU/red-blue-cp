@@ -283,3 +283,60 @@ class TestLegacyBackfill:
         storage.add_batch_items(bid, [{"note_id": NOTE_A, "url": "https://x/a"}])
         storage.add_batch_items(bid, [{"note_id": NOTE_A, "url": "https://x/a", "title": "新标题"}])
         assert storage.list_batch_items(bid)[0]["title"] == "新标题"
+
+
+class TestTitleCleanup:
+    """0.5.1 实测反馈：回填标题带日期/作者/ID 渣 + 已回填的脏标题要再洗。"""
+
+    def test_parse_strips_date_author_and_id(self):
+        from app.service.storage import _title_from_md_stem
+        stem = "2025-06-16-清华月半猫-21年就有了3500B的MoE模型，却没ChatGPT？-68502a8000000000230269f0"
+        assert _title_from_md_stem(stem, "68502a8000000000230269f0") == \
+            "21年就有了3500B的MoE模型，却没ChatGPT？"
+
+    def test_placeholder_title_returns_none(self):
+        # 当年没标题的笔记，文件名里标题位就是 note_id → 别当标题
+        from app.service.storage import _title_from_md_stem
+        nid = "681f91c40000000022036404"
+        assert _title_from_md_stem(f"2025-05-10-清华月半猫-{nid}-{nid}", nid) is None
+
+    def test_unrecognized_stem_returns_as_is(self):
+        from app.service.storage import _title_from_md_stem
+        assert _title_from_md_stem("随手存的文件", "abc123") == "随手存的文件"
+
+    def test_recleans_previously_backfilled_ugly_titles(self, tmp_path):
+        # 0.5.1 已经把丑标题写进库的用户，再升级要洗干净（item + job 一起）
+        db_path = tmp_path / "_index.sqlite"
+        storage = Storage(db_path)
+        nid = "68502a8000000000230269f0"
+        ugly = f"2025-06-16-清华月半猫-21年就有了3500B的MoE模型，却没ChatGPT？-{nid}"
+        bid = storage.create_batch(source="s", user_id="u", count=1, complete=True)
+        storage.add_batch_items(bid, [{"note_id": nid, "url": "https://x", "title": ugly}])
+        jid = storage.create_job("https://x", platform="xiaohongshu")
+        storage.mark_done(jid, md_path=f"/data/{ugly}.md", title=ugly)
+        storage.set_batch_item_job(bid, nid, jid)
+
+        reopened = Storage(db_path)  # 重开触发清洗
+        assert reopened.list_batch_items(bid)[0]["title"] == \
+            "21年就有了3500B的MoE模型，却没ChatGPT？"
+        assert reopened.get_job(jid)["title"] == "21年就有了3500B的MoE模型，却没ChatGPT？"
+
+
+class TestBatchCost:
+
+    def test_list_batches_sums_linked_job_cost(self, storage):
+        bid = storage.create_batch(source="s", user_id="u", count=2, complete=True)
+        storage.add_batch_items(bid, [
+            {"note_id": NOTE_A, "url": "https://x/a"},
+            {"note_id": NOTE_B, "url": "https://x/b"},
+        ])
+        j1 = storage.create_job("https://x/a")
+        storage.mark_done(j1, md_path="/a.md",
+                          usage={"events": [], "total_cost_yuan": 0.05})
+        storage.set_batch_item_job(bid, NOTE_A, j1)
+        j2 = storage.create_job("https://x/b")  # 无 usage 的不参与
+        storage.mark_done(j2, md_path="/b.md")
+        storage.set_batch_item_job(bid, NOTE_B, j2)
+
+        batch = storage.list_batches()[0]
+        assert batch["cost_yuan"] == pytest.approx(0.05)
