@@ -1,0 +1,117 @@
+{% extends 'base.html' %}
+
+{% block content %}
+<section class="submit-card">
+  <h2 class="section-title" style="margin:0 0 6px">批量导入清单</h2>
+  <p class="subtitle" style="margin:0 0 14px">
+    导入<b>插件导出的 notes.json</b>（上传文件，或直接粘贴内容），走代理批量下载
+    （断点续传、token 过期跳过、失败不中断）。远程服务器用上传/粘贴；本机服务以后可插件一键发送。
+    <a href="/">← 回单篇</a>
+  </p>
+  <div class="submit-row" style="flex-wrap:wrap; gap:10px">
+    <input id="file-input" type="file" accept="application/json,.json"
+           style="flex:1; min-width:220px">
+    <label style="display:flex; align-items:center; gap:6px; font-size:13px; color:var(--muted)">
+      <input id="allow-partial" type="checkbox"> 允许半份清单
+    </label>
+    <button id="import-button" type="button">导入开跑</button>
+  </div>
+  <details style="margin-top:10px">
+    <summary style="cursor:pointer; font-size:13px; color:var(--muted)">或直接粘贴 notes.json 内容 ▾</summary>
+    <textarea id="paste-input" rows="5" placeholder='{"schema_version":1,"source":"xhs_user_posted",...}'
+              style="width:100%; margin-top:8px; font-family:ui-monospace,monospace; font-size:12px;
+                     padding:8px; border:1px solid var(--border); border-radius:8px; box-sizing:border-box"></textarea>
+  </details>
+  <div id="import-hint" class="submit-hint" aria-live="polite"></div>
+</section>
+
+<section class="section">
+  <div class="section-head">
+    <h2 class="section-title">批次</h2>
+  </div>
+  <div id="batch-list" class="job-list">
+    <div class="loading"><span class="spinner"></span>正在加载...</div>
+  </div>
+</section>
+{% endblock %}
+
+{% block scripts %}
+<script>
+  const RED = "#e23744";
+  function escapeHtml(s) {
+    return String(s == null ? "" : s).replace(/[&<>"]/g,
+      m => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[m]));
+  }
+
+  function renderBatch(b) {
+    const c = b.counts || {};
+    const done = c.done || 0, failed = c.failed || 0, skipped = c.skipped || 0, pending = c.pending || 0;
+    const total = done + failed + skipped + pending;
+    const finished = done + failed + skipped;
+    const pct = total ? Math.round((finished / total) * 100) : 0;
+    const who = escapeHtml(b.user_id || b.source || "批次 " + b.id);
+    return `
+      <div style="padding:14px 16px; border:1px solid var(--border); border-radius:12px; margin-bottom:10px; background:var(--card,#fff)">
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px">
+          <strong style="font-size:14px">${who}</strong>
+          <span style="font-size:12px; color:var(--muted)">${escapeHtml(b.status)} · ${finished}/${total}</span>
+        </div>
+        <div style="font-size:12.5px; color:var(--muted); margin:6px 0 8px">
+          ✓成功 ${done} · ✗失败 ${failed} · ⤼跳过 ${skipped} · 待下 ${pending}
+          ${b.complete ? "" : ' · <span style="color:'+RED+'">半份清单</span>'}
+        </div>
+        <div style="height:6px; background:var(--border); border-radius:3px; overflow:hidden">
+          <div style="height:100%; width:${pct}%; background:${RED}; transition:width .4s"></div>
+        </div>
+      </div>`;
+  }
+
+  async function loadBatches() {
+    try {
+      const r = await fetch("/api/batches");
+      const data = await r.json();
+      const el = document.getElementById("batch-list");
+      const batches = data.batches || [];
+      if (!batches.length) {
+        el.innerHTML = '<div class="empty"><p class="empty-title">还没有批次</p><p>上传插件导出的 notes.json 开跑</p></div>';
+        return;
+      }
+      el.innerHTML = batches.map(renderBatch).join("");
+    } catch (e) { /* 轮询失败静默，下次再试 */ }
+  }
+
+  document.getElementById("import-button").addEventListener("click", async () => {
+    const hint = document.getElementById("import-hint");
+    const f = document.getElementById("file-input").files[0];
+    const pasted = document.getElementById("paste-input").value.trim();
+    let raw;
+    if (f) { raw = await f.text(); }
+    else if (pasted) { raw = pasted; }
+    else { hint.textContent = "请上传一个 notes.json 文件，或在下方粘贴内容"; return; }
+    let envelope;
+    try { envelope = JSON.parse(raw); }
+    catch (e) { hint.textContent = "内容不是合法 JSON"; return; }
+    const allow = document.getElementById("allow-partial").checked;
+    hint.textContent = "导入中...";
+    try {
+      const r = await fetch("/api/import-list?allow_partial=" + allow, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(envelope),
+      });
+      const d = await r.json();
+      if (r.ok) {
+        hint.textContent = "已开跑：" + (d.count || 0) + " 条，下方看进度（每 3 秒刷新）。";
+        loadBatches();
+      } else {
+        hint.textContent = "导入失败：" + (d.detail || "未知错误");
+      }
+    } catch (e) {
+      hint.textContent = "导入请求失败：" + e;
+    }
+  });
+
+  loadBatches();
+  setInterval(loadBatches, 3000);
+</script>
+{% endblock %}
