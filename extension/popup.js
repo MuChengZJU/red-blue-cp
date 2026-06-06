@@ -27,6 +27,12 @@ function triggerDump() {
   return false;
 }
 
+// 在页面主世界取完整信封对象（含 notes 数组），序列化回 popup 用于复制
+function readEnvelope() {
+  const env = window.__rbcpEnvelope && window.__rbcpEnvelope();
+  return env || null;
+}
+
 async function getActiveTab() {
   const [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
   return tab;
@@ -53,6 +59,32 @@ async function execInPage(tabId, func) {
 function render(html, actionsHtml) {
   statusEl.innerHTML = html;
   actionsEl.innerHTML = actionsHtml || "";
+}
+
+// 复制完整信封 JSON 到剪贴板。partial=true 时附「半份」提示。
+async function doCopy(tab, partial) {
+  const toast = document.getElementById("toast");
+  if (toast) toast.textContent = "复制中…";
+  try {
+    const env = await execInPage(tab.id, readEnvelope);
+    if (!env) {
+      if (toast) toast.textContent = "读取失败，请刷新小红书页面后重试。";
+      return;
+    }
+    await navigator.clipboard.writeText(JSON.stringify(env, null, 2));
+    const n = env.count || 0;
+    if (toast) {
+      toast.innerHTML =
+        '<span class="ok">✓</span> 已复制 ' + n + " 条到剪贴板" +
+        (partial ? "（半份，还没到底）" : "");
+    }
+  } catch (e) {
+    if (toast) {
+      toast.textContent =
+        "复制失败：" + String((e && e.message) || e) +
+        "。可改用「导出 notes.json」，或在 Console 跑 copy(JSON.stringify(__rbcpEnvelope()))。";
+    }
+  }
 }
 
 async function main() {
@@ -95,24 +127,30 @@ async function main() {
   if (complete) {
     render(
       '已抓 <span class="count">' + count + "</span> 条 <span class=\"ok\">✓ 已到底</span>",
-      '<button id="export" class="btn-primary">导出 notes.json</button>'
+      '<button id="export" class="btn-primary">导出 notes.json</button>' +
+        '<button id="copy" class="btn-blue">复制 JSON</button>' +
+        '<div id="toast" class="hint"></div>'
     );
     document.getElementById("export").addEventListener("click", async () => {
       await execInPage(tab.id, triggerDump);
       window.close();
     });
+    document.getElementById("copy").addEventListener("click", () => doCopy(tab, false));
     return;
   }
 
   // count>0 且未到底
   render(
     '已抓 <span class="count">' + count + "</span> 条，还没到底。<div class=\"hint\">请继续往下滑到页面底部，抓全后再导出。</div>",
-    '<button id="export-partial" class="btn-secondary">仍导出这半份</button>'
+    '<button id="export-partial" class="btn-secondary">仍导出这半份</button>' +
+      '<button id="copy-partial" class="btn-blue">复制这半份 JSON</button>' +
+      '<div id="toast" class="hint"></div>'
   );
   document.getElementById("export-partial").addEventListener("click", async () => {
     await execInPage(tab.id, triggerDump);
     window.close();
   });
+  document.getElementById("copy-partial").addEventListener("click", () => doCopy(tab, true));
 }
 
 main();
