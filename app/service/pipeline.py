@@ -13,6 +13,7 @@ from app.service.errors import ConfigError
 from app.service.extractor import extract_url
 from app.service.markdown import render_and_write
 from app.service.model import DashscopeProvider
+from app.service.pricing import summarize_usage
 
 _ALLOWED_PROXY_SCHEMES = {"http", "https"}
 
@@ -92,7 +93,13 @@ def fetch_single(
         url, provider, text_only=text_only, save_media=save_media, proxies=proxies
     )
     md_path = render_and_write(result, output_dir=output_dir)
-    out: dict = {"md_path": str(md_path), "title": result.title}
+    out: dict = {
+        "md_path": str(md_path),
+        "title": result.title,
+        # P1h：provider 账本 → 费用汇总（没调模型则为 None）。
+        # getattr 宽容：账本是尽力记账，不是 ModelProvider Protocol 的一部分。
+        "usage": summarize_usage(getattr(provider, "usage_events", [])),
+    }
 
     if comments:
         from app.service import discover

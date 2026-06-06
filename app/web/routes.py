@@ -103,6 +103,7 @@ def _run_job(
             author=result.get("author"),
             platform=result.get("platform"),
             content_type=result.get("content_type"),
+            usage=result.get("usage"),
         )
         logger.info("[job %s] done: %s", job_id, result["md_path"])
     except Exception as error:
