@@ -1,6 +1,6 @@
 [project]
 name = "red-blue-cp"
-version = "0.5.0"
+version = "0.5.1"
 description = "B站小红书 Content Pipeline — URL to Markdown"
 readme = "README.md"
 requires-python = ">=3.11"
