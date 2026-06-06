@@ -328,6 +328,27 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 
 ---
 
+## M5 · 模型解耦 + WebUI v2（待启动，0.4.0 后）
+
+> 来源：0.4.0 发布后用户实测反馈 + provider 调研。详见 [M4 交付 + UX 迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md)。建议拆成两批，先做 M5a（解掉现有痛点）。
+
+### M5a · 流式修超时 + LLM/VLM provider 可配（高优先，一个 PR）
+- [ ] `llm_clean` 改流式 `stream=True`（解析 SSE 累加 `delta.content`，不引 SDK）：read 超时只需覆盖 token 间隔，长文不再撞 180s。根因见 devlog（非流式 + 180s read 超时 vs 长文 ~300s 生成）。
+- [ ] 顺带：流式路径下 `_retry_network` 对 llm_clean 别再当网络抖动重试 3 次放大等待；保留大默认超时（如 600s）兜底。
+- [ ] `vlm` 同样支持流式 / 大超时。
+- [ ] LLM/VLM 的 `base_url + model + api_key` 做成 `.env` 可配（`RBCP_LLM_BASE_URL`/`_MODEL`/`_API_KEY`，VLM 同理），默认仍 DashScope。**不引 SDK**（守红线，全 requests 直调 OpenAI 兼容 HTTP）。
+- [ ] VLM 切非 DashScope 时图片走 **base64 data URL**（复用现有 tempfile 兜底），不假设外链直通；SSE/错误体解析泛化别写死 DashScope 字段。
+- **ASR 不动**：Gemini OpenAI 兼容层不支持音频转写 + 无结构化说话人分离，paraformer 短期保留；要换是独立课题。
+
+### M5b · WebUI v2（前端重构，单独一轮）
+- [ ] 主页面整合「单条 / 批量」两个标签，去掉独立 `/batches` 页。
+- [ ] 批次进任务列表：每批一个标题/名字，默认显示前几条（可滚动），可进详情。
+- [ ] 导入按钮/下拉框重做（现在粗糙）。
+- [ ] **去重检测**：提交的链接若已成功保存过 → 提示用户「已下过，是否重下」给选择（强制才重下）。
+- **中途取消**：评估结论暂不做——取消主要为应对重复下载，去重做了就基本不需要；真做是 async 控制大件，性价比低。
+
+---
+
 ## 开放问题（待讨论，未决策）
 
 > 记录还没拍板、需要专门讨论的方向。讨论清楚后转成 PRD/PLAN 的正式条目。
