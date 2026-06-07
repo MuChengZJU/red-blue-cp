@@ -91,6 +91,7 @@
 | 2026-06-06 | 0.4.0 发布 + UX 迭代 | done | M4 全合 + bump 0.4.0 + CHANGELOG。用户实测反馈一轮：能并行的派 agent(popup/剪贴板/重试/URL-CJK/调研)、耦合的自己做(URL清理接入/重试原地/traceback脱敏/输入框放行)。406 单测。[M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
 | 2026-06-07 | M5a 完成 + 0.4.1 发布 | done | 流式修长文超时（根因=非流式+180s read 超时撞 ~300s 生成）+ 任务用量/费用统计 P1h（ASR 秒数/token/耗时/目录价估算，jobs.usage JSON 列+旧库迁移+`/api/stats`）。范围调整：provider env 化（Gemini 入口）因无真实需求移出、进 PLAN 待办。全程 TDD 449 单测；spike 实证 include_usage 与 ASR usage.duration；真链路 B 站视频账单落库+页面渲染；Codex review 修 3 项（重试残留账单/流式连接泄漏/详情页跨重试残留）。PR#35，tag 自动发 PyPI。[M5a 详情](docs/devlog/2026-06-07-m5a-streaming-and-usage.md) |
 | 2026-06-07 | M5b 完成 + 0.5.0 发布 | done | WebUI v2：主页单条/批量两标签（去独立 /batches 页）+ 批次卡片进任务列表（取名/进度/前5条可滚/展开/条目进详情）+ **批量逐条建 job**（batch_item.job_id，详情/账单/重试复用任务体系，重跑原地重置）+ 去重检测（dedup_key 归一，单条 409 弹窗确认/批量跳过报数）+ serve --port。Eval E1-E12 先行逐条验收；TDD 475 单测；浏览器真链路核验；Codex review 修 2（P1 批量 job 重试绕过代理 / P2 重跑孤儿 job）。PR#37。[M5b 详情](docs/devlog/2026-06-07-m5b-webui-v2.md) |
+| 2026-06-07 | 0.5.1/0.5.2 实测连环修 + 插件油猴分发 | done | 用户真机连续暴露问题逐轮修：0.5.1 旧批次回填 job+标题（升级前条目点不进详情根因=「逐条建job」迁移没覆盖存量）；0.5.2 标题去渣+批次费用汇总。插件 0.3.1：根因（首屏 SSR 不发翻页请求→读 `__INITIAL_STATE__.user.notes.value`，探针实证 Vue ref+驼峰字段）；分发改**油猴脚本**（一键装+`@updateURL`自动更新，否决上商店）；面板折叠成小方块。484 单测。[详情](docs/devlog/2026-06-07-plugin-userscript-and-followup-fixes.md) |
 | 待定 | M2a/d/e/f | pending | 批量限流 / B站手动ASR / 模型抽象 / 远程访问 |
 
 ---
@@ -102,6 +103,7 @@
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
 | 2026-06-06 | 🔴 高 | 单测绿但真用崩（再证"完工=真链路"）：①分享文案粘贴报错根因在前端——`<input type=url>` 浏览器提交前就拦下非纯 URL，后端 clean_url 早能抽；改 type=text。②traceback 把 `/home/用户名`/.venv 路径泄漏给用户——log_excerpt 改脱敏异常链摘要、完整 tb 只进服务器日志。③长文 llm_clean 超时根因=非流式+180s read 超时撞 ~300s 生成（不是网络/额度）→ 流式是正解 | [M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
+| 2026-06-07 | 🔴 高 | 爬虫目标结构必须探针实证再写代码：修小红书插件时凭记忆赌字段两次都错（notes 是 Vue ref 不是 object；item 字段驼峰不是下划线）→ 用户控制台跑探针拿真实结构才写对。配套：「逐条建job」类把旧数据接新模型的改动迁移要覆盖存量（旧批次成死条目）；补不出的账/无法确认的「是否到底」如实标"部分/估算"不造数据 | [插件油猴+连环修](docs/devlog/2026-06-07-plugin-userscript-and-followup-fixes.md) |
 | 2026-06-06 | 🔴 高 | 挂机一夜自主完成 M4 复盘：波次法(串行锁契约→并行填充)多 agent 下成立；Codex review 当合并门抓到 mock 盲区(probe_exit_ip 用 requests.get(trust_env=) 真跑 TypeError，单测 mock 吞了)；后台长跑 agent 遇 ECONNRESET 半途死(M4c 只留 RED 测试)→salvage+主会话接手比重派稳；遇不可验证 scope(WebUI 浏览器 QA)主动停+写清楚。~1h12m/4 PR/367 测试/9 Codex 修 | [挂机自主 M4 复盘](docs/devlog/2026-06-06-overnight-autonomous-m4-retro.md) |
 | 2026-06-05 | 🔴 高 | M4 波1 契约交叉核对 + token 过期 spike：①`proxy` 契约穿不过原文件边界→M4a 扩到 extractor/fetcher 显式 `proxies=` 穿透；②小红书过期 token 可靠信号=`response.url` 跳 `/404`+`error_code=300031`（**非** title 空，避 Codex 误伤坑），须在解析前查；③proxy 口径=主站走代理、CDN 媒体字节默认不走 | [M4 波1 契约+spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md) |
 | 2026-06-05 | 🔴 高 | Codex 独立 review 博主批量方案：实锤 `model.py` `trust_env=False` 致视频/ASR 下载绕过代理；并行相交面被低估（storage 隐藏耦合 / 批量必依赖 service 异常）→ **先串行锁地基（errors.py+抽_fetch_single+storage模型+修代理）再并行**；异常契约改少类+结构化字段；阶段1降范围只 CLI batch | [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
