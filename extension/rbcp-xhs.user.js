@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Red Blue CP — 小红书清单导出
 // @namespace    https://github.com/MuChengZJU/red-blue-cp
-// @version      0.3.0
+// @version      0.3.1
 // @description  在你正在浏览的小红书博主主页，把笔记清单整理导出为 notes.json，配合 Red Blue CP 命令行工具沉淀为本地 Markdown 知识库。只在本地整理与导出，不下载正文、不上传任何数据。
 // @author       Red Blue CP
 // @match        https://www.xiaohongshu.com/*
@@ -256,10 +256,17 @@
         '#rbcp-panel .rbcp-cp{background:#eef2fb;color:#2f6fed}' +
         '#rbcp-panel .rbcp-toast{font-size:12px;color:#16a34a;margin-top:8px;min-height:16px;overflow-wrap:anywhere}' +
         '#rbcp-panel .rbcp-min{margin-left:auto;cursor:pointer;opacity:.85;font-weight:400}' +
+        // 折叠态：整个面板缩成一个小方块（只剩渐变方块 + 圆点），点一下展开
+        '#rbcp-panel.rbcp-folded{width:40px;height:40px;border-radius:12px}' +
         '#rbcp-panel.rbcp-folded .rbcp-bd{display:none}' +
+        '#rbcp-panel.rbcp-folded .rbcp-hd{width:40px;height:40px;padding:0;' +
+        'justify-content:center;cursor:pointer;border-radius:12px}' +
+        '#rbcp-panel.rbcp-folded .rbcp-title,#rbcp-panel.rbcp-folded .rbcp-min{display:none}' +
+        '#rbcp-panel.rbcp-folded .rbcp-dot{width:12px;height:12px}' +
         '</style>' +
-        '<div class="rbcp-hd"><span class="rbcp-dot"></span><span>Red Blue CP 清单</span>' +
-        '<span class="rbcp-min" title="折叠/展开">—</span></div>' +
+        '<div class="rbcp-hd"><span class="rbcp-dot"></span>' +
+        '<span class="rbcp-title">Red Blue CP 清单</span>' +
+        '<span class="rbcp-min" title="折叠">—</span></div>' +
         '<div class="rbcp-bd">' +
         '<div class="rbcp-cnt">0</div><div class="rbcp-st"></div>' +
         '<button class="rbcp-exp">导出 notes.json</button>' +
@@ -268,8 +275,13 @@
       document.body.appendChild(panelEl);
       panelEl.querySelector(".rbcp-exp").addEventListener("click", doDownload);
       panelEl.querySelector(".rbcp-cp").addEventListener("click", doCopy);
-      panelEl.querySelector(".rbcp-min").addEventListener("click", () => {
-        panelEl.classList.toggle("rbcp-folded");
+      panelEl.querySelector(".rbcp-min").addEventListener("click", (e) => {
+        e.stopPropagation();
+        panelEl.classList.add("rbcp-folded");
+      });
+      // 折叠态下点小方块（表头）展开
+      panelEl.querySelector(".rbcp-hd").addEventListener("click", () => {
+        if (panelEl.classList.contains("rbcp-folded")) panelEl.classList.remove("rbcp-folded");
       });
     }
     const count = store.size;
