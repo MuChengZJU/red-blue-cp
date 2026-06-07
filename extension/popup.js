@@ -76,7 +76,7 @@ async function doCopy(tab, partial) {
     if (toast) {
       toast.innerHTML =
         '<span class="ok">✓</span> 已复制 ' + n + " 条到剪贴板" +
-        (partial ? "（半份，还没到底）" : "");
+        (partial ? "（部分，可能未抓全）" : "");
     }
   } catch (e) {
     if (toast) {
@@ -139,11 +139,14 @@ async function main() {
     return;
   }
 
-  // count>0 且未到底
+  // count>0 但没见到底信号（has_more=false）。两种情况都走这里：
+  // ① 笔记多、还没滚到底 → 确实是部分；② 笔记少、首屏即全部 → 没有翻页信号无法自动确认到底。
   render(
-    '已抓 <span class="count">' + count + "</span> 条，还没到底。<div class=\"hint\">请继续往下滑到页面底部，抓全后再导出。</div>",
-    '<button id="export-partial" class="btn-secondary">仍导出这半份</button>' +
-      '<button id="copy-partial" class="btn-blue">复制这半份 JSON</button>' +
+    '已抓 <span class="count">' + count + "</span> 条。" +
+      '<div class="hint">笔记多的请继续往下滑到底，抓全再导出；' +
+      "笔记少的博主这可能就是全部（无翻页信号，插件无法自动确认是否到底）。</div>",
+    '<button id="export-partial" class="btn-secondary">导出部分</button>' +
+      '<button id="copy-partial" class="btn-blue">复制部分 JSON</button>' +
       '<div id="toast" class="hint"></div>'
   );
   document.getElementById("export-partial").addEventListener("click", async () => {
