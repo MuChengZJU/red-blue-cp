@@ -60,17 +60,22 @@
     if (!Array.isArray(notes)) notes = [];
     let added = 0;
     for (const n of notes) {
-      const card = n.note_card;
-      const id = pick(n, card, "note_id", "id");
+      // 字段两种命名都认：网络请求是下划线（note_card/xsec_token），
+      // 页面初始状态 __INITIAL_STATE__ 是驼峰（noteCard/xsecToken）。
+      const card = n.note_card || n.noteCard;
+      const id = pick(n, card, "note_id", "noteId", "id");
       if (!id) continue;
-      const xsec = pick(n, card, "xsec_token") || "";
+      const xsec = pick(n, card, "xsec_token", "xsecToken") || "";
       // title 取不到留空字符串，不用「(无标题)」占位，避免干扰下游
-      const title = pick(n, card, "display_title", "title") || "";
+      const title = pick(card, n, "display_title", "displayTitle", "title") || "";
       const rawType = pick(n, card, "type") || "normal";
       const type = rawType === "video" ? "video" : "normal";
-      const interact = (card && card.interact_info) || n.interact_info || {};
+      const interact =
+        (card && (card.interact_info || card.interactInfo)) ||
+        n.interact_info || n.interactInfo || {};
       const cover = pick(card, n, "cover");
-      const coverUrl = (cover && (cover.url_default || cover.url)) || undefined;
+      const coverUrl =
+        (cover && (cover.url_default || cover.urlDefault || cover.url)) || undefined;
 
       if (!store.has(id)) added++;
       const entry = {
@@ -80,7 +85,7 @@
         xsec_token: xsec,
         url: buildUrl(id, xsec),
       };
-      const liked = interact.liked_count;
+      const liked = interact.liked_count !== undefined ? interact.liked_count : interact.likedCount;
       if (liked !== undefined && liked !== null) entry.liked_count = liked;
       if (coverUrl) entry.cover = coverUrl;
       const sticky = pick(n, card, "sticky");
@@ -96,7 +101,30 @@
     }
   }
 
+  // 从页面初始状态补抓（spike 实证 2026-06-07）：小红书把所有已加载笔记堆在
+  // window.__INITIAL_STATE__.user.notes（Vue ref，真数组在 .value，5 页一展平）。
+  // 这是 app 自己的笔记仓库——不管首屏直出 / 翻页 / 换接口，都在这里，比 hook 网络请求稳。
+  // 笔记少的博主一屏到底不触发翻页请求，只能靠这条路抓到。
+  function seedFromInitialState() {
+    try {
+      const st = window.__INITIAL_STATE__;
+      const user = st && st.user;
+      if (!user) return 0;
+      let n = user.notes;
+      if (n && typeof n === "object" && "value" in n) n = n.value; // Vue ref 解包
+      if (!Array.isArray(n)) return 0;
+      const flat = typeof n.flat === "function" ? n.flat() : n;
+      const before = store.size;
+      ingest({ notes: flat }, "页面状态");
+      return store.size - before;
+    } catch (e) {
+      return 0;
+    }
+  }
+  window.__rbcpSeed = seedFromInitialState;
+
   function buildEnvelope() {
+    seedFromInitialState(); // 导出/读状态前先并入页面已加载的全部笔记
     const notes = Array.from(store.values());
     return {
       schema_version: SCHEMA_VERSION,
@@ -183,4 +211,13 @@
   };
 
   console.log(TAG, "hook 已安装。在博主主页慢滚到底后点插件图标导出，或随时跑 __rbcpDump()。");
+
+  // 页面 hydration 后从初始状态补抓一次（笔记少/首屏到底、不触发翻页请求的博主靠这条）。
+  // 2s 给 Vue 注水时间；store 按 note_id 去重，与网络 hook 抓到的合并不重复。
+  setTimeout(function () {
+    const got = seedFromInitialState();
+    if (got > 0) {
+      console.log(TAG, "从页面状态补抓", got, "条，累计", store.size, "条。可点插件图标导出。");
+    }
+  }, 2000);
 })();
