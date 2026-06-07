@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Red Blue CP — 小红书清单导出",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "description": "在你正在浏览的小红书博主主页，把笔记清单整理导出为 notes.json，配合 Red Blue CP 命令行工具沉淀为本地 Markdown 知识库。只在本地整理与导出，不下载正文、不上传任何数据。",
   "permissions": ["scripting", "activeTab", "clipboardWrite"],
   "host_permissions": ["https://www.xiaohongshu.com/*"],
