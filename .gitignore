@@ -13,3 +13,7 @@ uv.lock
 .leak-patterns.local
 .claude/*
 !.claude/commands/
+
+# 实验/临时（用完即弃，不进仓库）
+_sandbox/
+_tmp/
