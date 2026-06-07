@@ -157,7 +157,7 @@
       " | complete=" + envelope.complete + " ===="
     );
     if (!envelope.complete) {
-      console.warn(TAG, "⚠ 还没滚到底（has_more 未见 false），这是半份清单。rbcp 会拒绝当全量，确要下加 --allow-partial。");
+      console.warn(TAG, "ℹ 没见到底信号（has_more 未见 false）= 这是部分清单。笔记多的请滚到底重导；笔记少的可能这就是全部（首屏直出无翻页信号，无法自动确认）。导入勾「允许半份清单」或加 --allow-partial。");
     }
     try {
       const blob = new Blob([JSON.stringify(envelope, null, 2)], { type: "application/json" });
