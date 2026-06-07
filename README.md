@@ -81,12 +81,14 @@ rbcp run "B站或小红书链接"
 [浏览器插件] 博主主页慢滚到底 → 导出 notes.json
         ↓ 上传 / 粘贴
 [rbcp batch notes.json --proxy http://127.0.0.1:7897]  逐条走代理下 → Markdown
-   或 WebUI: rbcp serve → /batches 上传/粘贴 notes.json，看进度
+   或 WebUI: rbcp serve → 主页「批量」标签 上传/粘贴 notes.json，看进度
 ```
 
-1. 装插件：`chrome://extensions` → 开发者模式 → 加载已解压 → 选 `extension/` 目录（见 [extension/README.md](extension/README.md)）。
-2. 打开小红书博主主页，**手动慢慢滚到底**（慢滚最安全），点插件图标导出 `notes.json`。
-3. `rbcp batch notes.json --proxy <你的代理>`（或 WebUI `/batches` 导入）。代理两种模式见 [博主安全批量功能文档](docs/blogger-safe-batch-feature.md)。
+1. 装插件（二选一，详见 [extension/README.md](extension/README.md)）：
+   - **油猴脚本（推荐，自动更新）**：装 [Tampermonkey](https://www.tampermonkey.net/) → 点 [安装链接](https://raw.githubusercontent.com/MuChengZJU/red-blue-cp/main/extension/rbcp-xhs.user.js) 确认安装。
+   - MV3 扩展（开发/调试）：`chrome://extensions` → 开发者模式 → 加载已解压 → 选 `extension/` 目录。
+2. 打开小红书博主主页，笔记多的**手动慢慢滚到底**（慢滚最安全），笔记少的首屏即全部；在右下角面板（油猴）或插件图标（扩展）导出 `notes.json`。
+3. `rbcp batch notes.json --proxy <你的代理>`（或 WebUI 批量标签导入）。代理两种模式见 [博主安全批量功能文档](docs/blogger-safe-batch-feature.md)。
 
 > 旧路径 `rbcp fetch "<博主主页>" --all`（pydoll 驱动 Chrome 抓清单 + 串行下）仍保留，但**不再是主路径**——自动化痕迹易被识别、不可分发。优先用插件 + `rbcp batch`。
 
@@ -119,7 +121,7 @@ uv run pytest              # 跑测试
 uv run rbcp serve          # 本地起服务
 ```
 
-技术栈：FastAPI + Jinja2 + HTMX + Typer + SQLite + asyncio。博主清单抓取主路径是浏览器插件（MV3，独立 JS，在 `extension/`）；下载走代理（`requests` 显式 proxies）。评论 / 旧版 `--all` 抓清单用 [pydoll](https://github.com/pydoll-project/pydoll)（CDP 连系统 Chrome）。
+技术栈：FastAPI + Jinja2 + HTMX + Typer + SQLite + asyncio。博主清单抓取主路径是浏览器插件（独立 JS，在 `extension/`，油猴脚本 + MV3 扩展两种装法）；下载走代理（`requests` 显式 proxies）。评论 / 旧版 `--all` 抓清单用 [pydoll](https://github.com/pydoll-project/pydoll)（CDP 连系统 Chrome）。
 
 ```
 app/
