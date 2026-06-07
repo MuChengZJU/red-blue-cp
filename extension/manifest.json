@@ -1,13 +1,13 @@
 {
   "manifest_version": 3,
-  "name": "Red Blue CP — 小红书清单抓取",
-  "version": "0.2.1",
-  "description": "在你登录态的小红书博主主页，随滚动接住 user_posted 分页，攒出整个博主的清单并导出 notes.json，喂给 rbcp batch 走代理批量下载。只抓清单，不下载、不上传，风险落你自己的会话与 IP。",
+  "name": "Red Blue CP — 小红书清单导出",
+  "version": "0.3.0",
+  "description": "在你正在浏览的小红书博主主页，把笔记清单整理导出为 notes.json，配合 Red Blue CP 命令行工具沉淀为本地 Markdown 知识库。只在本地整理与导出，不下载正文、不上传任何数据。",
   "permissions": ["scripting", "activeTab", "clipboardWrite"],
   "host_permissions": ["https://www.xiaohongshu.com/*"],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "Red Blue CP — 小红书清单抓取"
+    "default_title": "Red Blue CP — 小红书清单导出"
   },
   "content_scripts": [
     {
