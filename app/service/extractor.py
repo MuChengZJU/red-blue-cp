@@ -66,6 +66,7 @@ def extract_url(
         raise UnsupportedUrlError(
             f"Unsupported URL platform: {url}", operation="detect_platform"
         )
+    _annotate_model_metadata(metadata, provider)
 
     if save_media:
         media_dir = Path(os.getenv("RBCP_MEDIA_DIR", "~/transcript-media")).expanduser()
@@ -163,6 +164,17 @@ def _base_metadata(info: dict[str, Any]) -> dict[str, Any]:
         if info.get(key) is not None:
             metadata[key] = info.get(key)
     return metadata
+
+
+def _annotate_model_metadata(metadata: dict[str, Any], provider: ModelProvider) -> None:
+    for metadata_key, provider_attr in (
+        ("asr_model", "asr_model"),
+        ("vision_model", "vlm_model"),
+        ("llm_model", "llm_model"),
+    ):
+        value = getattr(provider, provider_attr, None)
+        if value:
+            metadata.setdefault(metadata_key, value)
 
 
 def _normalize_image_url(url: str) -> str:

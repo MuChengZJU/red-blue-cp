@@ -9,6 +9,30 @@ from unittest.mock import patch, MagicMock
 import pytest
 
 
+def test_provider_from_env_passes_llm_and_vlm_models(monkeypatch):
+    monkeypatch.setenv("RBCP_LLM_MODEL", "free-llm-model")
+    monkeypatch.setenv("RBCP_VLM_MODEL", "free-vlm-model")
+
+    from app.service.pipeline import _provider_from_env
+
+    provider = _provider_from_env("test-key")
+
+    assert provider.llm_model == "free-llm-model"
+    assert provider.vlm_model == "free-vlm-model"
+
+
+def test_provider_from_env_keeps_default_llm_and_vlm_models(monkeypatch):
+    monkeypatch.delenv("RBCP_LLM_MODEL", raising=False)
+    monkeypatch.delenv("RBCP_VLM_MODEL", raising=False)
+
+    from app.service.pipeline import _provider_from_env
+
+    provider = _provider_from_env("test-key")
+
+    assert provider.llm_model == "qwen-plus"
+    assert provider.vlm_model == "qwen3-vl-flash"
+
+
 class TestRunPipeline:
 
     @patch("app.service.extractor.fetcher")
@@ -84,3 +108,49 @@ class TestRunPipeline:
         )
         with pytest.raises(RuntimeError, match="403"):
             pipeline("https://www.bilibili.com/video/BV1test123")
+
+    @patch("app.service.extractor.fetcher")
+    @patch("app.service.model.requests.post")
+    def test_markdown_uses_actual_provider_vision_model(
+        self, mock_post, mock_fetcher, monkeypatch, tmp_path
+    ):
+        monkeypatch.setenv("RBCP_VLM_MODEL", "env-vlm-model")
+        mock_fetcher.fetch_xiaohongshu.return_value = {
+            "platform": "xiaohongshu",
+            "content_type": "image_note",
+            "title": "image note",
+            "author": "author",
+            "author_id": "u1",
+            "post_id": "note1",
+            "published_at": "2026-06-07",
+            "url": "https://www.xiaohongshu.com/explore/note1",
+            "desc": "",
+            "image_urls": ["https://example.com/1.jpg"],
+            "referer": "https://www.xiaohongshu.com/",
+            "raw": {},
+        }
+
+        import json as _json
+
+        responses = []
+        for text in ["image text", "cleaned image text"]:
+            resp = MagicMock()
+            resp.status_code = 200
+            resp.iter_lines.return_value = iter([
+                "data: " + _json.dumps({"choices": [{"delta": {"content": text}}]}),
+                "data: [DONE]",
+            ])
+            responses.append(resp)
+        mock_post.side_effect = responses
+
+        from app.service.extractor import extract_url
+        from app.service.markdown import render_and_write
+        from app.service.model import DashscopeProvider
+
+        provider = DashscopeProvider("test-key", vlm_model="actual-vlm-model")
+        result = extract_url("https://www.xiaohongshu.com/explore/note1", provider)
+        path = render_and_write(result, tmp_path)
+
+        content = path.read_text(encoding="utf-8")
+        assert "vision_model: actual-vlm-model" in content
+        assert "vision_model: env-vlm-model" not in content
