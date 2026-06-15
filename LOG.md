@@ -31,6 +31,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
+| 2026-06-15 | 🔴 高 | 形态/范围/架构 | **0.6 调头做「给人的速览」产品**（引擎仍开源）：Pipeline = Extract→Digest→Render，两壳 RBCP CLI / RBCP Desktop（原门控 P2 桌面 GUI 启动）+ 将来 Mobile；速览=高亮/卡片/脉络三形态同屏；砍本地模型、defer 收藏夹/知识库；商业（托管+手机+按实际使用计费）走私有 RBCP Cloud，不进开源。exp/agent-interface-demo(MCP demo) 存档 parked | [0.6 速览产品](docs/devlog/2026-06-15-0.6-speed-read-product.md) / PLAN §v0.6 |
 | 2026-06-05 | 🔴 高 | 范围/架构 | 博主全量抓清单 pydoll→浏览器插件(MV3)，pydoll 降不稳定可选项（红线#9 改）；下载加代理（应对固定共享出口 IP）；立项 **M4 博主安全批量 + 错误地基**（M4a 地基串行→M4b‖M4c 并行） | [博主安全批量](docs/blogger-safe-batch-feature.md) / [Codex review](docs/devlog/2026-06-05-codex-review-blogger-batch.md) |
 | 2026-06-03 | 🔴 高 | 范围 | Q1 形态定案：不收敛单一入口。现在做＝自部署 WebUI 手机可达（Tailscale）+ 发 PyPI（pipx/uv tool）；Tauri 桌面 GUI 门控 P2（真实非技术用户 + API Key 上手路径）。架构守 service 前端无关给 GUI 留门；公网暴露前必须加鉴权 | [形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md) |
 | 2026-06-03 | 🟡 中 | 工程 | WebUI 视觉从零重做为「红蓝品牌」设计系统；详情页 Markdown 渲染/源码切换（marked+DOMPurify，CDN 非 Python 依赖） | [详情](docs/devlog/2026-06-03-webui-redesign-and-qa.md) |
