@@ -3,12 +3,14 @@ date: 2026-06-12
 type: experiment
 priority: medium
 related: [app/mcp/CONTRACT.md, 2026-06-10-deep-diagnosis-report.md, 2026-06-10-product-tech-diagnosis.md, 2026-06-12-mcp-protocol-spec-notes.md]
-status: active
+status: parked
 ---
 
 # Agent 接口 demo：4 动词 MCP server（实验，未立项）
 
 > 把 rbcp 的 service 层包成本地 stdio MCP server，让 Claude Code 直接"读"B站/小红书内容和本地语料库；零新增依赖、零修改现有文件。
+
+> **[PARKED 2026-06-15]** 本实验分支停在此处、不再推进。0.6 转向「给人的速览」产品（Pipeline = Extract → Digest → Render，两壳 RBCP CLI / RBCP Desktop），从 main 另开分支做。MCP 出口降级为可选、暂搁置（CLI 已覆盖 Agent 场景）。本分支保留作存档：4 动词 demo + 508 测试 + 协议核实笔记，将来若做 remote MCP 可回来取。
 
 ## 背景
 
