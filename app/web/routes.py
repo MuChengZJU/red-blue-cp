@@ -10,7 +10,7 @@ from pathlib import Path
 from typing import Callable
 
 from app.config import load_config
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
@@ -20,6 +20,7 @@ from app.extract.extractor import detect_platform
 from app.extract.storage import Storage
 from app.web import artifacts
 from app.extract.urls import clean_url, dedup_key
+from app.web.auth import require_token
 
 
 load_config()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
@@ -42,6 +43,8 @@ logging.getLogger("uvicorn.access").addFilter(_PollNoiseFilter())
 
 app = FastAPI()
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
 
 class CreateJobRequest(BaseModel):
@@ -157,7 +160,7 @@ def cleanup_running_jobs() -> None:
     get_storage().cleanup_running()
 
 
-@app.post("/api/jobs")
+@api.post("/jobs")
 async def create_job(
     payload: CreateJobRequest,
     storage: Storage = Depends(get_storage),
@@ -190,7 +193,7 @@ async def create_job(
     return {"job_id": job_id}
 
 
-@app.post("/api/jobs/{job_id}/retry")
+@api.post("/jobs/{job_id}/retry")
 async def retry_job(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -208,7 +211,7 @@ async def retry_job(
     return {"job_id": job_id}
 
 
-@app.get("/api/jobs")
+@api.get("/jobs")
 def list_jobs(
     limit: int = 20,
     offset: int = 0,
@@ -218,13 +221,13 @@ def list_jobs(
     return storage.list_jobs(limit=limit, offset=offset, exclude_batched=exclude_batched)
 
 
-@app.get("/api/stats")
+@api.get("/stats")
 def get_stats(storage: Storage = Depends(get_storage)) -> dict:
     """全局统计（P1h）：所有任务的累计估算费用。"""
     return {"total_cost_yuan": storage.total_cost_yuan()}
 
 
-@app.get("/api/jobs/{job_id}")
+@api.get("/jobs/{job_id}")
 def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     job = storage.get_job(job_id)
     if job is None:
@@ -232,7 +235,7 @@ def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     return job
 
 
-@app.get("/api/jobs/{job_id}/markdown")
+@api.get("/jobs/{job_id}/markdown")
 def get_markdown(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -245,7 +248,7 @@ def get_markdown(
     return PlainTextResponse(content, media_type="text/markdown")
 
 
-@app.get("/api/jobs/{job_id}/download")
+@api.get("/jobs/{job_id}/download")
 def download_markdown(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -258,7 +261,7 @@ def download_markdown(
     )
 
 
-@app.post("/api/uploaders/posts")
+@api.post("/uploaders/posts")
 async def uploader_posts(payload: UploaderPostsRequest) -> dict:
     """列博主全量笔记清单。返回 SPEC §4.3 契约（含 complete 硬字段）。
 
@@ -269,7 +272,7 @@ async def uploader_posts(payload: UploaderPostsRequest) -> dict:
     return await discover.discover_user_posts(payload.user_url)
 
 
-@app.post("/api/comments")
+@api.post("/comments")
 async def fetch_comments(payload: CommentsRequest) -> dict:
     """抓单篇笔记评论，写出 {note_id}.comments.md，返回路径 + 条数。"""
     from app.extract import discover
@@ -292,7 +295,7 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
     }
 
 
-@app.post("/api/import-list")
+@api.post("/import-list")
 async def import_list(
     payload: dict = Body(...),
     allow_partial: bool = False,
@@ -346,18 +349,21 @@ async def import_list(
     return {"ok": True, "count": len(notes), "skipped_duplicates": skipped_duplicates}
 
 
-@app.get("/api/batches")
+@api.get("/batches")
 def api_list_batches(storage: Storage = Depends(get_storage)) -> dict:
     """批次列表 + 每批的状态计数，供任务列表批次卡片轮询。"""
     return {"batches": storage.list_batches(limit=50)}
 
 
-@app.get("/api/batches/{batch_id}/items")
+@api.get("/batches/{batch_id}/items")
 def api_batch_items(batch_id: int, storage: Storage = Depends(get_storage)) -> dict:
     """批次全部条目（含 job_id，可点进 /jobs/{id} 详情）。"""
     if storage.get_batch(batch_id) is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     return {"items": storage.list_batch_items(batch_id)}
+
+
+app.include_router(api)
 
 
 @app.get("/")
