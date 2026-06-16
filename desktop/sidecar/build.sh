@@ -29,4 +29,13 @@ else
     --paths "$REPO_ROOT" "${HIDDEN[@]}" \
     --clean --noconfirm rbcp_sidecar.py
   echo "built: dist/rbcp-sidecar  (cold-start ~365ms, ~9MB single-file — 分发简单但每次自解压)"
+
+  # Tauri externalBin 要单文件、命名带 target triple，且 binaries/ 是 gitignore 的构建产物
+  # （不进库）。onefile 模式自动放到位，这样 `cargo tauri dev/build` 能直接找到 sidecar，
+  # 不用手动 cp（之前缺这步导致 `resource path binaries/rbcp-sidecar-<triple> doesn't exist`）。
+  TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+  mkdir -p ../src-tauri/binaries
+  cp dist/rbcp-sidecar "../src-tauri/binaries/rbcp-sidecar-$TRIPLE"
+  chmod +x "../src-tauri/binaries/rbcp-sidecar-$TRIPLE"
+  echo "placed: src-tauri/binaries/rbcp-sidecar-$TRIPLE  →  现在可跑 cargo tauri dev"
 fi

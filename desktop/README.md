@@ -18,16 +18,14 @@ desktop/
 ## 跑起来
 
 ```bash
-# 1. 打 sidecar 二进制
-bash sidecar/build.sh            # → sidecar/dist/rbcp-sidecar
+# 1. 打 sidecar 二进制（自动放到 src-tauri/binaries/rbcp-sidecar-<triple>，cargo tauri 直接能找到）
+#    binaries/ 是 gitignore 的构建产物，每次新 clone 都要先跑这步——不然 cargo tauri 报
+#    "resource path binaries/rbcp-sidecar-<triple> doesn't exist"。
+bash sidecar/build.sh
 
-# 2. 放到 Tauri 期望的位置（带 target-triple 后缀）
-cp sidecar/dist/rbcp-sidecar \
-   src-tauri/binaries/rbcp-sidecar-$(rustc -vV | sed -n 's/host: //p')
-
-# 3. 编译 / 打包（本机若有代理需 CARGO_HTTP_PROXY="" 绕过）
-cd src-tauri && cargo build              # 验证编译
-cargo tauri build --config '{"build":{"beforeBuildCommand":""}}'  # 出 .app
+# 2. 跑起来（本机若有 git http.proxy 需前置 CARGO_HTTP_PROXY="" http_proxy="" https_proxy="" ALL_PROXY="" 绕过）
+cd src-tauri && cargo tauri dev          # 起原生窗口（开发）
+# 或：cargo tauri build --config '{"build":{"beforeBuildCommand":""}}'  # 出 .app
 ```
 
 开发期只看渲染（不装 Tauri）：起个静态服务器，浏览器开 `frontend/index.html`，
