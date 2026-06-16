@@ -379,6 +379,30 @@ class Storage:
             ).fetchone()
         return float(row[0] or 0.0)
 
+    def stats_by_stage(self) -> dict[str, dict]:
+        """按环节（stage）聚合费用与时长。与 total_cost_yuan 相同取数方式。"""
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT usage FROM jobs
+                WHERE usage IS NOT NULL AND json_valid(usage)
+                """
+            ).fetchall()
+        result: dict[str, dict] = {}
+        for row in rows:
+            usage = json.loads(row["usage"])
+            for event in usage.get("events") or []:
+                stage = event.get("stage") or "unknown"
+                if stage not in result:
+                    result[stage] = {"cost_yuan": 0.0, "elapsed_seconds": 0.0, "count": 0}
+                result[stage]["cost_yuan"] += float(event.get("cost_yuan") or 0)
+                result[stage]["elapsed_seconds"] += float(event.get("elapsed_seconds") or 0)
+                result[stage]["count"] += 1
+        for v in result.values():
+            v["cost_yuan"] = round(v["cost_yuan"], 6)
+            v["elapsed_seconds"] = round(v["elapsed_seconds"], 2)
+        return result
+
 
     def delete_job(self, job_id: int) -> bool:
         """删除单条 job：查 md_path → 删 DB 行 → 删 .md 文件（安全忽略缺失）。

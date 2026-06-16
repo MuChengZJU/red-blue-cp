@@ -232,8 +232,11 @@ def list_jobs(
 
 @api.get("/stats")
 def get_stats(storage: Storage = Depends(get_storage)) -> dict:
-    """全局统计（P1h）：所有任务的累计估算费用。"""
-    return {"total_cost_yuan": storage.total_cost_yuan()}
+    """全局统计（P1h）：累计估算费用 + 按环节聚合。"""
+    return {
+        "total_cost_yuan": storage.total_cost_yuan(),
+        "by_stage": storage.stats_by_stage(),
+    }
 
 
 @api.get("/jobs/{job_id}")

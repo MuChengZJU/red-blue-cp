@@ -34,6 +34,28 @@ _USAGE = {
     "total_cost_yuan": 0.048,
 }
 
+_USAGE_JOB_A = {
+    "events": [
+        {"stage": "asr", "model": "paraformer-v2", "audio_seconds": 600,
+         "elapsed_seconds": 45.0, "cost_yuan": 0.048},
+        {"stage": "llm_clean", "model": "gpt-4o-mini",
+         "elapsed_seconds": 3.5, "cost_yuan": 0.012,
+         "input_tokens": 800, "output_tokens": 200},
+    ],
+    "total_cost_yuan": 0.06,
+}
+
+_USAGE_JOB_B = {
+    "events": [
+        {"stage": "asr", "model": "paraformer-v2", "audio_seconds": 300,
+         "elapsed_seconds": 22.0, "cost_yuan": 0.024},
+        {"stage": "digest", "model": "gpt-4o",
+         "elapsed_seconds": 8.0, "cost_yuan": 0.08,
+         "input_tokens": 1200, "output_tokens": 500},
+    ],
+    "total_cost_yuan": 0.104,
+}
+
 
 class TestStatsApi:
 
@@ -46,6 +68,41 @@ class TestStatsApi:
         mock_storage.mark_done(job_id, md_path="/tmp/a.md", usage=_USAGE)
         body = client.get("/api/stats").json()
         assert body["total_cost_yuan"] == pytest.approx(0.048)
+
+    def test_by_stage_aggregates_cost_and_time(self, client, mock_storage):
+        """by_stage aggregates cost_yuan / elapsed_seconds / count per stage."""
+        j1 = mock_storage.create_job("https://b23.tv/a")
+        mock_storage.mark_done(j1, md_path="/tmp/a.md", usage=_USAGE_JOB_A)
+        j2 = mock_storage.create_job("https://b23.tv/b")
+        mock_storage.mark_done(j2, md_path="/tmp/b.md", usage=_USAGE_JOB_B)
+
+        body = client.get("/api/stats").json()
+        assert "total_cost_yuan" in body
+        assert "by_stage" in body
+        bs = body["by_stage"]
+
+        assert bs["asr"]["cost_yuan"] == pytest.approx(0.048 + 0.024)
+        assert bs["asr"]["elapsed_seconds"] == pytest.approx(45.0 + 22.0)
+        assert bs["asr"]["count"] == 2
+
+        assert bs["llm_clean"]["cost_yuan"] == pytest.approx(0.012)
+        assert bs["llm_clean"]["elapsed_seconds"] == pytest.approx(3.5)
+        assert bs["llm_clean"]["count"] == 1
+
+        assert bs["digest"]["cost_yuan"] == pytest.approx(0.08)
+        assert bs["digest"]["elapsed_seconds"] == pytest.approx(8.0)
+        assert bs["digest"]["count"] == 1
+
+    def test_by_stage_empty_db(self, client):
+        body = client.get("/api/stats").json()
+        assert body["by_stage"] == {}
+
+    def test_by_stage_job_without_events(self, client, mock_storage):
+        usage_no_events = {"events": [], "total_cost_yuan": 0}
+        j = mock_storage.create_job("https://b23.tv/x")
+        mock_storage.mark_done(j, md_path="/tmp/a.md", usage=usage_no_events)
+        body = client.get("/api/stats").json()
+        assert body["by_stage"] == {}
 
 
 class TestJobApiExposesUsage:
