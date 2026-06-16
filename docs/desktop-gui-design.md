@@ -57,6 +57,11 @@
 8. 🟠 **只许开一个** — 同时开两个 App 会有两个服务写同一个数据库（违反「单进程」红线#3）→ 加「单实例锁」。
 9. 🟠 **打包要带全** — 把 serve（含网页模板）打进离线包，比只打速览引擎复杂；先做个打包小实验，量大小、理清模板路径。
 
+**🔬 上面接缝已做技术小实验验证（2026-06-16，结论全绿）**：
+- **serve 绑定 + 随机端口 + token（接缝 1/2/4）✅ 实跑 PASS**：`uvicorn.Config(app, host='127.0.0.1', port=0)` 启动后从 `server.servers[0].sockets[0].getsockname()` 回读真实端口（避开「先占后还」竞态）；token 用 `secrets.token_urlsafe` 生成 + FastAPI dependency（`secrets.compare_digest` 比对 Bearer）全局校验，TestClient 实测 无/错 token→401、对→200。落地只需：`cli.py` 的 `host='0.0.0.0'` 改 `127.0.0.1`、token dependency 挂所有 `/api/*`、端口+token 经 stdout/临时文件交给 Tauri 壳。
+- **CORS（接缝 3）✅ 摸清（research）**：Tauri v2 真实 origin = macOS/Linux `tauri://localhost`、Windows `http://tauri.localhost`（2.1+）。两解法都可行：(a) serve 加 CORSMiddleware 精确放行这三个 origin（纯 Python、小改）；(b) `@tauri-apps/plugin-http`（前端 fetch 走 Rust，**彻底绕过 CORS + CSP**、serve 零改，代价是 Tauri 侧配 http 权限）。**倾向 (b) 更干净。真窗口首次跑必须核对真实 origin**（dev 模式不同，以打包版为准）。
+- **PyInstaller 打 serve（接缝 9）✅ 实跑 PASS（macOS arm64）**：`--onedir` 一次打通，`GET /` 真渲染 45KB Jinja 模板（`_MEIPASS` 自动对齐、**代码无需改**），只需一条 `--add-data app/web/templates:app/web/templates`。**闭包 36MB**（含 fastapi/uvicorn 全栈，比纯 digest sidecar ~20MB 大；全能力桌面端值这个体积）。环境 Python 3.13 + PyInstaller 6.21（**打包 venv 锁 3.13，别升 3.14**）；打包加 `--exclude-module pydoll` 确保不被拖进来。
+
 **打包闭包**：全仓 `app/` 确不用 ffmpeg（`ffmpeg-python` 仅 `pyproject.toml` 声明、零 import）→ 打包前删该依赖 + README 同步，或 `--exclude-module ffmpeg`。pydoll 确为 lazy import（`discover.py` 顶层不 import）→ 可排除，但需打包策略验证「`routes`→`discover` 这条能力面不被拖进二进制」。
 
 ### 1.2 能力清单（进 / 不进）
@@ -212,7 +217,8 @@ mockup：`_sandbox/0.6-planning/{desktop-gui-mockup,desktop-layout-variants,icon
 ## 6. 待决 / 风险
 
 - **digest 落库方式**：转录顺带跑（默认，秒开）vs 按需触发+缓存（省 LLM 钱）。
-- **CORS vs Tauri 转发**：前端直 fetch 127.0.0.1（需 CORS + 宽 CSP）vs Rust http plugin 转发（前端不直连，CSP 可严）——连接方式定了一并定 **CSP**（`tauri.conf.json` 现 `csp=null`）。
+- **传输方式（已 spike，二选一待拍板）**：(a) serve 加 CORS allowlist（前端直 fetch 127.0.0.1，需放行 origin + 宽 CSP）vs (b) Tauri `plugin-http` Rust 转发（前端不直连、绕过 CORS+CSP、serve 零改）。两条都验证可行，**倾向 (b)**；定了一并定 **CSP**（现 `csp=null`）。
+- **token 怎么交给 Tauri 壳**：stdout vs 临时文件（spike 未覆盖，属壳层集成，实现时定）；真窗口首次跑核对 webview 真实 origin。
 - **首字延迟 TTFT**：要不要做（需 model.py 加埋点）。
 - **Windows 字体选型**：须 SIL OFL（可嵌入+再分发），中英文都好看（候选思源黑体 / HarmonyOS Sans / Inter+思源）。
 - 封面缩略图缓存目录命名 + 清理策略；诊断数据 schema；「数据与清理」接口（后做）；批量导出 / 分享（后做）。
