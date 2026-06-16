@@ -373,6 +373,113 @@ def batch(
         )
 
 
+@app.command("digest")
+def digest(
+    url: str,
+    json_out: bool = typer.Option(False, "--json", help="按 0.6 契约输出 extract+digest JSON"),
+    text_only: bool = typer.Option(False, "--text-only", help="跳过 VLM/ASR，只取现成正文"),
+    proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
+) -> None:
+    """抓 URL → 速览：高亮 / 卡片金句 / 脉络三形态。
+
+    --json 出机器可读的 {"extract": {...}, "digest": {...}}（0.6 digest-json 契约，Desktop 消费）；
+    不加 --json 给人看精简渲染（高亮句 + 金句 + 脉络标题）。
+    """
+    import dataclasses
+
+    from app.digest.contracts import digest as run_digest
+    from app.extract.pipeline import _provider_from_env, build_proxies
+
+    load_config()
+    url = clean_url(url)
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    proxy = proxy or os.getenv("RBCP_PROXY") or None
+
+    try:
+        proxies = build_proxies(proxy)
+        provider = _provider_from_env(api_key, proxies=proxies)
+        result = extract_url(url, provider, text_only=text_only, proxies=proxies)
+        digest_result = run_digest(
+            result.text,
+            provider=provider,
+            text_sha256=result.text_sha256,
+            segments=result.segments,
+        )
+    except Exception as error:  # noqa: BLE001
+        if json_out:
+            typer.echo(_json.dumps(
+                {"ok": False, "error": str(error),
+                 "message": format_error_for_user(error)}, ensure_ascii=False))
+        else:
+            typer.secho(format_error_for_user(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    if json_out:
+        # 0.6 digest-json 契约：extract 子集 + digest 全量（dataclasses.asdict 递归）。
+        envelope = {
+            "extract": {
+                "canonical_text": result.text,
+                "text_sha256": result.text_sha256,
+                "segments": (
+                    [dataclasses.asdict(s) for s in result.segments]
+                    if result.segments is not None else None
+                ),
+            },
+            "digest": dataclasses.asdict(digest_result),
+        }
+        typer.echo(_json.dumps(envelope, ensure_ascii=False))
+        return
+
+    # 人话精简渲染
+    text = result.text
+    typer.secho(f"《{result.title or url}》", fg=typer.colors.CYAN, bold=True)
+    if digest_result.highlights:
+        typer.secho("\n高亮：", fg=typer.colors.GREEN)
+        for h in digest_result.highlights:
+            typer.echo(f"  · {text[h.span_start:h.span_end]}")
+    if digest_result.cards:
+        typer.secho("\n金句：", fg=typer.colors.GREEN)
+        for c in digest_result.cards:
+            typer.echo(f"  「{c.quote}」")
+    if digest_result.outline:
+        typer.secho("\n脉络：", fg=typer.colors.GREEN)
+
+        def _print_outline(nodes, depth: int = 0) -> None:
+            for node in nodes:
+                typer.echo(f"  {'  ' * depth}- {node.title}")
+                _print_outline(node.children, depth + 1)
+
+        _print_outline(digest_result.outline)
+
+
+@app.command("ls")
+def ls(
+    limit: int = typer.Option(20, "--limit", help="最多列多少条"),
+    json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
+) -> None:
+    """列最近的任务（从知识库 _index.sqlite 读）+ 累计估算费用。"""
+    from app.extract.facade import Jobs
+
+    load_config()
+    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    jobs = Jobs(output_dir=output_dir)
+    rows = jobs.list(limit=limit)
+    cost = jobs.total_cost_yuan()
+
+    if json_out:
+        typer.echo(_json.dumps({"jobs": rows, "total_cost_yuan": cost}, ensure_ascii=False))
+        return
+
+    if not rows:
+        typer.echo("还没有任务记录。")
+    else:
+        for row in rows:
+            status = row.get("status", "?")
+            title = row.get("title") or row.get("url") or "?"
+            typer.echo(f"  [{row.get('id')}] {status:8} {title}")
+    typer.echo(f"累计估算费用：￥{cost:.4f}")
+
+
 @app.command("config")
 def config() -> None:
     """查看当前生效的配置来源（修了「~/.config/rbcp/.env 从未被读」的硬伤），并引导写入。"""

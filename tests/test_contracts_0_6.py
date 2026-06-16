@@ -230,19 +230,22 @@ def test_build_canonical_text_matches_legacy_format_transcription():
         assert build_canonical_text_and_segments(p)[0] == _format_transcription(p)
 
 
-# ---------------- §B facade verbs are stubs ----------------
+# ---------------- §B facade verbs are wired (M6f) ----------------
 
-def test_facade_verbs_are_stubs():
+def test_facade_verbs_exist_and_signatures():
+    """M6f：门面动词已接线（不再是 NotImplementedError 桩），签名稳定。"""
+    import inspect
+
     from app.extract import facade
 
-    with pytest.raises(NotImplementedError):
-        facade.extract("http://x", output_dir=Path("/tmp"))
-    with pytest.raises(NotImplementedError):
-        facade.search("q", output_dir=Path("/tmp"))
-    with pytest.raises(NotImplementedError):
-        facade.list_blogger("http://x")
-    with pytest.raises(NotImplementedError):
-        facade.Jobs().total_cost_yuan()
+    for name in ("extract", "search", "list_blogger", "run_batch"):
+        fn = getattr(facade, name)
+        assert callable(fn)
+    # extract 关键字参数稳定（CLI/Desktop 据此调）
+    params = inspect.signature(facade.extract).parameters
+    assert {"output_dir", "comments", "text_only", "save_media", "proxy"} <= set(params)
+    # Jobs 是 Storage 的薄包装，方法齐全
+    assert hasattr(facade.Jobs, "create") and hasattr(facade.Jobs, "total_cost_yuan")
 
 
 # ---------------- §C Digest contract ----------------
