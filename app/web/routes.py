@@ -9,7 +9,7 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from dotenv import load_dotenv
+from app.config import load_config
 from fastapi import Body, Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
@@ -21,7 +21,7 @@ from app.extract.storage import Storage
 from app.extract.urls import clean_url, dedup_key
 
 
-load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
+load_config()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
 
 logger = logging.getLogger("rbcp")
 if not logger.handlers:

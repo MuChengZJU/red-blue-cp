@@ -56,6 +56,9 @@ def _provider_from_env(
     media_proxies: dict[str, str] | None = None,
 ) -> DashscopeProvider:
     asr_model = os.getenv("RBCP_ASR_MODEL", "paraformer-v2")
+    # PR#46 收尾：VLM/LLM 模型也接进 provider（之前运行时只认 ASR 模型，这两个 env 形同虚设）。
+    vlm_model = os.getenv("RBCP_VLM_MODEL", "qwen3-vl-flash")
+    llm_model = os.getenv("RBCP_LLM_MODEL", "qwen-plus")
     diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
         "1", "true", "yes", "on",
     }
@@ -64,6 +67,8 @@ def _provider_from_env(
     return DashscopeProvider(
         api_key=api_key,
         asr_model=asr_model,
+        vlm_model=vlm_model,
+        llm_model=llm_model,
         diarization_enabled=diarization_enabled,
         speaker_count=speaker_count,
         proxies=proxies,

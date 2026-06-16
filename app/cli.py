@@ -10,7 +10,7 @@ from typing import Callable
 
 import typer
 import uvicorn
-from dotenv import load_dotenv
+from app.config import candidate_config_paths, config_dir, load_config
 
 from app.extract.errors import RbcpError, format_error_for_user
 from app.extract.extractor import extract_url
@@ -53,7 +53,7 @@ def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]
 
 def run_pipeline(url: str) -> str:
     """Run the URL-to-Markdown pipeline and return the generated file path."""
-    load_dotenv()
+    load_config()
     url = clean_url(url)  # 分享文案抽 URL + 去追踪参数（小红书保 token）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
@@ -77,7 +77,7 @@ def run(url: str) -> None:
 def serve(
     port: int = typer.Option(8000, "--port", help="监听端口（多实例用不同端口错开）"),
 ) -> None:
-    load_dotenv()
+    load_config()
     uvicorn.run("app.web.routes:app", host="0.0.0.0", port=port, workers=1)
 
 
@@ -94,7 +94,7 @@ def login() -> None:
 
     会等你扫完码、回到终端按回车再保存——不会自动关。
     """
-    load_dotenv()
+    load_config()
     from app.extract import discover
 
     typer.echo("即将弹出浏览器并打开小红书。")
@@ -115,7 +115,7 @@ def list_uploader(
     json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
 ) -> None:
     """列博主全量笔记清单（不下载）。撞风控/半份时退出码非 0。"""
-    load_dotenv()
+    load_config()
     from app.extract import discover
 
     result = asyncio.run(discover.discover_user_posts(url))
@@ -153,7 +153,7 @@ def fetch(
     proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
 ) -> None:
     """抓单篇笔记，或用 --all 抓整个博主。"""
-    load_dotenv()
+    load_config()
     if not all_:
         url = clean_url(url)  # 单篇：分享文案抽 URL + 去追踪参数（--all 是博主主页 URL，不动）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
@@ -323,7 +323,7 @@ def batch(
     json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
 ) -> None:
     """批量下载插件导出的 notes.json：走代理、断点续传、token 过期跳过、汇总成败。"""
-    load_dotenv()
+    load_config()
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
@@ -371,3 +371,25 @@ def batch(
             f"⚠ 这些清单已过期，需重新抓清单：{', '.join(summary['token_expired'])}",
             fg=typer.colors.YELLOW,
         )
+
+
+@app.command("config")
+def config() -> None:
+    """查看当前生效的配置来源（修了「~/.config/rbcp/.env 从未被读」的硬伤），并引导写入。"""
+    primary = load_config()
+    cfg_dir = config_dir()
+    typer.echo(f"用户配置目录：{cfg_dir}")
+    typer.echo("配置发现顺序（高→低，已存在的环境变量永不被覆盖）：")
+    typer.echo("  1. 进程环境变量")
+    for i, path in enumerate(candidate_config_paths(), start=2):
+        mark = "✓" if path.is_file() else "·"
+        tag = "  ← 当前生效" if primary is not None and path == primary else ""
+        typer.echo(f"  {i}. [{mark}] {path}{tag}")
+
+    key = os.getenv("DASHSCOPE_API_KEY", "")
+    if key:
+        masked = f"{key[:4]}…{key[-2:]}" if len(key) > 6 else "已设置"
+        typer.echo(f"DASHSCOPE_API_KEY：{masked}")
+    else:
+        typer.secho("DASHSCOPE_API_KEY：未设置（必填）", fg=typer.colors.YELLOW)
+        typer.echo(f"  写入示例：echo 'DASHSCOPE_API_KEY=sk-...' >> {cfg_dir / '.env'}")
