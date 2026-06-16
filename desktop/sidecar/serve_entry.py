@@ -28,6 +28,11 @@ from app.config import load_config  # noqa: E402
 from app.web import auth  # noqa: E402
 from app.cli import _DesktopServer, _build_serve_config  # noqa: E402
 
+# 关键：uvicorn 用字符串 "app.web.routes:app" 运行时导入，PyInstaller 静态分析看不到字符串
+# 引用 → 不打包该模块（frozen 后报 "Could not import module app.web.routes"）。这里显式
+# import 一次，逼 PyInstaller 把 routes 及其传递依赖（fastapi/jinja2/app.* ...）打进包。
+import app.web.routes  # noqa: E402,F401
+
 
 def main() -> int:
     load_config()  # 桌面端 .env / 配置发现
