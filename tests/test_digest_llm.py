@@ -57,6 +57,12 @@ def test_parse_clamps_and_defaults_importance():
     assert weights == [1.0, 0.0, 0.5]
 
 
+def test_parse_bool_importance_uses_default():
+    # bool 是 int 子类：true/false 不当权重，走默认 0.5（对抗审查 nit）。
+    raw = json.dumps({"highlights": [{"quote": "句子内容", "importance": True}]})
+    assert llm.parse_digest_json(raw).highlights[0].weight == 0.5
+
+
 def test_parse_outline_depth_capped():
     # 构造超过 5 层的嵌套，超出被截
     node: dict = {"title": "L6"}

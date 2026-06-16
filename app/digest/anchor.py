@@ -56,6 +56,9 @@ def build_norm_index(canonical: str) -> tuple[str, list[int]]:
 
     规则（v1，按顺序逐字符）：空白 run 折成单空格(back 指 run 首字符) → NFKC(仅结果长度==1才换)
     → casefold → 标点白名单。norm 命中区间 [ns,ne) 反查 canonical：cs=back[ns], ce=back[ne-1]+1。
+
+    注意：casefold(ß→ss) / 标点白名单(…→...) 可能 1→N 展开，多个 norm 字符共享同一 back 源下标，
+    故 normalized 命中映射回 canonical 时端点可能落在展开中间——find_all_normalized 用自洽校验过滤。
     """
     norm_chars: list[str] = []
     back: list[int] = []
@@ -124,7 +127,10 @@ def find_all_normalized(
     out: list[tuple[int, int]] = []
     for ns, ne in _find_all(norm, nq):
         cs, ce = _shrink(canonical, back[ns], back[ne - 1] + 1)
-        if cs < ce:
+        # 自洽校验（对抗审查 major）：1→N 展开（casefold ß→ss / _PUNCT_MAP …→...）时，命中可能
+        # 落在展开中间，back[ne-1]+1 会多吞一个源字符 → span 偏大、破坏不变量①。
+        # 只收下『span 归一化恰等于 quote 归一化』的候选，否则丢弃（落 unanchored 进 diagnostics）。
+        if cs < ce and build_norm_index(canonical[cs:ce])[0].strip() == nq:
             out.append((cs, ce))
     return list(dict.fromkeys(out))
 
@@ -188,34 +194,28 @@ def anchor_one(
         cs, ce = candidates[0]
         return AnchorOutcome(status, conf_unique, cs, ce, None)
 
-    # ≥2 候选。先用 segment_id 硬收窄：若恰好一个候选落在提示段内 → 直接锚定（强信号）。
-    seg_bounds = None
+    # ≥2 候选。context 是可靠消歧依据（契约：靠前后文消歧唯一处）；segment_id 是 LLM 自报、
+    # 可能错的弱信号，**仅在 context 无法决断时兜底**，绝不压过明确的 context（对抗审查 major：
+    # segment_id 硬短路曾产生 conf=0.9 的自信错锚，跳转时间戳指向错误位置）。
+    nb = build_norm_index(ctx_before)[0]
+    na = build_norm_index(ctx_after)[0]
+    scored = sorted(
+        ((_context_score(canonical, nb, na, cs, ce), cs, ce) for cs, ce in candidates),
+        key=lambda t: (-t[0], t[1]),  # 高分优先，并列取靠前（确定性）
+    )
+    best, second = scored[0], scored[1]
+    if best[0] >= _CTX_BEST_MIN and (best[0] - second[0]) >= _CTX_MARGIN:
+        return AnchorOutcome(status, conf_disambig, best[1], best[2], None)  # context 决断
+
+    # context 无法决断 → segment_id 兜底：仅当恰一个候选落在提示段内才硬收窄。
     if segment_id is not None and segments and 0 <= segment_id < len(segments):
         seg = segments[segment_id]
-        seg_bounds = (seg.char_start, seg.char_end)
         in_seg = [(cs, ce) for cs, ce in candidates if seg.char_start <= cs < seg.char_end]
         if len(in_seg) == 1:
             return AnchorOutcome(status, conf_disambig, in_seg[0][0], in_seg[0][1], None)
 
-    # 否则 context 消歧（归一空间）+ segment_id 软加分（用于段内多候选/段提示不唯一时）
-    nb = build_norm_index(ctx_before)[0]
-    na = build_norm_index(ctx_after)[0]
-
-    scored: list[tuple[float, int, int, int]] = []  # (score, idx, cs, ce)
-    for idx, (cs, ce) in enumerate(candidates):
-        score = _context_score(canonical, nb, na, cs, ce)
-        if seg_bounds and seg_bounds[0] <= cs < seg_bounds[1]:
-            score += 0.3
-        score += 1e-6 / (cs + 1)  # 极弱 tie-break，保确定性
-        scored.append((score, idx, cs, ce))
-    scored.sort(key=lambda t: (-t[0], t[2]))  # 高分优先，并列取靠前
-
-    best = scored[0]
-    second = scored[1]
-    if best[0] >= _CTX_BEST_MIN and (best[0] - second[0]) >= _CTX_MARGIN:
-        return AnchorOutcome(status, conf_disambig, best[2], best[3], None)
-    # 未过明显间隔 / 都低 / 并列 → 歧义，进 diagnostics（suggested=最高分候选）
-    return AnchorOutcome(status, _CONF_AMBIGUOUS, best[2], best[3], "ambiguous")
+    # 都不行 → 歧义，进 diagnostics（suggested=context 最高分候选）
+    return AnchorOutcome(status, _CONF_AMBIGUOUS, best[1], best[2], "ambiguous")
 
 
 # ── char → 时间映射 ────────────────────────────────────────────
@@ -223,7 +223,7 @@ def seconds_for_char(
     char_start: int | None, segments: tuple[Segment, ...] | None
 ) -> float | None:
     """char_start → 覆盖它的 segment.start_sec；缝隙取右邻；图文/越界/无时间戳 → None。"""
-    if char_start is None or not segments:
+    if char_start is None or char_start < 0 or not segments:
         return None
     starts = [s.char_start for s in segments]
     i = bisect_right(starts, char_start) - 1

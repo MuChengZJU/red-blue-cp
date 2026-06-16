@@ -117,6 +117,8 @@ def _loads_lenient(raw: str) -> dict | None:
 
 
 def _clamp01(value: Any, default: float = 0.5) -> float:
+    if isinstance(value, bool):  # bool 是 int 子类：true/false 不当权重，走默认
+        return default
     try:
         return max(0.0, min(1.0, float(value)))
     except (TypeError, ValueError):

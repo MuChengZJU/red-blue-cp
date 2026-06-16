@@ -79,12 +79,29 @@ def test_short_normalized_quote_low_confidence():
     assert o.char_start is None
 
 
-def test_segment_id_soft_bonus_breaks_tie():
+def test_segment_id_breaks_tie_when_context_silent():
     canonical = "我喜欢猫。我喜欢猫。"
     segs = (_seg("我喜欢猫。", 0, 5), _seg("我喜欢猫。", 5, 10))
-    o = _anchor(canonical, "我喜欢猫。", seg_id=1, segments=segs)  # 提示第二段
+    o = _anchor(canonical, "我喜欢猫。", seg_id=1, segments=segs)  # 无 context，segment 兜底
     assert o.diagnostic_kind is None
     assert (o.char_start, o.char_end) == (5, 10)
+
+
+def test_context_overrides_conflicting_segment_id():
+    # 对抗审查 major：segment_id 指向第二段（错），但 context 明确指向第一处 → context 必须赢。
+    canonical = "第一处我喜欢猫尾巴一。第二处我喜欢猫尾巴二。"
+    segs = (_seg("第一处我喜欢猫尾巴一。", 0, 11, start=0.0),
+            _seg("第二处我喜欢猫尾巴二。", 11, 22, start=60.0))
+    o = _anchor(canonical, "我喜欢猫", before="第一处", after="尾巴一", seg_id=1, segments=segs)
+    assert o.diagnostic_kind is None
+    assert (o.char_start, o.char_end) == (3, 7)  # 锚第一处（context 决断，不被错 segment_id 带偏）
+
+
+def test_normalized_rejects_partial_expansion_overinclusion():
+    # 对抗审查 major：部分省略号(2点)命中会落在 …→... 展开中间，自洽校验须拒掉越界 span。
+    canonical = "他说了很多话…然后离开了房间"
+    o = _anchor(canonical, "很多话..")
+    assert o.status == "unanchored" and o.char_start is None  # 不产生越界伪高亮
 
 
 # ── seconds_for_char 全分支 ──────────────────────────────────
