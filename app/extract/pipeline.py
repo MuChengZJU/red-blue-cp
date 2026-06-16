@@ -111,6 +111,7 @@ def fetch_single(
         "canonical_text": result.text,
         "text_sha256": result.text_sha256,
         "segments": result.segments,
+        "readable_text": result.readable_text,
     }
 
     if comments:

@@ -402,6 +402,7 @@ def get_digest(
             "canonical_text": art["canonical_text"],
             "text_sha256": art["text_sha256"],
             "segments": art["segments"],
+            "readable_text": art.get("readable_text"),
         },
         "digest": dataclasses.asdict(dr),
     }

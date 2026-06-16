@@ -80,6 +80,7 @@ def stub_single(monkeypatch):
             content_type="video",
             # 0.6：fetch_single 返回值新增 canonical/指纹/segments，桩需补齐
             text="正文X", text_sha256="sha256X", segments=None,
+            readable_text="正文X",
             **kw,
         ),
     )

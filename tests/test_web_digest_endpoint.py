@@ -26,6 +26,7 @@ def seeded_job(tmp_path, monkeypatch):
         "canonical_text": canonical,
         "text_sha256": text_fingerprint(canonical),
         "segments": [dataclasses.asdict(s) for s in segs],
+        "readable_text": "可读版文本",
     })
     app.dependency_overrides[get_digest_provider] = lambda: FakeProvider()
     yield 42
@@ -39,6 +40,7 @@ def test_digest_endpoint_nested_envelope(seeded_job):
     # 两层信封
     assert "canonical_text" in body["extract"]
     assert body["extract"]["text_sha256"]
+    assert body["extract"]["readable_text"] == "可读版文本"
     assert "highlights" in body["digest"]
     assert "cards" in body["digest"]
     assert "outline" in body["digest"]

@@ -474,6 +474,7 @@ def digest(
                     [dataclasses.asdict(s) for s in result.segments]
                     if result.segments is not None else None
                 ),
+                "readable_text": result.readable_text,
             },
             "digest": dataclasses.asdict(digest_result),
         }

@@ -61,3 +61,4 @@ def test_on_job_success_persists_canonical_and_segments(
     # segments 序列化后是 dict 列表
     assert art["segments"][0]["text"] == "你好世界"
     assert art["segments"][0]["char_start"] == 0
+    assert art["readable_text"] == fake_extract_result.readable_text
