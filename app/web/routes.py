@@ -270,7 +270,12 @@ def download_markdown(
     )
 
 
-@api.post("/uploaders/posts")
+def _reject_in_desktop() -> None:
+    if os.getenv("RBCP_DESKTOP") == "1":
+        raise HTTPException(status_code=404, detail="disabled_in_desktop")
+
+
+@api.post("/uploaders/posts", dependencies=[Depends(_reject_in_desktop)])
 async def uploader_posts(payload: UploaderPostsRequest) -> dict:
     """列博主全量笔记清单。返回 SPEC §4.3 契约（含 complete 硬字段）。
 
@@ -281,7 +286,7 @@ async def uploader_posts(payload: UploaderPostsRequest) -> dict:
     return await discover.discover_user_posts(payload.user_url)
 
 
-@api.post("/comments")
+@api.post("/comments", dependencies=[Depends(_reject_in_desktop)])
 async def fetch_comments(payload: CommentsRequest) -> dict:
     """抓单篇笔记评论，写出 {note_id}.comments.md，返回路径 + 条数。"""
     from app.extract import discover

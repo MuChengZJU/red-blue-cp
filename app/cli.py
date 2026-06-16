@@ -121,6 +121,7 @@ def serve(
     if desktop:
         from app.web import auth
 
+        os.environ["RBCP_DESKTOP"] = "1"
         auth.new_token()
         cfg = _build_serve_config(desktop=True)
         server = _DesktopServer(cfg)
