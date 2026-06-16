@@ -14,6 +14,8 @@ const SCREENS = {
   settings: renderSettings,
 };
 
+let _readerJob = null;
+
 function show(s) {
   document.querySelectorAll('.screen').forEach(function (el) {
     el.classList.toggle('active', el.id === s);
@@ -23,9 +25,15 @@ function show(s) {
   });
   if (SCREENS[s]) {
     var mount = document.querySelector('#' + s + ' .screen-mount');
-    if (mount) SCREENS[s](mount, api);
+    if (mount) SCREENS[s](mount, api, s === 'reader' ? _readerJob : undefined);
   }
 }
+
+// 跨屏契约：文件库/任务列表点条目 → 打开阅读器并传 jobId。
+window.rbcpOpenReader = function (jobId) {
+  _readerJob = jobId;
+  show('reader');
+};
 
 // Bind nav items
 document.querySelectorAll('.nav-item[data-s]').forEach(function (el) {
