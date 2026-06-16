@@ -183,6 +183,10 @@ def run_batch(
                 platform="xiaohongshu",
                 usage=result.get("usage"),
             )
+            # 持久化 artifacts（canonical/text_sha256/segments），供速览消费
+            from app.web import artifacts as _artifacts
+
+            _artifacts.on_job_success(job_id, result)
             summary["ok"] += 1
             summary["results"].append({"note_id": note_id, "ok": True, **result})
         except AuthError as exc:
