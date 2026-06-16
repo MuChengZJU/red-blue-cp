@@ -3,7 +3,6 @@ from __future__ import annotations
 import logging
 import os
 import re
-from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,25 +11,14 @@ from urllib.parse import urlparse
 import requests
 
 import app.extract.fetcher as fetcher
+# ExtractResult 是冻结契约类型（contracts），此处 re-export 保持 0.5.x 旧导入路径
+# `from app.extract.extractor import ExtractResult` 仍解析到同一类型（消除双类型隐患）。
+from app.extract.contracts import ExtractResult, Segment, text_fingerprint
 from app.extract.errors import NetworkError, UnsupportedUrlError
 from app.extract.model import ModelProvider
 
 
 _log = logging.getLogger("rbcp.extractor")
-
-
-@dataclass
-class ExtractResult:
-    platform: str
-    content_type: str
-    title: str
-    author: str
-    author_id: str | None
-    published_at: str | None
-    url: str
-    text: str
-    metadata: dict[str, Any]
-    raw_info: dict[str, Any]
 
 
 def detect_platform(url: str) -> str:
@@ -58,10 +46,10 @@ def extract_url(
     platform = detect_platform(url)
     if platform == "bilibili":
         info = fetcher.fetch_bilibili(url, proxies=proxies)
-        raw_text, metadata = _extract_bilibili_text(info, provider, text_only=text_only)
+        raw_text, segments, metadata = _extract_bilibili_text(info, provider, text_only=text_only)
     elif platform == "xiaohongshu":
         info = fetcher.fetch_xiaohongshu(url, proxies=proxies)
-        raw_text, metadata = _extract_xiaohongshu_text(info, provider, text_only=text_only)
+        raw_text, segments, metadata = _extract_xiaohongshu_text(info, provider, text_only=text_only)
     else:
         raise UnsupportedUrlError(
             f"Unsupported URL platform: {url}", operation="detect_platform"
@@ -72,7 +60,8 @@ def extract_url(
         media_paths = _save_media(info, media_dir)
         metadata["media_paths"] = [str(p) for p in media_paths]
 
-    cleaned_text = provider.llm_clean(raw_text)
+    # 决策 C：text=canonical 原始原文（锚定坐标系）；readable_text=清洗版（.md 正文用）；两份都存。
+    readable_text = provider.llm_clean(raw_text)
     return ExtractResult(
         platform=str(info.get("platform") or platform),
         content_type=str(info.get("content_type") or ""),
@@ -81,9 +70,11 @@ def extract_url(
         author_id=_optional_str(info.get("author_id")),
         published_at=_format_published_at(info.get("published_at"), platform),
         url=str(info.get("url") or url),
-        text=cleaned_text,
+        text=raw_text,
+        readable_text=readable_text,
+        text_sha256=text_fingerprint(raw_text),
         metadata=metadata,
-        raw_info=info,
+        segments=segments,
     )
 
 
@@ -92,29 +83,29 @@ def _extract_bilibili_text(
     provider: ModelProvider,
     *,
     text_only: bool = False,
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[str, tuple[Segment, ...] | None, dict[str, Any]]:
     subtitle_text = info.get("subtitle_text")
     metadata = _base_metadata(info)
 
     if text_only:
-        # text_only 模式：字幕 > desc > title，跳过 ASR
+        # text_only 模式：字幕 > desc > title，跳过 ASR（无句级 segments）
         metadata["status"] = "text_only"
         if subtitle_text:
-            return str(subtitle_text), metadata
+            return str(subtitle_text), None, metadata
         desc = info.get("desc")
         if desc:
-            return str(desc), metadata
-        return str(info.get("title") or ""), metadata
+            return str(desc), None, metadata
+        return str(info.get("title") or ""), None, metadata
 
     if subtitle_text:
         metadata["status"] = "subtitle"
-        return str(subtitle_text), metadata
+        return str(subtitle_text), None, metadata
 
     media_url = info.get("audio_url") or info.get("video_url")
     metadata["status"] = "asr"
-    asr_text = provider.asr(str(media_url or ""), referer=info.get("referer"))
+    asr_text, segments = provider.asr(str(media_url or ""), referer=info.get("referer"))
     _annotate_speaker_count(metadata, asr_text)
-    return asr_text, metadata
+    return asr_text, segments, metadata
 
 
 def _extract_xiaohongshu_text(
@@ -122,29 +113,30 @@ def _extract_xiaohongshu_text(
     provider: ModelProvider,
     *,
     text_only: bool = False,
-) -> tuple[str, dict[str, Any]]:
+) -> tuple[str, tuple[Segment, ...] | None, dict[str, Any]]:
     metadata = _base_metadata(info)
     content_type = info.get("content_type")
 
     if text_only:
-        # text_only 模式：desc > title，跳过 VLM/ASR
+        # text_only 模式：desc > title，跳过 VLM/ASR（无句级 segments）
         metadata["status"] = "text_only"
         desc = info.get("desc")
         if desc:
-            return str(desc), metadata
-        return str(info.get("title") or ""), metadata
+            return str(desc), None, metadata
+        return str(info.get("title") or ""), None, metadata
 
     if content_type == "image_note":
         image_urls = [_normalize_image_url(str(url)) for url in info.get("image_urls") or []]
         metadata["status"] = "vision"
         metadata["image_count"] = len(image_urls)
-        return "\n\n".join(provider.vlm(image_url) for image_url in image_urls), metadata
+        # 图文走 VLM，无句级时间戳 → segments=None（坐标用 image_index）
+        return "\n\n".join(provider.vlm(image_url) for image_url in image_urls), None, metadata
 
     media_url = info.get("audio_url") or info.get("video_url")
     metadata["status"] = "asr"
-    asr_text = provider.asr(str(media_url or ""), referer=info.get("referer"))
+    asr_text, segments = provider.asr(str(media_url or ""), referer=info.get("referer"))
     _annotate_speaker_count(metadata, asr_text)
-    return asr_text, metadata
+    return asr_text, segments, metadata
 
 
 _SPEAKER_LABEL_RE = re.compile(r"说话人(\d+)：")

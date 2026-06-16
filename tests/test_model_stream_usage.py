@@ -203,13 +203,13 @@ class TestAsrUsage:
             patch.object(provider, "_upload_audio_to_oss", return_value="oss://k"),
             patch.object(provider, "_submit_transcription_task", return_value="tid"),
             patch("app.extract.model.requests.get") as mock_get,
-            patch("app.extract.model._extract_transcription_text", return_value="转写文本"),
+            patch("app.extract.model._extract_transcription_text", return_value=("转写文本", ())),
         ):
             poll_resp = MagicMock()
             poll_resp.status_code = 200
             poll_resp.json.return_value = poll_payload
             mock_get.return_value = poll_resp
-            assert provider.asr("https://example.com/a.mp3") == "转写文本"
+            assert provider.asr("https://example.com/a.mp3")[0] == "转写文本"
 
         event = provider.usage_events[0]
         assert event["stage"] == "asr"

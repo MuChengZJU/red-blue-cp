@@ -47,7 +47,7 @@ class TestExtractResult:
         field_names = {f.name for f in fields(ExtractResult)}
         expected = {
             "platform", "content_type", "title", "author", "author_id",
-            "published_at", "url", "text", "metadata", "raw_info",
+            "published_at", "url", "text", "readable_text", "text_sha256", "metadata", "segments",
         }
         assert expected.issubset(field_names)
 
@@ -67,7 +67,7 @@ class TestBilibiliVideoExtraction:
 
         assert result.platform == "bilibili"
         assert result.content_type == "video"
-        assert result.text == "清洗后的字幕"
+        assert result.readable_text == "清洗后的字幕"
         assert result.title == "测试视频标题"
         assert result.author == "测试UP主"
         # 有字幕时不应该调 ASR
@@ -87,7 +87,7 @@ class TestBilibiliVideoExtraction:
 
         result = extract_url("https://www.bilibili.com/video/BV1test", provider)
 
-        assert result.text == "清洗后的ASR文本"
+        assert result.readable_text == "清洗后的ASR文本"
         provider.asr.assert_called_once()
         provider.llm_clean.assert_called_once()
 
@@ -143,7 +143,7 @@ class TestXhsVideoExtraction:
 
         assert result.platform == "xiaohongshu"
         assert result.content_type == "video"
-        assert result.text == "清洗后文本"
+        assert result.readable_text == "清洗后文本"
         provider.asr.assert_called_once()
 
     @patch("app.extract.extractor.fetcher")
@@ -179,7 +179,7 @@ class TestXhsImageNoteExtraction:
 
         assert result.platform == "xiaohongshu"
         assert result.content_type == "image_note"
-        assert result.text == "清洗后的图文"
+        assert result.readable_text == "清洗后的图文"
         assert provider.vlm.call_count == 2  # 每张图调一次
 
     @patch("app.extract.extractor.fetcher")
@@ -228,7 +228,7 @@ def _mock_provider(
     llm_clean_result="",
 ):
     provider = MagicMock()
-    provider.asr.return_value = asr_result
+    provider.asr.return_value = (asr_result, ())
     provider.vlm.return_value = vlm_result
     provider.llm_clean.return_value = llm_clean_result
     return provider

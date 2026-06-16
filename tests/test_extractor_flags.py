@@ -30,7 +30,7 @@ def _exploding_provider():
 def _silent_provider():
     """正常返回空字符串的 provider，用于 save_media 测试（不需要 ASR/VLM）。"""
     provider = MagicMock()
-    provider.asr.return_value = ""
+    provider.asr.return_value = ("", ())
     provider.vlm.return_value = ""
     provider.llm_clean.side_effect = lambda text: text
     return provider
@@ -235,7 +235,7 @@ class TestTextOnly:
         )
 
         provider.llm_clean.assert_called_once()
-        assert result.text == "清洗后正文"
+        assert result.readable_text == "清洗后正文"  # .md 正文=清洗版；canonical 原文在 result.text
 
 
 # ─── save_media 测试 ──────────────────────────────────────────────────────────
@@ -513,7 +513,7 @@ class TestBackwardCompatibility:
         result = extract_url("https://www.bilibili.com/video/BV1aaa", provider)
 
         assert result.platform == "bilibili"
-        assert result.text == "final"
+        assert result.readable_text == "final"
 
     @patch("app.extract.extractor.fetcher")
     def test_default_xhs_image_note_still_works(self, mock_fetcher):
@@ -541,4 +541,4 @@ class TestBackwardCompatibility:
         result = extract_url("https://www.xiaohongshu.com/explore/note_abc", provider)
 
         assert result.platform == "xiaohongshu"
-        assert result.text == "clean text"
+        assert result.readable_text == "clean text"

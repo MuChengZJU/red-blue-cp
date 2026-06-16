@@ -116,15 +116,16 @@ def _render_markdown(result: ExtractResult, fetched_at: str) -> str:
         media_paths=metadata.get("media_paths"),
         status=metadata.get("status"),
         author_url=_author_url(result),
-        text=result.text,
+        # .md 正文用清洗版（用户定）；canonical 原文 result.text 留给 Digest/锚定层。
+        text=result.readable_text,
     )
 
 
 def _result_suffix_id(result: ExtractResult) -> str:
     metadata = result.metadata or {}
-    raw_info = result.raw_info or {}
+    # raw_info 已从冻结契约移除：唯一需要的 post_id 早已被 _base_metadata 写进 metadata。
     for key in ("post_id", "bvid", "note_id", "id"):
-        value = metadata.get(key) or raw_info.get(key)
+        value = metadata.get(key)
         if value:
             return str(value)
 

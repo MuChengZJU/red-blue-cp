@@ -11,6 +11,7 @@ from urllib.parse import urlparse
 
 import requests
 
+from app.extract.contracts import Segment, build_canonical_text_and_segments
 from app.extract.errors import ApiError, NetworkError, ParseError
 
 
@@ -133,7 +134,10 @@ VLM_PROMPT = (
 
 @runtime_checkable
 class ModelProvider(Protocol):
-    def asr(self, audio_url: str, referer: str | None = None) -> str:
+    def asr(
+        self, audio_url: str, referer: str | None = None
+    ) -> tuple[str, tuple[Segment, ...]]:
+        """转写音频 → (canonical text, segments)。segments 句级、char offset 对齐 text。"""
         ...
 
     def vlm(self, image_url: str) -> str:
@@ -247,18 +251,20 @@ class DashscopeProvider:
         })
         return text, usage
 
-    def asr(self, audio_url: str, referer: str | None = None) -> str:
+    def asr(
+        self, audio_url: str, referer: str | None = None
+    ) -> tuple[str, tuple[Segment, ...]]:
         t0 = time.monotonic()
         oss_url = self._upload_audio_to_oss(audio_url, referer=referer)
         task_id = self._submit_transcription_task(oss_url)
-        text, audio_seconds = self._wait_for_transcription(task_id)
+        text, segments, audio_seconds = self._wait_for_transcription(task_id)
         self.usage_events.append({
             "stage": "asr",
             "model": self.asr_model,
             "audio_seconds": audio_seconds,
             "elapsed_seconds": round(time.monotonic() - t0, 1),
         })
-        return text
+        return text, segments
 
     def _json_auth_headers(self) -> dict[str, str]:
         return {
@@ -417,8 +423,10 @@ class DashscopeProvider:
             )
         return task_id
 
-    def _wait_for_transcription(self, task_id: str) -> tuple[str, int | None]:
-        """轮询转写任务到完成。返回 (文本, 计费音频秒数)。
+    def _wait_for_transcription(
+        self, task_id: str
+    ) -> tuple[str, tuple[Segment, ...], int | None]:
+        """轮询转写任务到完成。返回 (文本, segments, 计费音频秒数)。
 
         计费秒数来自 poll 响应**顶层** usage.duration（spike 实证），不是 output 里。
         """
@@ -442,10 +450,10 @@ class DashscopeProvider:
             task_status = output.get("task_status")
 
             if task_status == "SUCCEEDED":
-                text = _extract_transcription_text(output, proxies=self._proxies)
+                text, segments = _extract_transcription_text(output, proxies=self._proxies)
                 if text:
                     audio_seconds = (last_payload.get("usage") or {}).get("duration")
-                    return text, audio_seconds
+                    return text, segments, audio_seconds
                 _log.error("[poll_transcription] succeeded without text: %r", last_payload)
                 raise ParseError(
                     "DashScope transcription succeeded without text",
@@ -526,7 +534,7 @@ class StreamingMultipartForm:
 
 def _extract_transcription_text(
     output: dict[str, Any], *, proxies: dict[str, str] | None = None
-) -> str:
+) -> tuple[str, tuple[Segment, ...]]:
     result = output.get("result") or {}
     urls = []
     if result.get("transcription_url"):
@@ -541,63 +549,19 @@ def _extract_transcription_text(
             lambda url=url: requests.get(url, timeout=60, proxies=proxies),
         )
         _raise_dashscope_for_status(response, operation="fetch_transcription_result")
-        text = _format_transcription(response.json())
+        text, segments = build_canonical_text_and_segments(response.json())
         if text:
-            return text
-    return ""
+            return text, segments
+    return "", ()
 
 
 def _format_transcription(payload: dict[str, Any]) -> str:
-    """把转写结果 JSON 格式化为文本。
+    """把转写结果 JSON 格式化为 canonical 文本（多说话人「说话人N：」分组）。
 
-    多说话人（diarization 开启且识别出 ≥2 人）→ 按 speaker_id 分组，输出「说话人N：…」。
-    单一说话人 / 无 speaker_id 字段 → 回退纯文本（拼 transcripts[].text）。
-    一人配音演多角色会被识别成同一 speaker，按单人降级——拆分交给后续 LLM 后处理。
-    纯函数，不发网络请求，便于单测。
+    薄包装：复用 build_canonical_text_and_segments 的 text 部分，与 segments 同源、
+    不重复装配逻辑（DRY）。保留此函数名供旧测试 / 旧调用兼容。
     """
-    transcripts = [t for t in payload.get("transcripts") or [] if isinstance(t, dict)]
-
-    sentences: list[tuple[Any, str]] = []
-    for transcript in transcripts:
-        for sentence in transcript.get("sentences") or []:
-            if not isinstance(sentence, dict):
-                continue
-            text = (sentence.get("text") or "").strip()
-            if text:
-                sentences.append((sentence.get("speaker_id"), text))
-
-    speakers = {sid for sid, _ in sentences if sid is not None}
-
-    if len(speakers) <= 1:
-        parts = [
-            (t.get("text") or "").strip()
-            for t in transcripts
-            if (t.get("text") or "").strip()
-        ]
-        if parts:
-            return "\n".join(parts)
-        return "\n".join(text for _, text in sentences)
-
-    turns: list[str] = []
-    current_sid: Any = _UNSET
-    buffer: list[str] = []
-    for sid, text in sentences:
-        if sid != current_sid and buffer:
-            turns.append(_format_speaker_turn(current_sid, buffer))
-            buffer = []
-        current_sid = sid
-        buffer.append(text)
-    if buffer:
-        turns.append(_format_speaker_turn(current_sid, buffer))
-    return "\n\n".join(turns)
-
-
-_UNSET = object()
-
-
-def _format_speaker_turn(speaker_id: Any, texts: list[str]) -> str:
-    label = f"说话人{int(speaker_id) + 1}" if isinstance(speaker_id, int) else "说话人"
-    return f"{label}：{''.join(texts)}"
+    return build_canonical_text_and_segments(payload)[0]
 
 
 def _content_length(response: requests.Response) -> int:

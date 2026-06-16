@@ -9,6 +9,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
+from app.extract.contracts import text_fingerprint
 from app.extract.extractor import ExtractResult
 from app.extract.storage import Storage
 
@@ -17,7 +18,8 @@ def _fake_result(url: str = "https://b23.tv/x") -> ExtractResult:
     return ExtractResult(
         platform="bilibili", content_type="video", title="t", author="a",
         author_id=None, published_at=None, url=url, text="正文",
-        metadata={}, raw_info={},
+        readable_text="正文", text_sha256=text_fingerprint("正文"),
+        metadata={},
     )
 
 

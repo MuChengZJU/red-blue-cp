@@ -116,9 +116,8 @@ def _make_result(
     url="https://www.bilibili.com/video/BV1test",
     text="这是正文内容",
     metadata=None,
-    raw_info=None,
 ):
-    from app.extract.extractor import ExtractResult
+    from app.extract.contracts import ExtractResult, text_fingerprint
     return ExtractResult(
         platform=platform,
         content_type=content_type,
@@ -128,6 +127,28 @@ def _make_result(
         published_at=published_at,
         url=url,
         text=text,
+        readable_text=text,  # .md 正文渲染 readable_text；fixture 里与 canonical 同值
+        text_sha256=text_fingerprint(text),
         metadata=metadata or {"status": "subtitle"},
-        raw_info=raw_info or {},
     )
+
+
+def test_body_uses_readable_text_not_canonical(tmp_path):
+    """决策守门：.md 正文渲染 readable_text（清洗版），不是 canonical text（原文）。
+
+    两份不同值时，正文必须是清洗版、不含原始 canonical——防 M6b 迁移把正文悄悄换成原文。
+    """
+    from app.extract.contracts import ExtractResult, text_fingerprint
+
+    canonical = "原始转录文本无标点甲乙丙"
+    readable = "清洗后的可读正文。"
+    result = ExtractResult(
+        platform="bilibili", content_type="video", title="t", author="a",
+        author_id=None, published_at="2025-01-01",
+        url="https://www.bilibili.com/video/BVx",
+        text=canonical, readable_text=readable, text_sha256=text_fingerprint(canonical),
+        metadata={"status": "asr"},
+    )
+    body = render_and_write(result, output_dir=tmp_path).read_text(encoding="utf-8")
+    assert readable in body
+    assert canonical not in body

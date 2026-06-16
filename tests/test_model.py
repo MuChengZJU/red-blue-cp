@@ -139,7 +139,7 @@ class TestDashscopeAsr:
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get, transcript_text="你好世界")
         provider = DashscopeProvider(api_key="test-key")
         result = provider.asr("https://example.com/audio.m4s")
-        assert result == "你好世界"
+        assert result[0] == "你好世界"
 
     @patch("app.extract.model.requests.get")
     @patch("app.extract.model.requests.post")
