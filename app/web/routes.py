@@ -18,6 +18,7 @@ from pydantic import BaseModel, Field
 from app.extract.errors import RbcpError, format_error_for_user
 from app.extract.extractor import detect_platform
 from app.extract.storage import Storage
+from app.web import artifacts
 from app.extract.urls import clean_url, dedup_key
 
 
@@ -123,6 +124,7 @@ def _run_job(
             usage=result.get("usage"),
         )
         logger.info("[job %s] done: %s", job_id, result["md_path"])
+        artifacts.on_job_success(job_id, result)
     except Exception as error:
         tb = traceback.format_exc()
         # error_message 存「人话」；log_excerpt 存**脱敏的异常链摘要**（不含 traceback/

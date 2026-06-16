@@ -77,7 +77,10 @@ def stub_single(monkeypatch):
         pipeline, "extract_url",
         lambda url, provider, **kw: types.SimpleNamespace(
             title="标题X", author="作者X", platform="xiaohongshu",
-            content_type="video", **kw,
+            content_type="video",
+            # 0.6：fetch_single 返回值新增 canonical/指纹/segments，桩需补齐
+            text="正文X", text_sha256="sha256X", segments=None,
+            **kw,
         ),
     )
     monkeypatch.setattr(

@@ -153,10 +153,11 @@ class TestFetchSingleProxyWiring:
         mock_render.return_value = tmp_path / "out.md"
         out = fetch_single("https://www.xiaohongshu.com/explore/x",
                            api_key="k", output_dir=tmp_path, proxy="http://127.0.0.1:7897")
-        assert out == {
+        # 0.6：out 新增 canonical_text/text_sha256/segments，这里只校验原 6 键（子集）
+        assert {
             "md_path": str(tmp_path / "out.md"), "title": "t", "author": "a",
             "platform": "xiaohongshu", "content_type": "video", "usage": None,
-        }
+        }.items() <= out.items()
         assert mock_extract.call_args.kwargs["proxies"] == PROXY
         assert mock_provider.call_args.kwargs["proxies"] == PROXY
 

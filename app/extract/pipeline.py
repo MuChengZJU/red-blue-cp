@@ -107,6 +107,10 @@ def fetch_single(
         # P1h：provider 账本 → 费用汇总（没调模型则为 None）。
         # getattr 宽容：账本是尽力记账，不是 ModelProvider Protocol 的一部分。
         "usage": summarize_usage(getattr(provider, "usage_events", [])),
+        # 0.6 速览数据地基：canonical 原文 + 指纹 + 句级 segments（artifacts 据此落缓存）。
+        "canonical_text": result.text,
+        "text_sha256": result.text_sha256,
+        "segments": result.segments,
     }
 
     if comments:
