@@ -33,27 +33,20 @@ if [ ${#PATTERNS[@]} -eq 0 ]; then
   exit 0
 fi
 
-EXCLUDE_DIRS=(_reference .git .venv .pytest_cache .gstack node_modules scripts)
-
-exclude_args=()
-for d in "${EXCLUDE_DIRS[@]}"; do
-  exclude_args+=(--exclude-dir="$d")
-done
-
 regex=$(IFS='|'; echo "${PATTERNS[*]}")
 
-found=$(grep -rnE "$regex" \
-  --include="*.md" \
-  --include="*.toml" \
-  --include="*.html" \
-  --include="*.j2" \
-  --include="*.py" \
-  --include="*.txt" \
-  --include="*.yaml" \
-  --include="*.yml" \
-  --exclude=".leak-patterns*" \
-  "${exclude_args[@]}" \
-  . 2>/dev/null || true)
+# 只扫 git 会纳入的文件（tracked + 未被 .gitignore 忽略的 untracked）——开源泄漏门只关心进库的文件。
+# 这天然跳过 .venv / build / dist / target / gen / node_modules / _sandbox 等构建&临时产物
+# （它们含机器绝对路径但永不进库，扫它们是误报）。再排除 _reference（上游参考）/ scripts / 敏感词清单本身。
+files=$(git ls-files --cached --others --exclude-standard \
+  | grep -iE '\.(md|toml|html|j2|py|txt|yaml|yml)$' \
+  | grep -vE '(^|/)(_reference|scripts)/' \
+  | grep -vE '(^|/)\.leak-patterns' || true)
+
+found=""
+if [ -n "$files" ]; then
+  found=$(printf '%s\n' "$files" | tr '\n' '\0' | xargs -0 grep -nE "$regex" 2>/dev/null || true)
+fi
 
 if [ -n "$found" ]; then
   echo "✗ 发现敏感信息泄漏，请清理后再 commit："
