@@ -46,6 +46,28 @@ logging.getLogger("uvicorn.access").addFilter(_PollNoiseFilter())
 app = FastAPI()
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
+
+def _maybe_enable_cors(target_app: FastAPI) -> bool:
+    """桌面模式下放宽 CORS：前端从 tauri://localhost 跨源调本地 serve。
+
+    serve 仅绑 127.0.0.1（外部够不着）+ Bearer token 鉴权，不用 cookie，
+    故 allow_origins=["*"] 安全。非桌面（WebUI 同源）不加，保持原行为。
+    """
+    if os.getenv("RBCP_DESKTOP") == "1":
+        from fastapi.middleware.cors import CORSMiddleware
+
+        target_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        return True
+    return False
+
+
+_maybe_enable_cors(app)
+
 api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
 
