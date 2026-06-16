@@ -129,12 +129,122 @@ def text_fingerprint(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
+def _speaker_id_str(speaker_id: Any) -> str | None:
+    return None if speaker_id is None else str(speaker_id)
+
+
+def _ms_to_sec(value: Any) -> float | None:
+    """DashScope ASR sentence 的 begin_time/end_time 是**毫秒** → 转秒。
+
+    注意：毫秒这一单位需在 M6b 真链路实测核对一次（外部 API 细节，别只信引用代码）。
+    单位若变只改这一处。
+    """
+    if value is None:
+        return None
+    try:
+        return float(value) / 1000.0
+    except (TypeError, ValueError):
+        return None
+
+
+def _collect_sentences(transcripts: list[dict[str, Any]]) -> list[tuple[Any, str, Any, Any]]:
+    out: list[tuple[Any, str, Any, Any]] = []
+    for transcript in transcripts:
+        for sentence in transcript.get("sentences") or []:
+            if not isinstance(sentence, dict):
+                continue
+            text = (sentence.get("text") or "").strip()
+            if text:
+                out.append(
+                    (sentence.get("speaker_id"), text,
+                     sentence.get("begin_time"), sentence.get("end_time"))
+                )
+    return out
+
+
 def build_canonical_text_and_segments(
     asr_payload: dict[str, Any],
 ) -> tuple[str, tuple[Segment, ...]]:
-    """从 ASR payload **原子产出** canonical text + segments，二者 char offset 严格对齐。
+    """从 ASR payload **原子产出** canonical text + segments，char offset 与 text 严格对齐。
 
-    speaker 前缀 / 换行 / 句间分隔规则会锁进单测，保证任何 segment 的
-    ``text[seg.char_start:seg.char_end]`` 等于该句文本。M6b 实现。
+    产出的 ``text`` 与历史 ``model._format_transcription(payload)`` **逐字一致**（行为不回归，
+    由现有 _format_transcription 测试守），并附带 segments。不变量：每个 segment 满足
+    ``text[seg.char_start:seg.char_end] == seg.text``（缝隙字符：speaker 前缀「说话人N：」/
+    换行不属于任何 segment）。区间左闭右开。
+
+    三种装配（与 _format_transcription 同构）：
+    - 多说话人（≥2 个非 None speaker_id）：连续同人合并为一轮「说话人N：句…」，轮间「\\n\\n」。
+    - 单说话人且有 transcript 级 text：按「\\n」拼 transcript text；segments 用前向扫描尽力对齐。
+    - 单说话人且无 transcript 级 text：按「\\n」拼句子文本。
     """
-    raise NotImplementedError("M6b: 实现 canonical text + segment char-offset 对齐")
+    transcripts = [t for t in (asr_payload.get("transcripts") or []) if isinstance(t, dict)]
+    sentences = _collect_sentences(transcripts)
+    speakers = {sid for sid, _, _, _ in sentences if sid is not None}
+
+    parts: list[str] = []
+    segments: list[Segment] = []
+    pos = 0
+
+    def emit(piece: str) -> tuple[int, int]:
+        nonlocal pos
+        start = pos
+        parts.append(piece)
+        pos += len(piece)
+        return start, pos
+
+    if len(speakers) >= 2:
+        groups: list[tuple[Any, list[tuple[Any, str, Any, Any]]]] = []
+        for rec in sentences:
+            sid = rec[0]
+            if groups and groups[-1][0] == sid:
+                groups[-1][1].append(rec)
+            else:
+                groups.append((sid, [rec]))
+        for gi, (sid, recs) in enumerate(groups):
+            if gi > 0:
+                emit("\n\n")
+            label = f"说话人{int(sid) + 1}：" if isinstance(sid, int) else "说话人："
+            emit(label)
+            for _sid, txt, begin, end in recs:
+                cs, ce = emit(txt)
+                segments.append(Segment(
+                    text=txt, speaker_id=_speaker_id_str(sid),
+                    start_sec=_ms_to_sec(begin), end_sec=_ms_to_sec(end),
+                    char_start=cs, char_end=ce,
+                ))
+        return "".join(parts), tuple(segments)
+
+    transcript_texts = [
+        (t.get("text") or "").strip() for t in transcripts if (t.get("text") or "").strip()
+    ]
+    if transcript_texts:
+        for ti, ttext in enumerate(transcript_texts):
+            if ti > 0:
+                emit("\n")
+            emit(ttext)
+        text = "".join(parts)
+        # 前向扫描尽力对齐句子（text 来自 transcript 级文本，可能与句子拼接有标点差异）。
+        # 只在 find 命中时产 segment → 不变量 text[cs:ce]==seg.text 恒成立；找不到则跳过该句。
+        cursor = 0
+        for sid, txt, begin, end in sentences:
+            idx = text.find(txt, cursor)
+            if idx < 0:
+                continue
+            segments.append(Segment(
+                text=txt, speaker_id=_speaker_id_str(sid),
+                start_sec=_ms_to_sec(begin), end_sec=_ms_to_sec(end),
+                char_start=idx, char_end=idx + len(txt),
+            ))
+            cursor = idx + len(txt)
+        return text, tuple(segments)
+
+    for si, (sid, txt, begin, end) in enumerate(sentences):
+        if si > 0:
+            emit("\n")
+        cs, ce = emit(txt)
+        segments.append(Segment(
+            text=txt, speaker_id=_speaker_id_str(sid),
+            start_sec=_ms_to_sec(begin), end_sec=_ms_to_sec(end),
+            char_start=cs, char_end=ce,
+        ))
+    return "".join(parts), tuple(segments)

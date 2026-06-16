@@ -140,11 +140,94 @@ def test_text_fingerprint_deterministic_and_sha256():
     assert text_fingerprint(s) == text_fingerprint(s)  # 确定性
 
 
-def test_build_canonical_is_stub():
+def _assert_segments_aligned(text, segments):
+    """契约核心不变量：每个 segment 的 char 区间切出来的就是它的 text。"""
+    for seg in segments:
+        assert text[seg.char_start:seg.char_end] == seg.text
+        assert seg.char_start <= seg.char_end  # 左闭右开，允许空
+
+
+def test_build_canonical_empty_payload():
     from app.extract.contracts import build_canonical_text_and_segments
 
-    with pytest.raises(NotImplementedError):
-        build_canonical_text_and_segments({})
+    assert build_canonical_text_and_segments({}) == ("", ())
+
+
+def test_build_canonical_multi_speaker():
+    from app.extract.contracts import build_canonical_text_and_segments
+
+    payload = {"transcripts": [{"sentences": [
+        {"speaker_id": 0, "text": "你最近怎么不理我？", "begin_time": 0, "end_time": 2000},
+        {"speaker_id": 1, "text": "不是不理你。", "begin_time": 2000, "end_time": 5000},
+        {"speaker_id": 0, "text": "那好吧。", "begin_time": 5000, "end_time": 6000},
+    ]}]}
+    text, segs = build_canonical_text_and_segments(payload)
+    assert text == "说话人1：你最近怎么不理我？\n\n说话人2：不是不理你。\n\n说话人1：那好吧。"
+    assert len(segs) == 3
+    _assert_segments_aligned(text, segs)
+    assert segs[0].speaker_id == "0" and segs[1].speaker_id == "1"
+    assert segs[0].start_sec == 0.0 and segs[0].end_sec == 2.0  # ms→sec
+    assert segs[1].start_sec == 2.0
+
+
+def test_build_canonical_consecutive_same_speaker_merged():
+    from app.extract.contracts import build_canonical_text_and_segments
+
+    payload = {"transcripts": [{"sentences": [
+        {"speaker_id": 0, "text": "第一句。"},
+        {"speaker_id": 0, "text": "第二句。"},
+        {"speaker_id": 1, "text": "对方说话。"},
+    ]}]}
+    text, segs = build_canonical_text_and_segments(payload)
+    assert text == "说话人1：第一句。第二句。\n\n说话人2：对方说话。"
+    assert len(segs) == 3  # 每句一个 segment，即使同人合并到一轮
+    _assert_segments_aligned(text, segs)
+    assert segs[0].start_sec is None  # 没 begin_time → None
+
+
+def test_build_canonical_single_speaker_sentence_join():
+    from app.extract.contracts import build_canonical_text_and_segments
+
+    payload = {"transcripts": [{"sentences": [
+        {"speaker_id": 0, "text": "整段纯文本。", "begin_time": 0, "end_time": 3000},
+    ]}]}
+    text, segs = build_canonical_text_and_segments(payload)
+    assert text == "整段纯文本。"
+    assert len(segs) == 1 and segs[0].char_start == 0 and segs[0].char_end == 6
+    _assert_segments_aligned(text, segs)
+
+
+def test_build_canonical_transcript_text_with_forward_align():
+    from app.extract.contracts import build_canonical_text_and_segments
+
+    payload = {"transcripts": [{
+        "text": "完整一段话。第二句来了。",
+        "sentences": [
+            {"speaker_id": 0, "text": "完整一段话。", "begin_time": 0, "end_time": 2000},
+            {"speaker_id": 0, "text": "第二句来了。", "begin_time": 2000, "end_time": 4000},
+        ],
+    }]}
+    text, segs = build_canonical_text_and_segments(payload)
+    assert text == "完整一段话。第二句来了。"  # 用 transcript 级 text（不回归）
+    assert len(segs) == 2  # 前向扫描对齐成功
+    _assert_segments_aligned(text, segs)
+    assert segs[1].char_start == 6
+
+
+def test_build_canonical_text_matches_legacy_format_transcription():
+    """text 必须与历史 _format_transcription 逐字一致（no-regression 守门）。"""
+    from app.extract.contracts import build_canonical_text_and_segments
+    from app.extract.model import _format_transcription
+
+    payloads = [
+        {"transcripts": [{"sentences": [
+            {"speaker_id": 0, "text": "甲说。"}, {"speaker_id": 1, "text": "乙说。"}]}]},
+        {"transcripts": [{"sentences": [{"speaker_id": 0, "text": "纯文本。"}]}]},
+        {"transcripts": [{"text": "顶层文本。", "sentences": [{"speaker_id": 0, "text": "顶层文本。"}]}]},
+        {},
+    ]
+    for p in payloads:
+        assert build_canonical_text_and_segments(p)[0] == _format_transcription(p)
 
 
 # ---------------- §B facade verbs are stubs ----------------
