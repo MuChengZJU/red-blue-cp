@@ -14,6 +14,8 @@ from __future__ import annotations
 import asyncio
 import os
 import sys
+import threading
+import time
 
 # 真实引擎 = 仓库 app/。frozen 时随包，开发期加仓库根。
 if hasattr(sys, "_MEIPASS"):
@@ -34,7 +36,22 @@ from app.cli import _DesktopServer, _build_serve_config  # noqa: E402
 import app.web.routes  # noqa: E402,F401
 
 
+def _parent_death_watchdog() -> None:
+    """父进程一死就自退，防孤儿 serve 泄漏端口。
+
+    onefile PyInstaller 是双进程（bootloader 父 + 解压出的真程序子）。Tauri 退出时
+    kill 的是 bootloader，真 serve 会 reparent 到 launchd 变孤儿存活。这里记录初始
+    父 PID，一旦 getppid() 变了（父死、被 reparent）立即 os._exit。
+    """
+    initial_ppid = os.getppid()
+    while True:
+        time.sleep(1.0)
+        if os.getppid() != initial_ppid:
+            os._exit(0)
+
+
 def main() -> int:
+    threading.Thread(target=_parent_death_watchdog, daemon=True).start()
     load_config()  # 桌面端 .env / 配置发现
     auth.new_token()  # 设进程级启动 token；_DesktopServer 会把它随 port 一起回吐
     cfg = _build_serve_config(desktop=True)  # 127.0.0.1 + port 0（内核分配）
