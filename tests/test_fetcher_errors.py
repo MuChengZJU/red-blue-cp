@@ -8,8 +8,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from app.service import fetcher
-from app.service.errors import (
+from app.extract import fetcher
+from app.extract.errors import (
     UnsupportedUrlError,
     ApiError,
     AuthError,
@@ -31,7 +31,7 @@ def _resp(*, status_code=200, text="", url="", json_data=None):
 
 class TestFetchXiaohongshuErrors:
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_token_expired_redirect_to_404(self, mock_get):
         mock_get.return_value = _resp(
             status_code=200, text="<html></html>",
@@ -43,7 +43,7 @@ class TestFetchXiaohongshuErrors:
         assert ei.value.platform == "xiaohongshu"
         assert ei.value.operation == "fetch_detail"
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_token_expired_error_code_300031(self, mock_get):
         mock_get.return_value = _resp(
             status_code=200, text="<html></html>",
@@ -53,7 +53,7 @@ class TestFetchXiaohongshuErrors:
             fetcher.fetch_xiaohongshu("https://www.xiaohongshu.com/explore/x")
         assert ei.value.reason == "token_expired"
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_http_error_raises_api_error_and_logs_body(self, mock_get, caplog):
         # 服务器响应了非 2xx（reach 到站点）→ ApiError 而非 NetworkError，
         # 否则 format_error_for_user 会把它说成"代理未生效"，误导用户（Codex P2）。
@@ -68,7 +68,7 @@ class TestFetchXiaohongshuErrors:
         assert ei.value.api_code == 503
         assert "风控页面 body 内容" in caplog.text
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_missing_initial_state_raises_parse_error(self, mock_get):
         mock_get.return_value = _resp(
             status_code=200, text="<html>no state here</html>",
@@ -77,7 +77,7 @@ class TestFetchXiaohongshuErrors:
         with pytest.raises(ParseError):
             fetcher.fetch_xiaohongshu("https://www.xiaohongshu.com/explore/x")
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_valid_token_not_misjudged(self, mock_get):
         # 真实有效但解析不到 note → ParseError，绝不能误判成 AuthError
         mock_get.return_value = _resp(
@@ -93,12 +93,12 @@ class TestFetchXiaohongshuErrors:
 
 class TestFetchBilibiliErrors:
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_no_bvid_raises_unsupported_url(self, mock_get):
         with pytest.raises(UnsupportedUrlError):
             fetcher.fetch_bilibili("https://www.bilibili.com/video/notabv")
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_get_json_http_error_raises_api_error_with_body(self, mock_get, caplog):
         mock_get.return_value = _resp(status_code=412, text='{"code":-412,"message":"risk"}')
         with caplog.at_level("ERROR"):
@@ -120,13 +120,13 @@ class TestFetchBilibiliErrors:
         with pytest.raises(ParseError):
             fetcher._api_data(payload, "Bilibili video info")
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_get_json_non_dict_raises_parse_error(self, mock_get):
         mock_get.return_value = _resp(status_code=200, json_data=[1, 2, 3])
         with pytest.raises(ParseError):
             fetcher._get_json("https://api.bilibili.com/x", params={})
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_resolve_bilibili_url_http_error_raises_api(self, mock_get):
         mock_get.return_value = _resp(status_code=500, text="boom", url="https://b23.tv/x")
         with pytest.raises(ApiError):

@@ -12,7 +12,7 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.service.extractor import extract_url
+from app.extract.extractor import extract_url
 
 
 # ─── 辅助工厂 ────────────────────────────────────────────────────────────────
@@ -109,7 +109,7 @@ def _xhs_image_note_info(image_urls=None, desc=None):
 
 class TestTextOnly:
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_bilibili_subtitle_no_asr_called(self, mock_fetcher):
         """B站有字幕时 text_only=True → 直接用字幕，不调 asr/vlm。"""
         mock_fetcher.fetch_bilibili.return_value = _bili_video_info(
@@ -128,7 +128,7 @@ class TestTextOnly:
         provider.asr.assert_not_called()
         provider.vlm.assert_not_called()
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_bilibili_no_subtitle_uses_desc(self, mock_fetcher):
         """B站无字幕时 text_only=True → 用 desc 字段，不调 asr。"""
         mock_fetcher.fetch_bilibili.return_value = _bili_video_info(
@@ -147,7 +147,7 @@ class TestTextOnly:
         assert result.metadata.get("status") == "text_only"
         provider.asr.assert_not_called()
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_bilibili_no_subtitle_no_desc_uses_title(self, mock_fetcher):
         """B站无字幕无 desc 时 text_only=True → 退回用 title。"""
         info = _bili_video_info(subtitle_text=None, desc=None)
@@ -164,7 +164,7 @@ class TestTextOnly:
         assert result.text == "测试B站视频"  # 退回用 title
         assert result.metadata.get("status") == "text_only"
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_xhs_video_text_only_no_asr(self, mock_fetcher):
         """小红书视频 text_only=True → 用 desc，不调 asr。"""
         mock_fetcher.fetch_xiaohongshu.return_value = _xhs_video_info(
@@ -182,7 +182,7 @@ class TestTextOnly:
         assert result.metadata.get("status") == "text_only"
         provider.asr.assert_not_called()
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_xhs_image_note_text_only_no_vlm(self, mock_fetcher):
         """小红书图文 text_only=True → 用 desc，不调 vlm。"""
         mock_fetcher.fetch_xiaohongshu.return_value = _xhs_image_note_info(
@@ -200,7 +200,7 @@ class TestTextOnly:
         assert result.metadata.get("status") == "text_only"
         provider.vlm.assert_not_called()
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_xhs_image_note_no_desc_uses_title(self, mock_fetcher):
         """小红书图文无 desc 时 text_only=True → 退回用 title。"""
         info = _xhs_image_note_info(desc=None)
@@ -217,7 +217,7 @@ class TestTextOnly:
         assert result.text == "小红书图文标题"
         assert result.metadata.get("status") == "text_only"
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_text_only_still_calls_llm_clean(self, mock_fetcher):
         """text_only=True 时仍然走 llm_clean（清理正文质量）。"""
         mock_fetcher.fetch_xiaohongshu.return_value = _xhs_image_note_info(
@@ -243,7 +243,7 @@ class TestTextOnly:
 
 class TestSaveMedia:
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_xhs_image_note_downloads_images(self, mock_fetcher, tmp_path, monkeypatch):
         """小红书图文 save_media=True → 下载图片到 media_dir/{note_id}/。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -280,7 +280,7 @@ class TestSaveMedia:
         saved_files = list(media_dir.iterdir())
         assert len(saved_files) == 2
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_media_not_in_output_dir(self, mock_fetcher, tmp_path, monkeypatch):
         """红线 #5：媒体文件绝不能出现在知识库（RBCP_OUTPUT_DIR）目录下。"""
         output_dir = tmp_path / "transcript"
@@ -313,7 +313,7 @@ class TestSaveMedia:
             f"知识库目录里出现了不该有的文件: {all_output_files}"
         )
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_save_media_idempotent(self, mock_fetcher, tmp_path, monkeypatch):
         """幂等：同 note_id 第二次调用，已存在的文件直接跳过，不重新下载。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -350,7 +350,7 @@ class TestSaveMedia:
             f"第二次累计 {second_call_count} 次"
         )
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_save_media_requests_with_referer(self, mock_fetcher, tmp_path, monkeypatch):
         """下载图片时必须带 referer header（防盗链）。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -381,7 +381,7 @@ class TestSaveMedia:
                 break
         assert called_with_referer, "下载图片时未带 Referer header"
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_save_media_uses_atomic_write(self, mock_fetcher, tmp_path, monkeypatch):
         """原子写：下载完成后不留 .part 临时文件。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -406,7 +406,7 @@ class TestSaveMedia:
         part_files = list(tmp_path.rglob("*.part"))
         assert part_files == [], f"发现残留临时文件: {part_files}"
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_xhs_video_saves_video_url(self, mock_fetcher, tmp_path, monkeypatch):
         """小红书视频 save_media=True → 下载 video_url（完整视频，非仅音频）。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -434,7 +434,7 @@ class TestSaveMedia:
             f"没有下载 video_url，实际下载了: {downloaded_urls}"
         )
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_metadata_media_paths_set(self, mock_fetcher, tmp_path, monkeypatch):
         """save_media=True 时 metadata['media_paths'] 是非空列表。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -458,7 +458,7 @@ class TestSaveMedia:
         assert isinstance(result.metadata.get("media_paths"), list)
         assert len(result.metadata["media_paths"]) > 0
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_save_media_false_no_media_downloaded(self, mock_fetcher, tmp_path, monkeypatch):
         """save_media=False（默认）时不触发任何媒体下载。"""
         monkeypatch.setenv("RBCP_MEDIA_DIR", str(tmp_path))
@@ -488,7 +488,7 @@ class TestSaveMedia:
 class TestBackwardCompatibility:
     """确保现有的 extract_url(url, provider) 调用方式不破。"""
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_default_bilibili_still_works(self, mock_fetcher):
         mock_fetcher.fetch_bilibili.return_value = {
             "platform": "bilibili",
@@ -515,7 +515,7 @@ class TestBackwardCompatibility:
         assert result.platform == "bilibili"
         assert result.text == "final"
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_default_xhs_image_note_still_works(self, mock_fetcher):
         mock_fetcher.fetch_xiaohongshu.return_value = {
             "platform": "xiaohongshu",

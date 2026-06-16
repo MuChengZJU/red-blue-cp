@@ -12,16 +12,16 @@ import typer
 import uvicorn
 from dotenv import load_dotenv
 
-from app.service.errors import RbcpError, format_error_for_user
-from app.service.extractor import extract_url
-from app.service.markdown import render_and_write
-from app.service.pipeline import (
+from app.extract.errors import RbcpError, format_error_for_user
+from app.extract.extractor import extract_url
+from app.extract.markdown import render_and_write
+from app.extract.pipeline import (
     _provider_from_env,
     build_proxies,
     fetch_single as _fetch_single,
 )
-from app.service.pricing import summarize_usage
-from app.service.urls import clean_url
+from app.extract.pricing import summarize_usage
+from app.extract.urls import clean_url
 
 
 app = typer.Typer()
@@ -95,7 +95,7 @@ def login() -> None:
     会等你扫完码、回到终端按回车再保存——不会自动关。
     """
     load_dotenv()
-    from app.service import discover
+    from app.extract import discover
 
     typer.echo("即将弹出浏览器并打开小红书。")
     typer.echo("→ 用手机扫码登录，看到自己头像/进入首页后，回这里按【回车】。")
@@ -116,7 +116,7 @@ def list_uploader(
 ) -> None:
     """列博主全量笔记清单（不下载）。撞风控/半份时退出码非 0。"""
     load_dotenv()
-    from app.service import discover
+    from app.extract import discover
 
     result = asyncio.run(discover.discover_user_posts(url))
 
@@ -227,7 +227,7 @@ def _fetch_all(
     proxy: str | None = None,
 ) -> None:
     """博主全量：列清单 → 预览 → 确认 → 逐条下载。半份清单默认拒绝继续。"""
-    from app.service import discover
+    from app.extract import discover
 
     listing = asyncio.run(discover.discover_user_posts(url))
     est = listing["estimate"]
@@ -335,7 +335,7 @@ def batch(
             fg=typer.colors.YELLOW,
         )
 
-    from app.service.batch import run_batch
+    from app.extract.batch import run_batch
 
     try:
         summary = run_batch(

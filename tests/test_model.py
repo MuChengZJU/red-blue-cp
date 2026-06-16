@@ -8,7 +8,7 @@ from unittest.mock import patch, MagicMock, PropertyMock
 from typing import runtime_checkable, Protocol
 
 import pytest
-from app.service.model import ModelProvider, DashscopeProvider, _format_transcription
+from app.extract.model import ModelProvider, DashscopeProvider, _format_transcription
 
 
 # ── Protocol 合规 ──────────────────────────────────────────────
@@ -32,14 +32,14 @@ class TestModelProviderProtocol:
 
 class TestDashscopeLlmClean:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_returns_cleaned_text(self, mock_post):
         mock_post.return_value = _mock_chat_response("清洗后的文本内容")
         provider = DashscopeProvider(api_key="test-key")
         result = provider.llm_clean("原始脏文本，带有很多噪音...")
         assert result == "清洗后的文本内容"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_sends_to_chat_completions(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
@@ -48,7 +48,7 @@ class TestDashscopeLlmClean:
         url = call_args[0][0] if call_args[0] else call_args[1].get("url", "")
         assert "chat/completions" in url
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_uses_configured_model(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key", llm_model="qwen-max")
@@ -57,7 +57,7 @@ class TestDashscopeLlmClean:
         payload = call_args[1].get("json") or call_args[0][1] if len(call_args[0]) > 1 else call_args[1].get("json")
         assert payload["model"] == "qwen-max"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_includes_auth_header(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="sk-abc123")
@@ -65,14 +65,14 @@ class TestDashscopeLlmClean:
         headers = mock_post.call_args[1].get("headers", {})
         assert "Bearer sk-abc123" in headers.get("Authorization", "")
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_raises_on_http_error(self, mock_post):
         mock_post.return_value = _mock_http_error(500)
         provider = DashscopeProvider(api_key="test-key")
         with pytest.raises(Exception):
             provider.llm_clean("text")
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_default_model_is_qwen_plus(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
@@ -85,14 +85,14 @@ class TestDashscopeLlmClean:
 
 class TestDashscopeVlm:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_returns_image_description(self, mock_post):
         mock_post.return_value = _mock_chat_response("图片中显示了一只猫")
         provider = DashscopeProvider(api_key="test-key")
         result = provider.vlm("https://example.com/image.jpg")
         assert result == "图片中显示了一只猫"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_sends_image_url_in_payload(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
@@ -104,7 +104,7 @@ class TestDashscopeVlm:
         assert len(image_parts) == 1
         assert "https://example.com/pic.jpg" in str(image_parts[0])
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_default_model_is_qwen3_vl_flash(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
@@ -112,7 +112,7 @@ class TestDashscopeVlm:
         payload = mock_post.call_args[1].get("json", {})
         assert payload["model"] == "qwen3-vl-flash"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_uses_configured_vlm_model(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key", vlm_model="qwen-vl-max")
@@ -120,7 +120,7 @@ class TestDashscopeVlm:
         payload = mock_post.call_args[1].get("json", {})
         assert payload["model"] == "qwen-vl-max"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_raises_on_http_error(self, mock_post):
         mock_post.return_value = _mock_http_error(403)
         provider = DashscopeProvider(api_key="test-key")
@@ -132,18 +132,18 @@ class TestDashscopeVlm:
 
 class TestDashscopeAsr:
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_returns_transcribed_text(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get, transcript_text="你好世界")
         provider = DashscopeProvider(api_key="test-key")
         result = provider.asr("https://example.com/audio.m4s")
         assert result == "你好世界"
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_calls_get_policy(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key")
@@ -153,9 +153,9 @@ class TestDashscopeAsr:
         policy_calls = [c for c in get_calls if "uploads" in str(c)]
         assert len(policy_calls) >= 1
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_submits_transcription_task(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key")
@@ -164,9 +164,9 @@ class TestDashscopeAsr:
         asr_calls = [c for c in post_calls if "transcription" in str(c)]
         assert len(asr_calls) >= 1
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_default_model_is_paraformer_v2(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key")
@@ -177,19 +177,19 @@ class TestDashscopeAsr:
             payload = asr_calls[0][1].get("json", {})
             assert payload.get("model") == "paraformer-v2"
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_raises_on_task_failure(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get, task_status="FAILED")
         provider = DashscopeProvider(api_key="test-key")
-        from app.service.errors import ApiError
+        from app.extract.errors import ApiError
         with pytest.raises(ApiError):
             provider.asr("https://example.com/audio.m4s")
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_passes_referer_header(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key")
@@ -269,9 +269,9 @@ class TestFormatTranscription:
 
 class TestDiarizationParams:
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_diarization_enabled_by_default(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key")
@@ -281,9 +281,9 @@ class TestDiarizationParams:
         assert params.get("diarization_enabled") is True
         assert "speaker_count" not in params
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_speaker_count_hint_passed(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key", speaker_count=2)
@@ -292,9 +292,9 @@ class TestDiarizationParams:
         params = asr_calls[0][1]["json"]["parameters"]
         assert params.get("speaker_count") == 2
 
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.Session")
     def test_diarization_can_be_disabled(self, mock_session_cls, mock_post, mock_get):
         _setup_asr_mocks(mock_session_cls, mock_post, mock_get)
         provider = DashscopeProvider(api_key="test-key", diarization_enabled=False)

@@ -5,8 +5,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from app.service.extractor import detect_platform, _download_file
-from app.service.errors import UnsupportedUrlError, NetworkError
+from app.extract.extractor import detect_platform, _download_file
+from app.extract.errors import UnsupportedUrlError, NetworkError
 
 
 class TestDetectPlatformError:
@@ -26,7 +26,7 @@ class TestDetectPlatformError:
 
 class TestSaveMediaDownloadError:
 
-    @patch("app.service.extractor.requests.get")
+    @patch("app.extract.extractor.requests.get")
     def test_download_http_error_raises_network_error(self, mock_get, tmp_path):
         import requests
         resp = MagicMock(status_code=403, text="防盗链")

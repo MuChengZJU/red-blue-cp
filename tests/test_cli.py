@@ -45,7 +45,7 @@ class TestRunCommand:
     @patch("app.cli.run_pipeline")
     def test_run_failure_shows_human_message(self, mock_run):
         """裸异常翻人话：不支持的链接给可操作提示，不糊 Python traceback。"""
-        from app.service.errors import UnsupportedUrlError
+        from app.extract.errors import UnsupportedUrlError
         mock_run.side_effect = UnsupportedUrlError("douyin", operation="detect_platform")
         result = runner.invoke(app, ["run", "https://www.douyin.com/video/1"])
         assert result.exit_code == 1

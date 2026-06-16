@@ -17,7 +17,7 @@ from app.web.routes import app, get_storage, get_pipeline_fn
 
 @pytest.fixture
 def mock_storage(tmp_path):
-    from app.service.storage import Storage
+    from app.extract.storage import Storage
     return Storage(tmp_path / "test.db")
 
 

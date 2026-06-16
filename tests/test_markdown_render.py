@@ -8,7 +8,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from app.service.markdown import render_and_write
+from app.extract.markdown import render_and_write
 
 
 @pytest.fixture
@@ -118,7 +118,7 @@ def _make_result(
     metadata=None,
     raw_info=None,
 ):
-    from app.service.extractor import ExtractResult
+    from app.extract.extractor import ExtractResult
     return ExtractResult(
         platform=platform,
         content_type=content_type,

@@ -8,7 +8,7 @@
 
 import pytest
 
-from app.service.pricing import summarize_usage
+from app.extract.pricing import summarize_usage
 
 
 class TestSummarizeUsage:

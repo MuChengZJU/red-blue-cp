@@ -9,11 +9,11 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from app.service import fetcher
-from app.service.extractor import extract_url
-from app.service.model import DashscopeProvider
-from app.service.errors import ConfigError
-from app.service.pipeline import build_proxies, probe_exit_ip
+from app.extract import fetcher
+from app.extract.extractor import extract_url
+from app.extract.model import DashscopeProvider
+from app.extract.errors import ConfigError
+from app.extract.pipeline import build_proxies, probe_exit_ip
 
 
 PROXY = {"http": "http://127.0.0.1:7897", "https": "http://127.0.0.1:7897"}
@@ -49,13 +49,13 @@ class TestBuildProxies:
 
 class TestProbeExitIp:
 
-    @patch("app.service.pipeline.requests.Session")
+    @patch("app.extract.pipeline.requests.Session")
     def test_returns_ip_text(self, mock_session_cls):
         session = mock_session_cls.return_value.__enter__.return_value
         session.get.return_value = MagicMock(text="203.0.113.5\n")
         assert probe_exit_ip(PROXY) == "203.0.113.5"
 
-    @patch("app.service.pipeline.requests.Session")
+    @patch("app.extract.pipeline.requests.Session")
     def test_disables_env_on_session_and_proxies_on_get(self, mock_session_cls):
         session = mock_session_cls.return_value.__enter__.return_value
         session.get.return_value = MagicMock(text="1.1.1.1")
@@ -70,7 +70,7 @@ class TestProbeExitIp:
 
 class TestFetcherProxies:
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_fetch_xiaohongshu_threads_proxies(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200, text="", url="u")
         with pytest.raises(Exception):  # 空 text → 解析失败，但请求已带 proxies
@@ -79,7 +79,7 @@ class TestFetcherProxies:
             )
         assert mock_get.call_args.kwargs.get("proxies") == PROXY
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_get_json_threads_proxies(self, mock_get):
         resp = MagicMock(status_code=200)
         resp.json.return_value = {"code": 0, "data": {}}
@@ -87,7 +87,7 @@ class TestFetcherProxies:
         fetcher._get_json("https://api.bilibili.com/x", params={}, proxies=PROXY)
         assert mock_get.call_args.kwargs.get("proxies") == PROXY
 
-    @patch("app.service.fetcher.requests.get")
+    @patch("app.extract.fetcher.requests.get")
     def test_resolve_bilibili_url_threads_proxies(self, mock_get):
         mock_get.return_value = MagicMock(status_code=200, url="https://www.bilibili.com/video/BV1x")
         fetcher._resolve_bilibili_url("https://b23.tv/abc", proxies=PROXY)
@@ -98,7 +98,7 @@ class TestFetcherProxies:
 
 class TestExtractorProxies:
 
-    @patch("app.service.extractor.fetcher")
+    @patch("app.extract.extractor.fetcher")
     def test_extract_url_threads_proxies_to_fetcher(self, mock_fetcher):
         provider = MagicMock()
         provider.llm_clean.return_value = "cleaned"
@@ -114,7 +114,7 @@ class TestExtractorProxies:
 
 class TestModelProxies:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_llm_clean_threads_proxies(self, mock_post):
         resp = MagicMock(status_code=200)
         resp.json.return_value = {"choices": [{"message": {"content": "x"}}]}
@@ -122,7 +122,7 @@ class TestModelProxies:
         DashscopeProvider("k", proxies=PROXY).llm_clean("t")
         assert mock_post.call_args.kwargs.get("proxies") == PROXY
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_vlm_threads_proxies(self, mock_post):
         resp = MagicMock(status_code=200)
         resp.json.return_value = {"choices": [{"message": {"content": "x"}}]}
@@ -139,13 +139,13 @@ class TestModelProxies:
 
 class TestFetchSingleProxyWiring:
 
-    @patch("app.service.pipeline.render_and_write")
-    @patch("app.service.pipeline.extract_url")
-    @patch("app.service.pipeline._provider_from_env")
+    @patch("app.extract.pipeline.render_and_write")
+    @patch("app.extract.pipeline.extract_url")
+    @patch("app.extract.pipeline._provider_from_env")
     def test_proxy_string_becomes_dict_to_extract_and_provider(
         self, mock_provider, mock_extract, mock_render, tmp_path
     ):
-        from app.service.pipeline import fetch_single
+        from app.extract.pipeline import fetch_single
         mock_provider.return_value.usage_events = []  # 空账本 → usage=None（M5a）
         mock_extract.return_value = MagicMock(
             title="t", author="a", platform="xiaohongshu", content_type="video"
@@ -160,11 +160,11 @@ class TestFetchSingleProxyWiring:
         assert mock_extract.call_args.kwargs["proxies"] == PROXY
         assert mock_provider.call_args.kwargs["proxies"] == PROXY
 
-    @patch("app.service.pipeline.render_and_write")
-    @patch("app.service.pipeline.extract_url")
-    @patch("app.service.pipeline._provider_from_env")
+    @patch("app.extract.pipeline.render_and_write")
+    @patch("app.extract.pipeline.extract_url")
+    @patch("app.extract.pipeline._provider_from_env")
     def test_no_proxy_passes_none(self, mock_provider, mock_extract, mock_render, tmp_path):
-        from app.service.pipeline import fetch_single
+        from app.extract.pipeline import fetch_single
         mock_extract.return_value = MagicMock(title="t")
         mock_render.return_value = tmp_path / "out.md"
         fetch_single("https://www.xiaohongshu.com/explore/x",

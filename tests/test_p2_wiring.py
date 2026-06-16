@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 import app.cli as cli
-import app.service.comments as comments_mod
-import app.service.discover as discover
+import app.extract.comments as comments_mod
+import app.extract.discover as discover
 from app.web.routes import app as web_app
 
 
@@ -71,7 +71,7 @@ def stub_single(monkeypatch):
 
     实现已从 cli 抽到 service.pipeline（M4a），patch 目标随之改到 pipeline.*。
     """
-    import app.service.pipeline as pipeline
+    import app.extract.pipeline as pipeline
     monkeypatch.setattr(pipeline, "_provider_from_env", lambda api_key, **kw: object())
     monkeypatch.setattr(
         pipeline, "extract_url",

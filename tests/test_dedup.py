@@ -9,8 +9,8 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.service.storage import Storage
-from app.service.urls import dedup_key
+from app.extract.storage import Storage
+from app.extract.urls import dedup_key
 from app.web.routes import app, get_pipeline_fn, get_storage
 
 
@@ -121,7 +121,7 @@ class TestImportListDedup:
         }
 
     def test_skips_already_done_notes(self, client, mock_storage, monkeypatch):
-        import app.service.batch as batch_mod
+        import app.extract.batch as batch_mod
         captured = {}
         monkeypatch.setattr(
             batch_mod, "run_batch",
@@ -139,7 +139,7 @@ class TestImportListDedup:
         assert body["skipped_duplicates"] == 1
 
     def test_all_duplicates_returns_zero_without_batch(self, client, mock_storage, monkeypatch):
-        import app.service.batch as batch_mod
+        import app.extract.batch as batch_mod
         called = {}
         monkeypatch.setattr(batch_mod, "run_batch", lambda *a, **k: called.setdefault("yes", True))
         done = mock_storage.create_job(
@@ -153,7 +153,7 @@ class TestImportListDedup:
         assert resp.json()["skipped_duplicates"] == 1
 
     def test_force_keeps_all(self, client, mock_storage, monkeypatch):
-        import app.service.batch as batch_mod
+        import app.extract.batch as batch_mod
         monkeypatch.setattr(batch_mod, "run_batch", lambda *a, **k: None)
         done = mock_storage.create_job(
             f"https://www.xiaohongshu.com/explore/{self.NOTE_A}"

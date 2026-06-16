@@ -24,7 +24,7 @@ def tmp_md_dir(tmp_path):
 @pytest.fixture
 def mock_storage(tmp_md_dir):
     """In-memory storage backed by a real SQLite under tmp_path."""
-    from app.service.storage import Storage
+    from app.extract.storage import Storage
     return Storage(tmp_md_dir / "test.db")
 
 
@@ -132,7 +132,7 @@ class TestSafeErrorDetail:
 
     def test_no_paths_or_username_leak(self):
         from app.web.routes import _safe_error_detail
-        from app.service.errors import NetworkError
+        from app.extract.errors import NetworkError
 
         try:
             try:

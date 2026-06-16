@@ -11,10 +11,10 @@ import pytest
 
 class TestRunPipeline:
 
-    @patch("app.service.extractor.fetcher")
-    @patch("app.service.model.requests.post")
-    @patch("app.service.model.requests.get")
-    @patch("app.service.model.requests.Session")
+    @patch("app.extract.extractor.fetcher")
+    @patch("app.extract.model.requests.post")
+    @patch("app.extract.model.requests.get")
+    @patch("app.extract.model.requests.Session")
     def test_bilibili_video_produces_markdown(
         self, mock_session, mock_get, mock_post, mock_fetcher, tmp_path
     ):
@@ -72,8 +72,8 @@ class TestRunPipeline:
         assert "清洗后的字幕内容" in content
         assert "bilibili" in content
 
-    @patch("app.service.extractor.fetcher")
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.extractor.fetcher")
+    @patch("app.extract.model.requests.post")
     def test_failed_extraction_raises(self, mock_post, mock_fetcher, tmp_path):
         mock_fetcher.fetch_bilibili.side_effect = RuntimeError("API 403")
 

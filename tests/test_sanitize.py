@@ -5,7 +5,7 @@
 """
 
 import pytest
-from app.service.markdown import sanitize_filename
+from app.extract.markdown import sanitize_filename
 
 
 class TestSanitizeFilename:

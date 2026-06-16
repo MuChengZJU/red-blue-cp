@@ -13,8 +13,8 @@ from pathlib import Path
 
 import pytest
 
-from app.service.discover import Comment
-from app.service.comments import format_comments_md, write_comments_md
+from app.extract.discover import Comment
+from app.extract.comments import format_comments_md, write_comments_md
 
 
 # ── 测试数据构造 ────────────────────────────────────────────────────────────────

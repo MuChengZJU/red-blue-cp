@@ -9,7 +9,7 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-from app.service.storage import Storage
+from app.extract.storage import Storage
 from app.web.routes import app, get_pipeline_fn, get_storage
 
 

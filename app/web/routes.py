@@ -15,10 +15,10 @@ from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from app.service.errors import RbcpError, format_error_for_user
-from app.service.extractor import detect_platform
-from app.service.storage import Storage
-from app.service.urls import clean_url, dedup_key
+from app.extract.errors import RbcpError, format_error_for_user
+from app.extract.extractor import detect_platform
+from app.extract.storage import Storage
+from app.extract.urls import clean_url, dedup_key
 
 
 load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
@@ -65,7 +65,7 @@ def get_storage() -> Storage:
 def get_pipeline_fn() -> Callable[[str], dict]:
     """WebUI 单条/重试的下载管道。走 pipeline.fetch_single 并吃 RBCP_PROXY——
     批量产生的 job 在 UI 点重试也不会丢代理护 IP（Codex review P1）。"""
-    from app.service import pipeline as pipeline_mod
+    from app.extract import pipeline as pipeline_mod
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
@@ -262,7 +262,7 @@ async def uploader_posts(payload: UploaderPostsRequest) -> dict:
 
     浏览器抓取较慢且全局串行，这里直接 await（单用户 MVP 可接受）。
     """
-    from app.service import discover
+    from app.extract import discover
 
     return await discover.discover_user_posts(payload.user_url)
 
@@ -270,8 +270,8 @@ async def uploader_posts(payload: UploaderPostsRequest) -> dict:
 @app.post("/api/comments")
 async def fetch_comments(payload: CommentsRequest) -> dict:
     """抓单篇笔记评论，写出 {note_id}.comments.md，返回路径 + 条数。"""
-    from app.service import discover
-    from app.service.comments import write_comments_md
+    from app.extract import discover
+    from app.extract.comments import write_comments_md
 
     output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
     note_id = discover.note_id_from_url(payload.url)
@@ -303,7 +303,7 @@ async def import_list(
     早校验 schema：不合规立即 400，不开后台任务。
     M5b 去重（E2）：默认跳过已成功下过的笔记（按 note_id 对 dedup_key），force=true 全量重下。
     """
-    from app.service import batch as batch_mod
+    from app.extract import batch as batch_mod
 
     try:
         batch_mod._load_and_validate(payload, allow_partial=allow_partial)

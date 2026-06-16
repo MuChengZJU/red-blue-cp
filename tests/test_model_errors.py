@@ -8,8 +8,8 @@ from unittest.mock import patch, MagicMock
 
 import pytest
 
-from app.service.model import DashscopeProvider
-from app.service.errors import ApiError, NetworkError
+from app.extract.model import DashscopeProvider
+from app.extract.errors import ApiError, NetworkError
 
 
 def _resp(*, status_code=200, text="", json_data=None):
@@ -23,7 +23,7 @@ def _resp(*, status_code=200, text="", json_data=None):
 
 class TestLlmCleanErrors:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_http_error_raises_api_error_with_body(self, mock_post, caplog):
         mock_post.return_value = _resp(status_code=400, text='{"code":"InvalidApiKey"}')
         provider = DashscopeProvider(api_key="bad")
@@ -38,7 +38,7 @@ class TestLlmCleanErrors:
 
 class TestVlmErrors:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_http_error_raises_api_error(self, mock_post):
         mock_post.return_value = _resp(status_code=403, text="forbidden")
         provider = DashscopeProvider(api_key="k")
@@ -49,7 +49,7 @@ class TestVlmErrors:
 
 class TestUploadPolicyErrors:
 
-    @patch("app.service.model.requests.get")
+    @patch("app.extract.model.requests.get")
     def test_policy_http_error_raises_api_error(self, mock_get):
         mock_get.return_value = _resp(status_code=401, text="unauthorized")
         provider = DashscopeProvider(api_key="k")
@@ -59,7 +59,7 @@ class TestUploadPolicyErrors:
 
 class TestSubmitTranscriptionErrors:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_submit_http_error_raises_api_error_with_body(self, mock_post):
         mock_post.return_value = _resp(status_code=400, text='{"message":"bad audio"}')
         provider = DashscopeProvider(api_key="k")
@@ -71,7 +71,7 @@ class TestSubmitTranscriptionErrors:
 
 class TestWaitTranscriptionErrors:
 
-    @patch("app.service.model.requests.get")
+    @patch("app.extract.model.requests.get")
     def test_task_failed_raises_api_error(self, mock_get):
         mock_get.return_value = _resp(
             status_code=200,

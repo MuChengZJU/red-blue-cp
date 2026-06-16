@@ -9,8 +9,8 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-from app.service.extractor import ExtractResult
-from app.service.storage import Storage
+from app.extract.extractor import ExtractResult
+from app.extract.storage import Storage
 
 
 def _fake_result(url: str = "https://b23.tv/x") -> ExtractResult:
@@ -64,15 +64,15 @@ class TestCliPipelineUsage:
 
 class TestFetchSingleUsage:
 
-    @patch("app.service.pipeline.render_and_write", return_value=Path("/tmp/t.md"))
-    @patch("app.service.pipeline.extract_url")
-    @patch("app.service.pipeline._provider_from_env")
+    @patch("app.extract.pipeline.render_and_write", return_value=Path("/tmp/t.md"))
+    @patch("app.extract.pipeline.extract_url")
+    @patch("app.extract.pipeline._provider_from_env")
     def test_fetch_single_returns_usage(
         self, mock_provider_fn, mock_extract, _mock_render, tmp_path
     ):
         mock_provider_fn.return_value = _fake_provider()
         mock_extract.return_value = _fake_result()
-        from app.service.pipeline import fetch_single
+        from app.extract.pipeline import fetch_single
 
         out = fetch_single("https://b23.tv/x", api_key="k", output_dir=tmp_path)
         assert out["usage"]["total_cost_yuan"] == pytest.approx(0.048)
