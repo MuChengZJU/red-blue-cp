@@ -53,6 +53,14 @@ def load_extract(job_id: int) -> dict[str, Any]:
         return json.load(f)
 
 
+def delete(job_id: int) -> None:
+    """删除 artifacts 缓存文件，不存在则忽略。"""
+    try:
+        _cache_path(job_id).unlink()
+    except FileNotFoundError:
+        pass
+
+
 def _serialize_segments(segments: Any) -> list[dict[str, Any]] | None:
     """将 Segment dataclass 序列化为 list[dict]。None -> None。"""
     if segments is None:

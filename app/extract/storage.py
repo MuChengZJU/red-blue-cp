@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import sqlite3
 from datetime import datetime
@@ -377,6 +378,25 @@ class Storage:
                 """
             ).fetchone()
         return float(row[0] or 0.0)
+
+
+    def delete_job(self, job_id: int) -> bool:
+        """删除单条 job：查 md_path → 删 DB 行 → 删 .md 文件（安全忽略缺失）。
+
+        返回是否删了行。md_path 从 DB 查出，绝不接受外部传入的路径（红线#1）。
+        """
+        job = self.get_job(job_id)
+        if job is None:
+            return False
+        md_path = job.get("md_path")
+        with self._connect() as conn:
+            conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+        if md_path:
+            try:
+                os.remove(md_path)
+            except FileNotFoundError:
+                pass
+        return True
 
     # ── 博主批量（M4a-a4） ─────────────────────────────────────
 

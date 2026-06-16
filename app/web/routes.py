@@ -406,6 +406,17 @@ def get_digest(
     return envelope
 
 
+@api.delete("/jobs/{job_id}")
+def delete_job(
+    job_id: int, storage: Storage = Depends(get_storage),
+) -> dict:
+    if not storage.delete_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    artifacts.delete(job_id)
+    digest_cache.delete(job_id)
+    return {"deleted": job_id}
+
+
 app.include_router(api)
 
 

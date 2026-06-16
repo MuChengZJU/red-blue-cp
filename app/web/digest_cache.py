@@ -49,3 +49,11 @@ def load(job_id: int) -> dict[str, Any] | None:
     with open(path, encoding="utf-8") as f:
         return json.load(f)
 
+
+def delete(job_id: int) -> None:
+    """删除 digest 缓存文件，不存在则忽略。"""
+    try:
+        _cache_path(job_id).unlink()
+    except FileNotFoundError:
+        pass
+
