@@ -1,0 +1,123 @@
+{
+  "extract": {
+    "canonical_text": "今天聊大模型推理加速。核心瓶颈是显存带宽。投机解码能提速两到三倍。",
+    "text_sha256": "557749a39d38303c369db005974823fac8b6d8c32e3ac37abea81c4fd95f0fac",
+    "segments": [
+      {
+        "text": "今天聊大模型推理加速。",
+        "speaker_id": "0",
+        "start_sec": 0.0,
+        "end_sec": 3.2,
+        "char_start": 0,
+        "char_end": 11
+      },
+      {
+        "text": "核心瓶颈是显存带宽。",
+        "speaker_id": "0",
+        "start_sec": 3.2,
+        "end_sec": 7.0,
+        "char_start": 11,
+        "char_end": 21
+      },
+      {
+        "text": "投机解码能提速两到三倍。",
+        "speaker_id": "0",
+        "start_sec": 7.0,
+        "end_sec": 11.5,
+        "char_start": 21,
+        "char_end": 33
+      }
+    ]
+  },
+  "digest": {
+    "highlights": [
+      {
+        "span_start": 11,
+        "span_end": 21,
+        "weight": 0.95,
+        "source": {
+          "char_start": 11,
+          "char_end": 21,
+          "seconds": 3.2,
+          "image_index": null,
+          "anchoring_status": "exact",
+          "confidence": 1.0
+        }
+      },
+      {
+        "span_start": 21,
+        "span_end": 33,
+        "weight": 0.9,
+        "source": {
+          "char_start": 21,
+          "char_end": 33,
+          "seconds": 7.0,
+          "image_index": null,
+          "anchoring_status": "exact",
+          "confidence": 1.0
+        }
+      }
+    ],
+    "cards": [
+      {
+        "quote": "核心瓶颈是显存带宽。",
+        "source": {
+          "char_start": 11,
+          "char_end": 21,
+          "seconds": 3.2,
+          "image_index": null,
+          "anchoring_status": "exact",
+          "confidence": 1.0
+        }
+      },
+      {
+        "quote": "原文没有的金句",
+        "source": null
+      }
+    ],
+    "outline": [
+      {
+        "title": "推理加速要点",
+        "source": {
+          "char_start": 0,
+          "char_end": 11,
+          "seconds": 0.0,
+          "image_index": null,
+          "anchoring_status": "exact",
+          "confidence": 1.0
+        },
+        "children": [
+          {
+            "title": "瓶颈",
+            "source": {
+              "char_start": 11,
+              "char_end": 21,
+              "seconds": 3.2,
+              "image_index": null,
+              "anchoring_status": "exact",
+              "confidence": 1.0
+            },
+            "children": []
+          },
+          {
+            "title": "优化",
+            "source": {
+              "char_start": 21,
+              "char_end": 33,
+              "seconds": 7.0,
+              "image_index": null,
+              "anchoring_status": "exact",
+              "confidence": 1.0
+            },
+            "children": []
+          }
+        ]
+      }
+    ],
+    "model": "qwen-plus",
+    "source_text_sha256": "557749a39d38303c369db005974823fac8b6d8c32e3ac37abea81c4fd95f0fac",
+    "coordinate_space": "python_codepoint",
+    "normalization_version": "v1",
+    "diagnostics": []
+  }
+}

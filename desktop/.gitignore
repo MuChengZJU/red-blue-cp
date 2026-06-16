@@ -1,0 +1,15 @@
+# PyInstaller / sidecar 构建产物（重，不进 git）
+sidecar/.venv/
+sidecar/build/
+sidecar/dist/
+sidecar/*.spec
+__pycache__/
+
+# Tauri / node 产物
+src-tauri/target/
+# tauri build 自动生成的 schema
+src-tauri/gen/
+# sidecar 二进制由 build.sh 产出，不进 git（保留 .gitkeep）
+src-tauri/binaries/*
+!src-tauri/binaries/.gitkeep
+node_modules/
