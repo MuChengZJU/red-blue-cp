@@ -136,8 +136,7 @@ def _speaker_id_str(speaker_id: Any) -> str | None:
 def _ms_to_sec(value: Any) -> float | None:
     """DashScope ASR sentence 的 begin_time/end_time 是**毫秒** → 转秒。
 
-    注意：毫秒这一单位需在 M6b 真链路实测核对一次（外部 API 细节，别只信引用代码）。
-    单位若变只改这一处。
+    毫秒单位已在 M6b 真链路实测核实（5633ms→5.633s，时间戳合理）。单位若变只改这一处。
     """
     if value is None:
         return None
