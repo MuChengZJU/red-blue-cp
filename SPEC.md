@@ -9,12 +9,13 @@
 │  WebUI (FastAPI + Jinja2 + HTMX)                 │
 │  CLI  (typer)                                     │
 │  ↓ 共享同一组业务函数                             │
-├─ 业务层 (P0) ─────────────────────────────────────┤
-│  service/model.py        ModelProvider + Dashscope │
-│  service/extractor.py    编排：调 fetcher + model  │
-│  service/fetcher.py      HTTP 爬取 + 解析响应     │
-│  service/markdown.py     frontmatter + 模板 + 写入 │
-│  service/storage.py      SQLite jobs CRUD         │
+├─ 引擎层 (0.6 拆 extract/digest，隔离) ────────────┤
+│  extract/model.py        ModelProvider + Dashscope │
+│  extract/extractor.py    编排：调 fetcher + model  │
+│  extract/fetcher.py      HTTP 爬取 + 解析响应     │
+│  extract/markdown.py     frontmatter + 模板 + 写入 │
+│  extract/storage.py      SQLite jobs CRUD         │
+│  digest/  (0.6 有损 LLM) 原文→高亮/卡片/脉络+锚定 │
 ├─ 适配层 (P1 引入) ────────────────────────────────┤
 │  PlatformAdapter   ModelAdapter   CliSubprocess  │
 ├─ 存储层 ──────────────────────────────────────────┤
@@ -27,37 +28,43 @@
 
 ---
 
-## 2. P0 代码组织
+## 2. 代码组织（0.6）
 
 ```
 app/
-  service/
-    model.py            # ModelProvider Protocol + DashscopeProvider
-    extractor.py        # 编排：调 fetcher 获取数据 + 调 model 转文字
-                        # 输入 URL，输出 ExtractResult
+  extract/              # rbcp-extract：采集+转录→忠实原文（无损，开源招牌）
+    contracts.py        # 0.6 §B 冻结契约：ExtractResult/Segment + build_canonical + text_fingerprint
+    facade.py           # 0.6 §B 公共门面：extract/search/list_blogger/run_batch/Jobs
+    model.py            # ModelProvider Protocol + DashscopeProvider（+ complete_json 供 digest）
+    extractor.py        # 编排：调 fetcher + model；产 ExtractResult（canonical text + readable + segments）
     fetcher.py          # HTTP 爬取 B站/小红书 API + 解析响应（requests，单篇正文不需浏览器）
-    markdown.py         # frontmatter + 正文模板 + sanitize + 原子写入
+    markdown.py         # frontmatter + 正文模板（渲染 readable_text）+ sanitize + 原子写入
     storage.py          # SQLite jobs CRUD（sqlite3 标准库）
-    discover.py         # (P1) pydoll 驱动系统 Chrome，拦截 user_posted（清单）
-                        # 与 comment/page + comment/sub/page（评论一级+二级）接口
-                        # 全项目唯一碰浏览器处；对外 discover_user_posts / discover_comments（async）
-    comments.py         # (P1) 评论数据 → {note_id}.comments.md（一级+二级嵌套）
+    discover.py         # pydoll 驱动系统 Chrome，拦截 user_posted/评论（async，唯一碰浏览器处）
+    comments.py / batch.py / pipeline.py / pricing.py / urls.py / errors.py
+  digest/               # rbcp-digest：原文→高亮/卡片/脉络（有损 LLM，与 extract 隔离）
+    contracts.py        # 0.6 §C：SourceRef/Highlight/Card/OutlineNode/Diagnostic/DigestResult + digest()
+    anchor.py           # 确定性服务端锚定（纯函数核心：exact→normalized + 时间映射）
+    llm.py / orchestrator.py
+  service/              # 0.6 弃用 shim：re-export app.extract.*，0.5.x 旧导入仍可用，0.7 删
+  config.py             # 0.6 §A 配置发现（platformdirs：load_config / config_dir）
   web/
-    routes.py           # 输入页 + 任务列表 + 详情 + 下载（P1 加 uploaders/comments）
+    routes.py           # 输入页 + 任务列表 + 详情 + 下载 + 博主/评论
     templates/          # Jinja2 模板
-  cli.py                # rbcp run <url>（P1 加 list / fetch）
-.env                    # 见下方配置项列表（gitignored）
-.env.example            # 配置模板（含所有配置项 + 默认值注释）
+  cli.py                # rbcp run/serve/login/list/fetch/batch/digest/ls/config
+desktop/                # (0.6) RBCP Desktop：Tauri v2 壳 + PyInstaller sidecar + 三形态渲染
+.env / .env.example     # 配置（gitignored）
 ```
 
-配置发现顺序：环境变量 > `~/.config/rbcp/.env` > 当前目录 `.env`。
+配置发现顺序（0.6 已实现，见 `app/config.py`）：环境变量 > `$RBCP_CONFIG_FILE`/显式路径 > 用户配置目录 `.env`（platformdirs，mac 为 `~/Library/Application Support/rbcp/.env`）> 当前目录 `.env`。
 
 ### 配置项
 
 | 变量名 | 必填 | 默认值 | 说明 |
 |---|---|---|---|
 | `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
-| `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要） |
+| `RBCP_CONFIG_FILE` | 否 | — | (0.6) 显式 `.env` 路径，优先级仅次于进程环境变量、高于用户配置目录（见上方发现顺序） |
+| `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要；单篇靠分享链接自带 xsec_token，仅博主批量用登录态） |
 | `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录（知识库，只放 .md + _index.sqlite） |
 | `RBCP_MEDIA_DIR` | 否 | `~/transcript-media` | (P1) `--save-media` 时原始视频/图片存放目录，独立于知识库 |
 | `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
@@ -202,7 +209,7 @@ CLI 内部直接 `from app.service import extractor / discover`，**不走 HTTP*
 > 这一节是 `discover.py` 纯函数层与 `comments.py` 的**接口契约**。解析逻辑（纯函数）与浏览器抓取（薄壳）分离，便于单测。
 > fixture 见 `tests/fixtures/xhs/`（脱敏真实 schema），单测直接喂这些 JSON。
 
-### 4.4.1 dataclass（定义在 `app/service/discover.py`）
+### 4.4.1 dataclass（定义在 `app/extract/discover.py`）
 
 ```python
 from dataclasses import dataclass, field

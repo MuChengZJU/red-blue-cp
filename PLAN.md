@@ -13,7 +13,7 @@
 | M2 | 3-5 | P1 规模化（按子优先级串行） | 🔄 进行中：M2b/M2c ✅ |
 | M3 | 按需 | P2 完善 | 未启动 |
 | M4 | 3-4 | 博主安全批量 + 错误地基（插件抓清单 + 代理批量下载，补 M2b 残次品） | ✅ 阶段1完成 2026-06-06（WebUI 导入入口推迟） |
-| M6 | 并行 | **v0.6 速览产品**：Pipeline = Extract→Digest→Render + 两壳 RBCP Desktop/CLI（地基 M6a 先行，后 fan out） | 🔄 设计敲定 2026-06-15，待开工 |
+| M6 | 并行 | **v0.6 速览产品**：Pipeline = Extract→Digest→Render + 两壳 RBCP Desktop/CLI（地基 M6a 先行，后 fan out） | ✅ 建成+验证 2026-06-16（feat/0.6，566 测试，未发布；详见 §v0.6） |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
 P1 = M2 ≈ 3-5 天（M2b/M2c ✅，M2a/d/e/f 未启动）
@@ -48,18 +48,21 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 
 ### 节奏：已设计的并行干，没想清的串行
 
-**M6 并行批（已设计 → 接口锁死后 fan out，可用 Ultra Code 多 agent 并行）**
+**M6 并行批 ✅ 全部建成 + 验证（2026-06-16，`feat/0.6-extract-digest-render`，566 测试，两条真链路实测，未发布）**
 
-| 子里程碑 | 内容 | 依赖 |
+| 子里程碑 | 内容 | 状态 |
 |---|---|---|
-| M6a 配置清零（地基） | platformdirs 实现配置发现顺序（修 `~/.config/rbcp/.env` 从未被读的硬伤）+ 收尾合 PR#46 | 无，先行 |
-| M6b Extract 清接口 | 现 service 层整理成稳定 `rbcp-extract` 库接口（采集/转录/检索/存储） | 无 |
-| M6c Digest | 对原文调 LLM 生成 高亮/卡片金句/脉络 结构化数据（`rbcp-digest`，与 Extract 隔离） | M6b 接口 |
-| M6d 速览三形态 + Render | RBCP Desktop 里渲染三形态（高亮跳读/卡片金句/脉络），同屏；目标"一竖屏读懂" | M6c |
-| M6e RBCP Desktop 壳 | Tauri 壳（PyInstaller sidecar 塞 Extract/Digest），含最小 Library + 配置向导 | M6b |
-| M6f RBCP CLI 整理 | `rbcp get/blogger/batch/digest/search/ls/config`（现 run/fetch/list 留别名） | M6b |
+| M6-pre 改名 | `service/`→`extract/`（机械改名 + 弃用 shim） | ✅ |
+| 契约锁定 §A/§B/§C | dataclass 桩 + import-lint（4-lens 对抗审查补强，关键不变量自执行） | ✅ |
+| M6a 配置清零（地基） | platformdirs 配置发现（修 `~/.config/rbcp/.env` 硬伤）+ PR#46 | ✅ |
+| M6b Extract 清接口 | extract 迁冻结契约（canonical+readable+segments+sha256）+ build_canonical | ✅ 真链路（44段对齐/毫秒） |
+| M6c Digest | LLM 三形态 + 确定性服务端锚定（exact→normalized，低置信进 diagnostics）；3-lens 对抗验证修 2 major | ✅ 真链路（100% exact） |
+| M6f RBCP CLI | `rbcp digest/ls` + 门面动词；run/fetch/list 留别名（get/blogger/search 待补） | ✅ |
+| M6e Desktop 壳 | Tauri v2 + PyInstaller sidecar（spike：onefile 9MB/365ms、onedir 20MB/30ms） | ✅ build 过、端到端 |
+| M6d 速览三形态 + Render | desktop 前端同屏渲染 高亮跳读/卡片金句/脉络（codepoint 切片） | ✅ headless 验证 |
 
-**串行往后（没设计透，不进 M6 并行）**：RBCP Cloud 后端 · 计费（按实际使用）· RBCP Mobile/手机伴侣 · 精读跨篇 · 可追溯速览。
+**收尾欠账**：desktop 用 vendored 引擎拷贝（待接真 app/ 或 `rbcp digest --json`）；未打包/发布；CLI `get/blogger/search` 别名/全文检索待补。
+**串行往后（没设计透）**：RBCP Cloud 后端 · 计费 · RBCP Mobile · 精读跨篇 · 可追溯速览。
 
 ### 砍 / defer
 

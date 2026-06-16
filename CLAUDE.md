@@ -11,9 +11,12 @@
 
 ## 当前阶段
 
-**0.5.2 已发布**（PyPI + GitHub Release，MIT 开源）。已交付：P0 URL→Markdown 闭环（B站/小红书转录 + 图文 + 说话人分离）、博主全量/评论、M4 博主安全批量、M5a 流式修超时 + 用量/费用统计、M5b WebUI v2（单条/批量整合 + 批次进任务列表 + 批量逐条建 job + 去重检测）、0.5.1/0.5.2 旧批次回填+标题去渣+批次费用。484 测试。**浏览器插件 0.3.1**：油猴脚本（一键装+自动更新，主推）+ MV3 扩展，共用核心；笔记少的博主从 `__INITIAL_STATE__` 补抓。
+**0.5.2 已发布**（PyPI + GitHub Release，MIT 开源）：P0 URL→Markdown 闭环、博主全量/评论、M4 安全批量、M5a 流式+用量、M5b WebUI v2。**浏览器插件 0.3.1**（油猴主推）。
 
-**下一步**：M5 全部交付，无进行中里程碑。PLAN 待办区：provider env 化（Gemini 入口，等真实需求）、M2a/d/e/f（批量限流/手动 ASR/模型抽象/远程访问）、Q2 知识库浏览页（待讨论）。
+**0.6 速览产品（M6）开发中——已在 `feat/0.6-extract-digest-render` 建成 + 验证、未发布**：Pipeline = **Extract→Digest→Render**。`service/`→`extract/`（采集转录→忠实原文，无损）+ 新 `digest/`（原文→高亮/卡片/脉络，有损 LLM，确定性服务端锚定，与 extract 隔离）+ `app/config.py`（platformdirs 配置发现）+ **CLI** `rbcp digest/ls` + **`desktop/`**（Tauri v2 + PyInstaller sidecar，三形态渲染）。566 测试。两条真链路（extract / digest）实测过。
+**收尾欠账**：desktop 用了 vendored 引擎拷贝（待接真 app/ 或 `rbcp digest --json`）；未发布/打包。
+
+**下一步**：见 PLAN §v0.6 与 task；0.6 收尾后是 RBCP Cloud/计费/Mobile（串行往后，未设计透）。
 
 调整阶段/范围改 PLAN.md，加功能改 PRD.md，改实现改 SPEC.md——**改文档前对话里说一句**。
 
@@ -49,9 +52,11 @@
 
 ## 工程纪律
 
-### P0 阶段反过度抽象
+### 反过度抽象（原则长期有效）
 
-P0 阶段**只用三个文件夹**：`service/` `web/` `cli.py`。**不要引入**以下抽象（即使你觉得"以后会用到"）：
+> 0.6 起代码组织：`extract/`（引擎，原 service/）+ `digest/`（0.6 新增，有损 LLM 层，与 extract 隔离）+ `web/` + `cli.py` + `desktop/`（Tauri 壳）+ `app/config.py`。`app/service/` 是弃用 re-export shim（0.7 删）。下面的反过度抽象原则不变。
+
+**不要引入**以下抽象（即使你觉得"以后会用到"）：
 - `PlatformAdapter` / `BiliAdapter` / `XhsAdapter` 类
 - `Pipeline` 接口和 `BiliVideoPipeline` 等实现
 - `JobQueue` 类（P0 用 `asyncio.create_task`，P1 才引入 `asyncio.Queue`）
@@ -80,7 +85,7 @@ P0 不要求高覆盖率，但**必须有以下集成测试**：
 
 ### 提交粒度
 
-每完成 PLAN.md 里一个子任务（如 "service/extractor.py" 或 "templates/index.html"），独立 commit。commit message 用现在时祈使句，参照 conventional commits：
+每完成 PLAN.md 里一个子任务（如 "extract/extractor.py" 或 "digest/anchor.py"），独立 commit。commit message 用现在时祈使句，参照 conventional commits：
 ```
 feat(extractor): 实现 extract_url 包装上游 extract 函数
 fix(markdown): 修复 emoji 标题导致的 sanitize 报错
@@ -93,7 +98,7 @@ fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 规则：
 
 1. **各流各分支，从最新 main 切**：开 worktree 前先 `git fetch origin`，否则从过时基线切，看不到最新代码/契约（已踩过，见 [并行判断+调研分层](docs/devlog/2026-06-03-when-to-parallelize-and-research-layering.md)）。
-2. **按目录切割范围，写进开场 prompt**：每条流明确"只改哪些目录、禁碰哪些"。典型切法——文档/打包流碰 `docs/ PLAN/PRD/LOG pyproject.toml scripts/`；WebUI 流碰 `app/web/ tests/test_web*`；核心 `app/service/` 同一时刻只让一条流碰。
+2. **按目录切割范围，写进开场 prompt**：每条流明确"只改哪些目录、禁碰哪些"。典型切法——文档/打包流碰 `docs/ PLAN/PRD/LOG pyproject.toml scripts/`；WebUI 流碰 `app/web/ tests/test_web*`；引擎 `app/extract/`、`app/digest/`、桌面 `desktop/` 各自同一时刻只让一条流碰。
 3. **共享文件防撞**：
    - `LOG.md`（多流都想加索引）：让后合并的流**先别碰**，索引行合并时统一加，或先合的先加、后者 rebase。
    - `pyproject.toml` 版本号/依赖：**单一流负责**，其他流要加依赖先说。
