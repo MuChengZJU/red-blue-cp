@@ -1,41 +1,57 @@
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>RBCP Desktop · 三形态速览</title>
-  <link rel="preconnect" href="https://fonts.bunny.net" crossorigin />
-  <link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:500,600,700,800" rel="stylesheet" />
-  <link rel="stylesheet" href="styles.css" />
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Blue CP · 桌面</title>
+<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:500,600,700,800" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<link rel="stylesheet" href="styles.css">
 </head>
 <body>
-  <header class="topbar">
-    <h1><span class="brand">Red Blue CP</span><span class="tag">· 一竖屏读懂</span></h1>
-    <div class="controls">
-      <label class="switch">
-        <input type="checkbox" id="only-highlights" />
-        只看高亮
-      </label>
-      <button id="run-sidecar" title="联调期调 PyInstaller sidecar 跑引擎">▶ 跑引擎</button>
-      <span id="sha-banner"></span>
+
+<aside class="sidebar">
+  <div class="brand"><h1><span class="g">红蓝CP</span></h1><div class="tag">B站 · 小红书 → 速览知识库</div></div>
+  <div class="newblock">
+    <div class="url-row"><input placeholder="粘贴单篇分享链接…"><button class="btn-primary"><i data-lucide="sparkles"></i>转录</button></div>
+    <button class="btn-soft"><i data-lucide="file-json-2"></i>批量导入 notes.json</button>
+    <div id="compose-mount"></div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item" data-s="library"><img class="navic" src="https://api.iconify.design/flat-color-icons/library.svg" alt="">文件库</div>
+    <div class="nav-item active" data-s="jobs"><img class="navic" src="https://api.iconify.design/flat-color-icons/todo-list.svg" alt="">任务列表</div>
+    <div class="nav-sep"></div>
+    <div class="nav-item" data-s="usage"><img class="navic" src="https://api.iconify.design/flat-color-icons/currency-exchange.svg" alt="">账单</div>
+    <div class="nav-item" data-s="settings"><img class="navic" src="https://api.iconify.design/flat-color-icons/settings.svg" alt="">设置</div>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="cost">累计费用 <b id="cum-cost">—</b></div>
+    <div class="api-status"><span class="dot g"></span>百炼 API</div>
+  </div>
+</aside>
+
+<div class="main">
+  <section class="screen" id="library"><div class="screen-mount"></div></section>
+  <section class="screen active" id="jobs"><div class="screen-mount"></div></section>
+  <section class="screen" id="reader"><div class="screen-mount"></div></section>
+  <section class="screen" id="usage"><div class="screen-mount"></div></section>
+  <section class="screen" id="settings"><div class="screen-mount"></div></section>
+</div>
+
+<!-- 批量导入 notes.json（app.js 给 #modal 加 .on 显示） -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3>批量导入 notes.json</h3>
+    <p>从浏览器插件导出的 notes.json（文件或剪贴板），逐条转录。</p>
+    <div class="modal-mount"></div>
+    <div class="acts">
+      <button class="toggle">取消</button>
+      <button class="btn-primary">导入</button>
     </div>
-  </header>
+  </div>
+</div>
 
-  <main id="three-forms" class="grid">
-    <section id="col-fulltext" class="col">
-      <div class="col-head">① 全文 · 重点高亮（点高亮跳读）</div>
-      <div class="col-body"></div>
-    </section>
-    <section id="col-cards" class="col">
-      <div class="col-head">② 卡片 · 金句</div>
-      <div class="col-body"></div>
-    </section>
-    <section id="col-outline" class="col">
-      <div class="col-head">③ 脉络 · 大纲</div>
-      <div class="col-body"></div>
-    </section>
-  </main>
-
-  <script type="module" src="app.js"></script>
+<script type="module" src="app.js"></script>
+<script>if(window.lucide) lucide.createIcons();</script>
 </body>
 </html>
