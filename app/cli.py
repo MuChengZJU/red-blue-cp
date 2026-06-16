@@ -73,12 +73,61 @@ def run(url: str) -> None:
     typer.echo(f"Done: {md_path}")
 
 
+
+def _build_serve_config(
+    *,
+    desktop: bool = False,
+    host: str | None = None,
+    port: int | None = None,
+) -> uvicorn.Config:
+    """Build a ``uvicorn.Config`` for the *serve* command.
+
+    Desktop mode always binds ``127.0.0.1`` on a random port (port 0).
+    """
+    if desktop:
+        return uvicorn.Config("app.web.routes:app", host="127.0.0.1", port=0, workers=1)
+    return uvicorn.Config(
+        "app.web.routes:app",
+        host=host or "127.0.0.1",
+        port=port or 8000,
+        workers=1,
+    )
+
+
+class _DesktopServer(uvicorn.Server):
+    """Print the kernel-assigned port and auth token as JSON to stdout."""
+
+    async def startup(self, sockets=None):  # type: ignore[override]
+        await super().startup(sockets)
+        if self.servers:
+            real_port = self.servers[0].sockets[0].getsockname()[1]
+            from app.web import auth
+
+            print(
+                _json.dumps({"port": real_port, "token": auth._ACTIVE_TOKEN or ""}),
+                flush=True,
+            )
+
+
 @app.command("serve")
 def serve(
     port: int = typer.Option(8000, "--port", help="监听端口（多实例用不同端口错开）"),
+    host: str | None = typer.Option(None, "--host", help="绑定地址（默认 127.0.0.1）"),
+    desktop: bool = typer.Option(
+        False, "--desktop", is_flag=True, help="桌面模式：127.0.0.1+随机端口，stdout 回吐 port/token"
+    ),
 ) -> None:
     load_config()
-    uvicorn.run("app.web.routes:app", host="0.0.0.0", port=port, workers=1)
+    if desktop:
+        from app.web import auth
+
+        auth.new_token()
+        cfg = _build_serve_config(desktop=True)
+        server = _DesktopServer(cfg)
+        asyncio.run(server.serve())
+    else:
+        cfg = _build_serve_config(host=host, port=port)
+        uvicorn.Server(cfg).run()
 
 
 def _build_note_url(note_id: str, xsec_token: str) -> str:
