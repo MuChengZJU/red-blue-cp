@@ -7,9 +7,11 @@
     "frontendDist": "../frontend"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
-        "title": "Red Blue CP · 三形态速览",
+        "label": "main",
+        "title": "Red Blue CP",
         "width": 1280,
         "height": 820,
         "minWidth": 900,
@@ -24,7 +26,7 @@
     "active": true,
     "targets": "app",
     "icon": ["icons/icon.png"],
-    "externalBin": ["binaries/rbcp-sidecar"]
+    "externalBin": ["binaries/rbcp-serve"]
   },
   "plugins": {}
 }

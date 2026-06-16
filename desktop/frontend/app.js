@@ -1,4 +1,4 @@
-import { api } from './api.js';
+import { api, configure } from './api.js';
 import { render as renderLibrary } from './screens/library.js';
 import { render as renderJobs } from './screens/jobs.js';
 import { render as renderReader } from './screens/reader.js';
@@ -75,6 +75,19 @@ if (modalBg) {
   });
 }
 
-// Boot
-show('jobs');
+// Boot：Tauri 环境先拿 serve 的 port/token 配好 api，再渲染首屏；
+// 普通浏览器 dev 无 __TAURI__，走 api.js 默认 base（127.0.0.1:8000）。
+async function boot() {
+  try {
+    var tauri = window.__TAURI__;
+    if (tauri && tauri.core && typeof tauri.core.invoke === 'function') {
+      var cfg = await tauri.core.invoke('get_api_config');
+      configure({ base: 'http://127.0.0.1:' + cfg.port, token: cfg.token });
+    }
+  } catch (e) {
+    console.error('get_api_config 失败，回退默认 base：', e);
+  }
+  show('jobs');
+}
+boot();
 

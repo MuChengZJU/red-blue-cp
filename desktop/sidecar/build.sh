@@ -1,41 +1,34 @@
 #!/usr/bin/env bash
-# 把 sidecar 打成自包含二进制（PyInstaller spike）。
-# 用法：bash build.sh [onefile|onedir]   默认 onefile
+# 把 rbcp-serve（桌面常驻 serve）打成自包含单文件二进制，放进 Tauri externalBin。
 #
-# 产物：dist/rbcp-sidecar（onefile）或 dist/rbcp-sidecar-dir/（onedir）。
-# Tauri 壳通过 tauri.conf.json 的 externalBin 把它当 sidecar spawn。
+# 产物：dist/rbcp-serve → src-tauri/binaries/rbcp-serve-<triple>。
+# serve 每个 App 会话只 spawn 一次，onefile 的自解压（~365ms）只付一次，故用 onefile
+# （单文件适配 Tauri externalBin，省去 onedir 文件夹的处理）。
 set -euo pipefail
 cd "$(dirname "$0")"
-REPO_ROOT="$(cd ../.. && pwd)"   # 仓库根：真实 app/ 引擎所在（不再 vendored）
-
-MODE="${1:-onefile}"
+REPO_ROOT="$(cd ../.. && pwd)"
 
 if [[ ! -d .venv ]]; then
   uv venv --python 3.13 .venv
 fi
-uv pip install --python .venv/bin/python pyinstaller >/dev/null
+# serve 需要项目全部运行依赖（fastapi/uvicorn/jinja2/typer/requests/...）+ pyinstaller。
+uv pip install --python .venv/bin/python -e "$REPO_ROOT" pyinstaller >/dev/null
 
-# --paths 指仓库根 → 打真实 app/digest + app/extract.contracts（纯标准库闭包，不拉 fastapi/pydoll）。
-# digest() 内 lazy import orchestrator，PyInstaller 静态分析抓不到 → 三个 --hidden-import 补上。
-HIDDEN=(--hidden-import app.digest.orchestrator --hidden-import app.digest.anchor --hidden-import app.digest.llm)
+# uvicorn 的动态 import PyInstaller 静态分析抓不到 → 补 hidden-import（spike 验过的 4 个）。
+# templates 是 Jinja2 模板需打进包；pydoll 桌面端不用，排除以缩小包。
+.venv/bin/pyinstaller --onefile --name rbcp-serve \
+  --paths "$REPO_ROOT" \
+  --add-data "$REPO_ROOT/app/web/templates:app/web/templates" \
+  --hidden-import uvicorn.loops.auto \
+  --hidden-import uvicorn.protocols.http.auto \
+  --hidden-import uvicorn.protocols.websockets.auto \
+  --hidden-import uvicorn.lifespan.on \
+  --exclude-module pydoll \
+  --clean --noconfirm serve_entry.py
 
-if [[ "$MODE" == "onedir" ]]; then
-  .venv/bin/pyinstaller --onedir --name rbcp-sidecar-dir \
-    --paths "$REPO_ROOT" "${HIDDEN[@]}" \
-    --clean --noconfirm rbcp_sidecar.py
-  echo "built: dist/rbcp-sidecar-dir/  (cold-start ~30ms, ~20MB folder — 推荐：每次请求 spawn)"
-else
-  .venv/bin/pyinstaller --onefile --name rbcp-sidecar \
-    --paths "$REPO_ROOT" "${HIDDEN[@]}" \
-    --clean --noconfirm rbcp_sidecar.py
-  echo "built: dist/rbcp-sidecar  (cold-start ~365ms, ~9MB single-file — 分发简单但每次自解压)"
-
-  # Tauri externalBin 要单文件、命名带 target triple，且 binaries/ 是 gitignore 的构建产物
-  # （不进库）。onefile 模式自动放到位，这样 `cargo tauri dev/build` 能直接找到 sidecar，
-  # 不用手动 cp（之前缺这步导致 `resource path binaries/rbcp-sidecar-<triple> doesn't exist`）。
-  TRIPLE=$(rustc -vV | sed -n 's/host: //p')
-  mkdir -p ../src-tauri/binaries
-  cp dist/rbcp-sidecar "../src-tauri/binaries/rbcp-sidecar-$TRIPLE"
-  chmod +x "../src-tauri/binaries/rbcp-sidecar-$TRIPLE"
-  echo "placed: src-tauri/binaries/rbcp-sidecar-$TRIPLE  →  现在可跑 cargo tauri dev"
-fi
+# Tauri externalBin 要单文件、命名带 target triple；binaries/ 是 gitignore 的构建产物（不进库）。
+TRIPLE=$(rustc -vV | sed -n 's/host: //p')
+mkdir -p ../src-tauri/binaries
+cp dist/rbcp-serve "../src-tauri/binaries/rbcp-serve-$TRIPLE"
+chmod +x "../src-tauri/binaries/rbcp-serve-$TRIPLE"
+echo "placed: src-tauri/binaries/rbcp-serve-$TRIPLE  →  现在可跑 cargo tauri dev/build"

@@ -1,7 +1,7 @@
 {
   "$schema": "../gen/schemas/desktop-schema.json",
   "identifier": "default",
-  "description": "前端可调 run_digest（间接 spawn sidecar）；shell:allow-execute 限定 rbcp-sidecar。",
+  "description": "壳 spawn 常驻 rbcp-serve sidecar；前端经 get_api_config 拿 port/token 调本地 HTTP。",
   "windows": ["main"],
   "permissions": [
     "core:default",
@@ -9,7 +9,7 @@
       "identifier": "shell:allow-execute",
       "allow": [
         {
-          "name": "binaries/rbcp-sidecar",
+          "name": "binaries/rbcp-serve",
           "sidecar": true,
           "args": true
         }
