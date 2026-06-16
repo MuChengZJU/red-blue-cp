@@ -104,6 +104,7 @@
 
 | 日期 | 优先级 | 主题 | 详情 |
 |---|---|---|---|
+| 2026-06-16 | 🔴 高 | 用户最在意、能看见的那一面（GUI）不该在 fan-out 里被压成最薄 spike：一下午 rigor 全压在看不见但承重的引擎（多 workflow/对抗审查/真链路），Desktop 只给了"速览查看器"渲染 spike、缺 WebUI 全部交互能力 → 用户视角=残废。scoping 按"用户价值可见度"分配投入，不只按技术难度。配套：没 DESIGN.md → fan-out agent 自起暗色 UI 跑偏品牌（已补 DESIGN.md） | [0.6 M6 建成+桌面端缺口](docs/devlog/2026-06-16-0.6-m6-build-and-desktop-gap.md) |
 | 2026-06-06 | 🔴 高 | 单测绿但真用崩（再证"完工=真链路"）：①分享文案粘贴报错根因在前端——`<input type=url>` 浏览器提交前就拦下非纯 URL，后端 clean_url 早能抽；改 type=text。②traceback 把 `/home/用户名`/.venv 路径泄漏给用户——log_excerpt 改脱敏异常链摘要、完整 tb 只进服务器日志。③长文 llm_clean 超时根因=非流式+180s read 超时撞 ~300s 生成（不是网络/额度）→ 流式是正解 | [M4 交付+UX迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md) |
 | 2026-06-07 | 🔴 高 | 爬虫目标结构必须探针实证再写代码：修小红书插件时凭记忆赌字段两次都错（notes 是 Vue ref 不是 object；item 字段驼峰不是下划线）→ 用户控制台跑探针拿真实结构才写对。配套：「逐条建job」类把旧数据接新模型的改动迁移要覆盖存量（旧批次成死条目）；补不出的账/无法确认的「是否到底」如实标"部分/估算"不造数据 | [插件油猴+连环修](docs/devlog/2026-06-07-plugin-userscript-and-followup-fixes.md) |
 | 2026-06-08 | 🟡 中 | 模型成本调研：阿里云免费额度「轮换白嫖」基本不成立（每月循环的只有 paraformer，其余 ASR+全部 VLM 是一次性90天）；全球比价 paraformer-v2(ASR 0.29元/h)+qwen3-vl-flash(VLM 0.0012元/张)已是最便宜档。结论=现状最优不换；唯一每天循环白嫖是 Gemini 免费层但 ASR 丢说话人分离。立项「模型横评实验」入 PLAN 待办，平台化才触发 | [全球模型比价](docs/devlog/2026-06-08-global-model-pricing-and-benchmark-plan.md) |
