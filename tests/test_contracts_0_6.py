@@ -300,14 +300,8 @@ def test_diagnostic_shape():
 
 def test_digest_fingerprint_guard_is_live():
     from app.digest.contracts import digest
-    from app.extract.contracts import text_fingerprint
 
-    # 没传 sha：跳过校验，直接到未实现
-    with pytest.raises(NotImplementedError):
-        digest("text", provider=object())
-    # 传对的 sha：校验过，到未实现
-    with pytest.raises(NotImplementedError):
-        digest("text", provider=object(), text_sha256=text_fingerprint("text"))
-    # 传错的 sha：防漂 guard 先 raise ValueError（即使桩未实现）
+    # 传错的 sha：防漂 guard 在碰 provider 之前就 raise ValueError（object() 永不被调用）。
     with pytest.raises(ValueError):
         digest("text", provider=object(), text_sha256="not-the-fingerprint")
+    # 完整行为（锚定/三形态/指纹）见 tests/test_digest_orchestrator.py。

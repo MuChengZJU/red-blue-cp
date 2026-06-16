@@ -185,6 +185,21 @@ class DashscopeProvider:
         text, usage = self._stream_chat_completion(payload, operation="llm_clean")
         return text
 
+    def complete_json(
+        self, prompt: str, *, operation: str = "digest"
+    ) -> tuple[str, dict[str, Any] | None]:
+        """调 LLM 产 JSON（response_format=json_object）。给 rbcp-digest 用（鸭子注入）。
+
+        复用 _stream_chat_completion → 继承 SSE 流式/重试/usage 记账（stage=operation）。
+        spike 实证 qwen-plus 流式 + json_object 返合法 JSON。返回 (raw_json_text, usage)。
+        """
+        payload = {
+            "model": self.llm_model,
+            "messages": [{"role": "user", "content": prompt}],
+            "response_format": {"type": "json_object"},
+        }
+        return self._stream_chat_completion(payload, operation=operation)
+
     def vlm(self, image_url: str) -> str:
         payload = {
             "model": self.vlm_model,

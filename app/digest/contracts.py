@@ -141,10 +141,11 @@ def digest(
     - ``text_sha256`` 是**可选的调用方断言**：若提供且 != text_fingerprint(text)，立即 raise ValueError
       （调用方传的 text 与它以为的 ExtractResult 对不上）；不提供则跳过断言。
 
-    ``provider``：digest 需要的 LLM 方法签名由 M6c 锁定（暂 Any）；Extract↔Digest 隔离由
-    import-lint（含相对 import）保证，不靠类型——故这里不从 app.extract.model 引 ModelProvider。
+    ``provider``：鸭子类型注入，需实现 ``complete_json(prompt, *, operation)``（见
+    app.digest.llm.DigestProvider）。Extract↔Digest 隔离由 import-lint 保证，不从 model 引类型。
     """
-    # 防漂自校验（live，即使桩未实现也先守）：调用方传了 sha 就必须和 text 真指纹一致。
+    # 防漂自校验：调用方传了 sha 就必须和 text 真指纹一致（source_text_sha256 由 orchestrator 重算）。
     if text_sha256 is not None and text_fingerprint(text) != text_sha256:
         raise ValueError("text_sha256 与 text 的指纹不符——坐标系不匹配，拒绝 digest")
-    raise NotImplementedError("M6c: LLM 三形态 + 确定性服务端锚定")
+    from app.digest.orchestrator import run_digest  # lazy：避免 contracts↔orchestrator 循环
+    return run_digest(text, provider=provider, segments=segments)
