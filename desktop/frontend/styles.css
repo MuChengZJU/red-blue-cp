@@ -1,116 +1,178 @@
+/* RBCP Desktop · 红蓝品牌设计系统（与 WebUI app/web/templates/base.html 同源，见 DESIGN.md）
+   红蓝撞色 / 大圆角 / 活泼友好 / 内容优先。亮色主题，白底双 glow。 */
 :root {
-  --bg: #0f1115;
-  --panel: #171a21;
-  --border: #262b35;
-  --text: #e6e8ec;
-  --muted: #8b93a1;
-  --accent: #ff5b6e;   /* 红 */
-  --accent2: #4d8bff;  /* 蓝 */
-  --hl-base: 255, 91, 110;
+  color-scheme: light;
+
+  --rb-red: #e5484d;
+  --rb-red-strong: #cf3a40;
+  --rb-blue: #2563eb;
+  --rb-blue-strong: #1d4ed8;
+  --rb-green: #16a34a;
+  --rb-amber: #d9821a;
+
+  --text: #1a1f2e;
+  --muted: #6b7280;
+  --faint: #9aa1ad;
+  --line: #e8eaf0;
+  --bg: #ffffff;
+  --soft: #f5f7fb;
+  --soft-2: #eef1f8;
+
+  --r-card: 18px;
+  --r-btn: 12px;
+  --r-sm: 10px;
+  --r-pill: 999px;
+  --shadow-sm: 0 1px 2px rgba(20, 30, 60, 0.04);
+  --shadow-md: 0 6px 22px rgba(20, 30, 60, 0.08);
+
+  --font-ui: "Plus Jakarta Sans", -apple-system, BlinkMacSystemFont, "Segoe UI",
+    "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, "JetBrains Mono", Menlo, Consolas, monospace;
+
+  --hl-base: 229, 72, 77;   /* --rb-red 的 rgb，给高亮半透明底用 */
 }
 
 * { box-sizing: border-box; }
 html, body { height: 100%; margin: 0; }
 body {
-  background: var(--bg);
   color: var(--text);
-  font: 15px/1.7 -apple-system, "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+  background:
+    radial-gradient(1100px 420px at 12% -8%, rgba(229, 72, 77, 0.06), transparent 60%),
+    radial-gradient(1100px 420px at 92% -8%, rgba(37, 99, 235, 0.07), transparent 60%),
+    var(--bg);
+  font-family: var(--font-ui);
+  font-size: 15px;
+  line-height: 1.7;
+  font-weight: 500;
+  -webkit-font-smoothing: antialiased;
   display: flex;
   flex-direction: column;
 }
 
+/* 顶栏 */
 .topbar {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
-  border-bottom: 1px solid var(--border);
-  background: linear-gradient(90deg, rgba(255,91,110,.08), rgba(77,139,255,.08));
+  padding: 14px 22px;
+  border-bottom: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.72);
+  backdrop-filter: saturate(1.4) blur(8px);
 }
-.topbar h1 { font-size: 16px; margin: 0; font-weight: 600; }
-.controls { display: flex; align-items: center; gap: 14px; }
-.switch { font-size: 13px; color: var(--muted); cursor: pointer; user-select: none; }
+.topbar h1 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+/* 签名红→蓝渐变品牌字 */
+.topbar h1 .brand {
+  background: linear-gradient(96deg, var(--rb-red) 0%, var(--rb-blue) 92%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.topbar h1 .tag { color: var(--muted); font-weight: 600; font-size: 14px; margin-left: 6px; }
+
+.controls { display: flex; align-items: center; gap: 16px; }
+.switch {
+  font-size: 13px; color: var(--muted); cursor: pointer; user-select: none;
+  font-weight: 600; display: inline-flex; align-items: center; gap: 6px;
+}
+.switch input { accent-color: var(--rb-red); }
 #run-sidecar {
-  background: var(--accent2); color: #fff; border: 0; border-radius: 6px;
-  padding: 5px 12px; font-size: 13px; cursor: pointer;
+  background: var(--rb-blue); color: #fff; border: 0; border-radius: var(--r-btn);
+  padding: 8px 16px; font-size: 13px; font-weight: 700; cursor: pointer;
+  font-family: inherit; box-shadow: var(--shadow-sm);
+  transition: filter .15s, transform .05s, box-shadow .15s;
 }
-#run-sidecar:hover { filter: brightness(1.1); }
-#sha-banner { font-size: 12px; }
-.sha-ok { color: #5ad19a; }
-.sha-bad { color: var(--accent); font-weight: 600; }
+#run-sidecar:hover { filter: brightness(1.06); box-shadow: var(--shadow-md); }
+#run-sidecar:active { transform: translateY(1px); }
+#sha-banner { font-size: 12px; font-weight: 600; }
+.sha-ok { color: var(--rb-green); }
+.sha-bad { color: var(--rb-red); font-weight: 700; }
 
 /* 同屏三块：一竖屏读懂 */
 .grid {
   flex: 1;
   display: grid;
-  grid-template-columns: 1.4fr 1fr 1fr;
-  gap: 1px;
-  background: var(--border);
+  grid-template-columns: 1.5fr 1fr 1fr;
+  gap: 16px;
+  padding: 16px;
   overflow: hidden;
 }
 .col {
-  background: var(--panel);
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-radius: var(--r-card);
+  box-shadow: var(--shadow-sm);
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 .col-head {
-  padding: 8px 14px;
+  padding: 12px 18px;
   font-size: 13px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--muted);
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--line);
+  background: var(--soft);
   position: sticky;
   top: 0;
-  background: var(--panel);
 }
-.col-body { padding: 14px; overflow-y: auto; flex: 1; }
+.col-body { padding: 16px 18px; overflow-y: auto; flex: 1; }
 
 /* ① 全文 + 高亮 */
-.fulltext { white-space: pre-wrap; word-break: break-word; }
+.fulltext { white-space: pre-wrap; word-break: break-word; line-height: 1.85; }
 .fulltext .plain { color: var(--text); }
 .hl {
-  background: rgba(var(--hl-base), var(--hl-alpha, 0.5));
-  border-radius: 3px;
-  padding: 1px 2px;
+  background: rgba(var(--hl-base), var(--hl-alpha, 0.18));
+  border-radius: var(--r-sm);
+  padding: 1px 3px;
   cursor: pointer;
-  transition: outline .15s;
+  transition: background .15s, outline .15s;
 }
-.hl:hover { outline: 1px solid var(--accent); }
-.hl .ts { font-size: 10px; color: var(--accent2); vertical-align: super; }
-.fulltext.only-hl .plain { opacity: 0.18; }
-.fulltext.only-hl .hl { background: rgba(var(--hl-base), 0.65); }
+.hl:hover { outline: 2px solid var(--rb-red); background: rgba(var(--hl-base), 0.3); }
+.hl .ts { font-size: 10px; color: var(--rb-blue-strong); font-weight: 700; vertical-align: super; margin-left: 1px; }
+.fulltext.only-hl .plain { opacity: 0.22; }
+.fulltext.only-hl .hl { background: rgba(var(--hl-base), 0.4); }
 @keyframes flash {
-  0% { outline: 2px solid var(--accent); }
+  0% { outline: 2px solid var(--rb-red); background: rgba(var(--hl-base), 0.45); }
   100% { outline: 2px solid transparent; }
 }
 .hl.flash { animation: flash 1.2s ease-out; }
 
 /* ② 卡片 */
-.cards { display: flex; flex-direction: column; gap: 12px; }
+.cards { display: flex; flex-direction: column; gap: 14px; }
 .card {
   margin: 0;
-  background: #1d212b;
-  border-left: 3px solid var(--accent);
-  border-radius: 8px;
-  padding: 12px 14px;
+  background: var(--bg);
+  border: 1px solid var(--line);
+  border-left: 3px solid var(--rb-red);
+  border-radius: var(--r-card);
+  padding: 14px 16px;
+  box-shadow: var(--shadow-sm);
+  transition: box-shadow .15s, transform .05s;
 }
-.card.free { border-left-color: var(--muted); opacity: 0.8; }
+.card.free { border-left-color: var(--faint); background: var(--soft); opacity: 0.85; }
 .card.clickable { cursor: pointer; }
-.card.clickable:hover { background: #232834; }
-.card .quote { margin: 0 0 6px; font-size: 15px; }
-.card .meta { font-size: 11px; color: var(--muted); }
+.card.clickable:hover { box-shadow: var(--shadow-md); transform: translateY(-1px); }
+.card .quote { margin: 0 0 6px; font-size: 15px; font-weight: 600; }
+.card .meta { font-size: 11px; color: var(--rb-blue); font-weight: 600; }
+.card.free .meta { color: var(--faint); }
 
 /* ③ 大纲 */
-.outline, .outline ul { list-style: none; margin: 0; padding-left: 14px; }
-.outline > li { margin-bottom: 4px; }
+.outline, .outline ul { list-style: none; margin: 0; padding-left: 16px; }
+.outline > li { margin-bottom: 6px; }
 .ol-title {
-  padding: 4px 8px;
-  border-radius: 6px;
-  border-left: 2px solid var(--accent2);
-  margin-bottom: 2px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  border-left: 2px solid var(--rb-blue);
+  margin-bottom: 3px;
+  font-weight: 600;
 }
-.ol-title.clickable { cursor: pointer; }
-.ol-title.clickable:hover { background: #232834; }
-.ol-title.free { color: var(--muted); border-left-color: var(--border); }
-.ol-title .ts { font-size: 11px; color: var(--accent2); margin-left: 6px; }
+.ol-title.clickable { cursor: pointer; transition: background .15s; }
+.ol-title.clickable:hover { background: var(--soft-2); }
+.ol-title.free { color: var(--muted); border-left-color: var(--line); font-weight: 500; }
+.ol-title .ts { font-size: 11px; color: var(--rb-blue-strong); font-weight: 700; margin-left: 6px; }
