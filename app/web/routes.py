@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import os
 import traceback
@@ -19,6 +20,7 @@ from app.extract.errors import RbcpError, format_error_for_user
 from app.extract.extractor import detect_platform
 from app.extract.storage import Storage
 from app.web import artifacts
+from app.web import digest_cache
 from app.extract.urls import clean_url, dedup_key
 from app.web.auth import require_token
 
@@ -77,6 +79,13 @@ def get_pipeline_fn() -> Callable[[str], dict]:
     return lambda url: pipeline_mod.fetch_single(
         url, api_key=api_key, output_dir=output_dir, proxy=proxy
     )
+
+
+def get_digest_provider():
+    from app.extract.pipeline import _provider_from_env, build_proxies
+
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    return _provider_from_env(api_key, proxies=build_proxies(os.getenv("RBCP_PROXY")))
 
 
 def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
@@ -361,6 +370,35 @@ def api_batch_items(batch_id: int, storage: Storage = Depends(get_storage)) -> d
     if storage.get_batch(batch_id) is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     return {"items": storage.list_batch_items(batch_id)}
+
+
+@api.get("/jobs/{job_id}/digest")
+def get_digest(
+    job_id: int,
+    provider=Depends(get_digest_provider),
+):
+    cached = digest_cache.load(job_id)
+    if cached is not None:
+        return cached
+    try:
+        art = artifacts.load_extract(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=409, detail="need_retranscribe") from None
+    from app.digest.contracts import digest as run_digest
+    from app.extract.contracts import Segment
+
+    segs = tuple(Segment(**d) for d in art["segments"]) if art["segments"] is not None else None
+    dr = run_digest(art["canonical_text"], provider=provider, text_sha256=art["text_sha256"], segments=segs)
+    envelope = {
+        "extract": {
+            "canonical_text": art["canonical_text"],
+            "text_sha256": art["text_sha256"],
+            "segments": art["segments"],
+        },
+        "digest": dataclasses.asdict(dr),
+    }
+    digest_cache.save(job_id, envelope)
+    return envelope
 
 
 app.include_router(api)
