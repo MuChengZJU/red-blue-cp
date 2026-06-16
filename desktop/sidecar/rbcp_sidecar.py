@@ -8,10 +8,11 @@
 docs/contracts/0.6-digest-json-contract.md）。联调期 Tauri 壳 spawn 本二进制，
 喂原文，拿契约 JSON 渲染三形态。
 
-spike 约束：
-- 不需要真 API key。digest 的 LLM 部分用 FakeProvider（确定性、离线）替代。
-- 引擎源码 vendored 在同目录 _engine/（只含 digest + extract.contracts，纯标准库依赖），
-  保证二进制自包含、可复现，不依赖任何具体分支被 checkout。
+约束：
+- 不需要真 API key。digest 的 LLM 部分用 FakeProvider（确定性、离线）替代；_build_extract 也是桩。
+  联调真链路时换成 `rbcp digest <url> --json`（facade.extract(url) + 真 provider），形状一致。
+- 直接用仓库真实 `app/` 引擎（digest 纯标准库依赖），**不再 vendored 拷贝**——单一真相源、不漂移。
+  PyInstaller 打包时 --paths 指仓库根、--hidden-import 补 digest 的 lazy import（见 build.sh）。
 """
 from __future__ import annotations
 
@@ -19,11 +20,11 @@ import json
 import os
 import sys
 
-# 让 vendored 引擎可 import（PyInstaller 打包后 _engine 随包，sys._MEIPASS 指向解包目录）。
-_BASE = getattr(sys, "_MEIPASS", os.path.dirname(os.path.abspath(__file__)))
-_ENGINE = os.path.join(_BASE, "_engine")
-if _ENGINE not in sys.path:
-    sys.path.insert(0, _ENGINE)
+# 真实引擎 = 仓库 app/。frozen(PyInstaller) 时 app/ 随包(_MEIPASS)；开发期把仓库根加进 path。
+if hasattr(sys, "_MEIPASS"):
+    sys.path.insert(0, sys._MEIPASS)
+else:
+    sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 from app.digest import digest  # noqa: E402
 from app.extract.contracts import (  # noqa: E402

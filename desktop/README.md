@@ -6,9 +6,8 @@
 ```
 desktop/
   sidecar/          PyInstaller spike：文本 → app.digest → 契约 JSON
-    rbcp_sidecar.py   入口（读 stdin/arg，FakeProvider 离线跑引擎）
-    _engine/          vendored 引擎（digest + extract.contracts，纯标准库）
-    build.sh          打二进制（onefile / onedir）
+    rbcp_sidecar.py   入口（读 stdin/arg，FakeProvider 离线跑引擎）；用仓库真实 app/ 引擎
+    build.sh          打二进制（onefile / onedir）；--paths 指仓库根打真 app/，不再 vendored
   frontend/         三形态渲染（纯 HTML/JS，无框架）
     index.html  styles.css  app.js  render.js
     sample.json       = docs/contracts/0.6-digest-json-sample.json
@@ -54,9 +53,10 @@ cargo tauri build --config '{"build":{"beforeBuildCommand":""}}'  # 出 .app
 sidecar stdout = `docs/contracts/0.6-digest-json-contract.md` 的信封。
 联调期 `run_digest` 把它换成真实 `rbcp digest --json`（M6f CLI 那侧产出，形状一致）。
 
-spike 期 sidecar 内嵌 vendored `_engine`（digest + extract.contracts，纯标准库），
-LLM 部分用 `FakeProvider` 离线确定性替代，不需要真 API key。
-正式版应改为打整包 `app/` 或直接调已安装的 `rbcp`。
+sidecar 直接用仓库真实 `app/` 引擎（`build.sh` 的 `--paths` 指仓库根、`--hidden-import` 补
+digest 的 lazy import；digest 纯标准库依赖，闭包小、不拉 fastapi/pydoll）。**不再 vendored 拷贝**。
+LLM 部分用 `FakeProvider` 离线确定性替代、`_build_extract` 是桩，不需要真 API key——
+联调真链路时把 `run_digest` 换成调 `rbcp digest <url> --json`（M6f 那侧，形状一致）。
 
 ## Spike 结论（PyInstaller 体积 / 冷启动，macOS arm64）
 
