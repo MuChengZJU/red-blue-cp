@@ -68,6 +68,13 @@ def _maybe_enable_cors(target_app: FastAPI) -> bool:
 
 _maybe_enable_cors(app)
 
+# 静态托管桌面前端：浏览器/QA 开 /app/ 同源加载、调本地 API（dev/QA 便利；Tauri 打包走 frontendDist）。
+_DESKTOP_FRONTEND = Path(__file__).resolve().parent.parent.parent / "desktop" / "frontend"
+if _DESKTOP_FRONTEND.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/app", StaticFiles(directory=str(_DESKTOP_FRONTEND), html=True), name="desktop-frontend")
+
 api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
 
 
