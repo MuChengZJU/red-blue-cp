@@ -95,6 +95,7 @@ pub fn run() {
             }
         }))
         .plugin(tauri_plugin_shell::init())
+        .plugin(tauri_plugin_dialog::init())
         .manage(ApiState::default())
         .invoke_handler(tauri::generate_handler![get_api_config])
         .setup(|app| {
