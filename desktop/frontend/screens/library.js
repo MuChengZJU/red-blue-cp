@@ -55,7 +55,7 @@ function applyFilters() {
 /* render pieces */
 function renderCard(job) {
   var id = esc(job.id);
-  var t = esc(job.title || '\u65e0\u6807\u9898');
+  var t = esc(job.title || job.url || '\u65e0\u6807\u9898');
   var a = esc(job.author || '');
   var ch = t.charAt(0) || '?';
   return (
