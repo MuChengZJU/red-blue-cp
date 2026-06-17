@@ -385,10 +385,14 @@ export function render(container, api, jobId) {
 
   }).catch(function(err) {
     container.innerHTML = '';
-    var msg = '\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
+    // 409 = \u65e9\u671f\u8f6c\u5f55\u65e0 canonical/segments\uff08Task 1.0 \u524d\uff09\uff0c\u901f\u89c8\u6ca1\u6570\u636e\u6e90\u3002
+    // \u4e0d\u62a5\u9519\uff0c\u56de\u9000\u663e\u793a\u5df2\u6709\u7684 .md \u53ef\u8bfb\u5168\u6587\uff08\u5b8c\u6574\u901f\u89c8\u9700\u91cd\u65b0\u8f6c\u5f55\uff09\u3002
     if (err && err.status === 409) {
-      msg = '\u9700\u91cd\u65b0\u8f6c\u5f55\uff08artifacts \u7f3a\u5931\uff09';
-    } else if (err && err.detail) {
+      renderMarkdownFallback(container, api, jobId);
+      return;
+    }
+    var msg = '\u52a0\u8f7d\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5';
+    if (err && err.detail) {
       msg = esc(String(err.detail));
     }
     var div = document.createElement('div');
@@ -396,4 +400,33 @@ export function render(container, api, jobId) {
     div.textContent = msg;
     container.appendChild(div);
   });
+}
+
+/** \u65e9\u671f\u8f6c\u5f55\uff08\u65e0 artifacts\uff09\u56de\u9000\uff1a\u663e\u793a\u5df2\u6709 .md \u53ef\u8bfb\u5168\u6587 + \u91cd\u8f6c\u63d0\u793a\u3002 */
+function renderMarkdownFallback(container, api, jobId) {
+  container.innerHTML = '<div class="placeholder">\u52a0\u8f7d\u53ef\u8bfb\u5168\u6587\u2026</div>';
+  api.getMarkdown(jobId).then(function(md) {
+    container.innerHTML = '';
+    var banner = document.createElement('div');
+    banner.style.cssText = 'padding:10px 14px;margin-bottom:14px;border-radius:8px;'
+      + 'background:rgba(217,130,26,.12);color:#9a5a00;font-size:13px;line-height:1.6;';
+    banner.textContent = '\u65e9\u671f\u8f6c\u5f55\uff1a\u4ec5\u53ef\u8bfb\u5168\u6587\u3002'
+      + '\u751f\u6210\u5b8c\u6574\u901f\u89c8\uff08\u9ad8\u4eae / \u5361\u7247 / \u8109\u7edc\uff09\u9700\u91cd\u65b0\u8f6c\u5f55\u3002';
+    container.appendChild(banner);
+    var body = document.createElement('div');
+    body.style.cssText = 'white-space:pre-wrap;line-height:1.9;font-size:15px;max-width:760px;';
+    body.textContent = _stripFrontmatter(md);
+    container.appendChild(body);
+  }).catch(function() {
+    var div = document.createElement('div');
+    div.className = 'placeholder';
+    div.textContent = '\u9700\u91cd\u65b0\u8f6c\u5f55\uff08\u65e0\u53ef\u8bfb\u5185\u5bb9\uff09';
+    container.appendChild(div);
+  });
+}
+
+function _stripFrontmatter(md) {
+  if (typeof md !== 'string') return md == null ? '' : String(md);
+  var m = md.match(/^---\n[\s\S]*?\n---\n?/);
+  return (m ? md.slice(m[0].length) : md).trim();
 }
