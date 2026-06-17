@@ -1,24 +1,4 @@
-/* settings screen - local-only config UI */
-
-var STORAGE_PREFIX = 'rbcp.';
-
-var FIELD_MAP = [
-  { id: 's-apiKey',        key: 'apiKey',        type: 'password', label: '\u767e\u7ec4 API Key',
-    desc: 'DashScope key\uff0c\u7528\u4e8e ASR / VLM / \u901f\u89c8 LLM\u3002\u53ea\u5b58\u672c\u673a\uff0c\u4e0d\u4e0a\u4f20\u3002',
-    placeholder: 'sk-xxxxxx' },
-  { id: 's-transcriptDir', key: 'transcriptDir',  type: 'text',     label: '\u77e5\u8bc6\u5e93\u8f93\u51fa\u76ee\u5f55',
-    desc: 'Markdown \u5b58\u653e\u5904\uff08\u53ea\u653e .md + \u7d22\u5f15\uff0c\u4e0d\u6df7\u5a92\u4f53\uff09\u3002',
-    placeholder: '~/transcript' },
-  { id: 's-proxy',         key: 'proxy',          type: 'text',     label: '\u4ee3\u7406\uff08\u53ef\u9009\uff09',
-    desc: 'RBCP_PROXY\uff0c\u6279\u91cf\u4e0b\u8f7d\u62a4 IP \u7528\u3002',
-    placeholder: 'http://127.0.0.1:7897' }
-];
-
-var MODEL_FIELDS = [
-  { id: 's-asrModel', key: 'asrModel', label: 'ASR \u6a21\u578b', ph: 'paraformer-v2' },
-  { id: 's-vlmModel', key: 'vlmModel', label: 'VLM \u6a21\u578b', ph: 'qwen3-vl-flash' },
-  { id: 's-llmModel', key: 'llmModel', label: 'LLM \u6a21\u578b', ph: 'qwen-plus' }
-];
+/* settings screen —— 接后端配置（写 os.environ + 配置 .env，转录真正用得上） */
 
 function esc(s) {
   if (s == null) return '';
@@ -27,91 +7,134 @@ function esc(s) {
   return d.innerHTML;
 }
 
-function readStore(key) {
-  try { return localStorage.getItem(STORAGE_PREFIX + key) || ''; } catch (_) { return ''; }
-}
+// UI 字段 → 后端 config 字段名
+var TEXT_FIELDS = [
+  { id: 's-output', key: 'output_dir', label: '知识库输出目录',
+    desc: 'Markdown 存放处（只放 .md + 索引，不混媒体）。', ph: '~/transcript', dir: true },
+  { id: 's-proxy', key: 'proxy', label: '代理（可选）',
+    desc: 'RBCP_PROXY，批量下载护 IP 用。', ph: 'http://127.0.0.1:7897' }
+];
 
-function writeStore(key, val) {
-  try { localStorage.setItem(STORAGE_PREFIX + key, val); } catch (_) { /* noop */ }
-}
+var MODEL_FIELDS = [
+  { id: 's-asr', key: 'asr_model', label: 'ASR 模型', ph: 'paraformer-v2' },
+  { id: 's-vlm', key: 'vlm_model', label: 'VLM 模型', ph: 'qwen3-vl-flash' },
+  { id: 's-llm', key: 'llm_model', label: 'LLM 模型', ph: 'qwen-plus' }
+];
 
-/* build form HTML */
-function buildForm() {
+function buildForm(cfg) {
+  var keySet = cfg && cfg.dashscope_key_set;
   var html = '';
   html += '<div class="page-head">'
     + '<img class="ph-ic" src="https://api.iconify.design/flat-color-icons/settings.svg" alt="">'
-    + '<h2>\u8bbe\u7f6e</h2>'
-    + '<span class="sub">\u5b58\u5728\u672c\u673a \u00b7 \u4e0d\u4e0a\u4f20</span>'
+    + '<h2>设置</h2>'
+    + '<span class="sub">存在本机 · 不上传</span>'
     + '</div>';
   html += '<div class="page-body"><div class="form">';
 
-  /* text / password fields */
-  for (var i = 0; i < FIELD_MAP.length; i++) {
-    var f = FIELD_MAP[i];
-    var val = esc(readStore(f.key));
+  // 百炼 API Key（password）。已配置则留空+占位提示（留空=不改）
+  html += '<div class="field">'
+    + '<label>百炼 API Key</label>'
+    + '<div class="desc">DashScope key，用于 ASR / VLM / 速览 LLM。只存本机，不上传。</div>'
+    + '<input id="s-key" type="password" value="" placeholder="'
+    + (keySet ? '已配置 ' + esc(cfg.dashscope_key_masked) + '（留空不改）' : 'sk-xxxxxx')
+    + '">'
+    + '</div>';
+
+  // 文本字段（输出目录带"选择…"原生选择框）
+  for (var i = 0; i < TEXT_FIELDS.length; i++) {
+    var f = TEXT_FIELDS[i];
+    var val = esc((cfg && cfg[f.key]) || '');
+    var pick = f.dir
+      ? '<button class="btn-soft" id="' + f.id + '-pick" type="button" style="margin-top:6px">选择文件夹…</button>'
+      : '';
     html += '<div class="field">'
       + '<label>' + esc(f.label) + '</label>'
       + '<div class="desc">' + esc(f.desc) + '</div>'
-      + '<input id="' + f.id + '" type="' + f.type + '" value="' + val + '" placeholder="' + esc(f.placeholder) + '">'
+      + '<input id="' + f.id + '" type="text" value="' + val + '" placeholder="' + esc(f.ph) + '">'
+      + pick
       + '</div>';
   }
 
-  /* model fields: first two in a row, third below */
+  // 模型字段
   html += '<div class="row2">';
   for (var j = 0; j < 2; j++) {
     var m = MODEL_FIELDS[j];
-    var mv = esc(readStore(m.key));
-    html += '<div class="field">'
-      + '<label>' + esc(m.label) + '</label>'
-      + '<input id="' + m.id + '" value="' + mv + '" placeholder="' + m.ph + '">'
-      + '</div>';
+    html += '<div class="field"><label>' + esc(m.label) + '</label>'
+      + '<input id="' + m.id + '" value="' + esc((cfg && cfg[m.key]) || '') + '" placeholder="' + m.ph + '"></div>';
   }
   html += '</div>';
-  /* LLM model below the row */
   var m3 = MODEL_FIELDS[2];
-  var m3v = esc(readStore(m3.key));
-  html += '<div class="field">'
-    + '<label>' + esc(m3.label) + '</label>'
-    + '<input id="' + m3.id + '" value="' + m3v + '" placeholder="' + m3.ph + '">'
-    + '</div>';
+  html += '<div class="field"><label>' + esc(m3.label) + '</label>'
+    + '<input id="' + m3.id + '" value="' + esc((cfg && cfg[m3.key]) || '') + '" placeholder="' + m3.ph + '"></div>';
 
-  /* save button */
-  html += '<button class="btn-primary" id="s-save"><i data-lucide="check"></i>\u4fdd\u5b58\u8bbe\u7f6e</button>';
-  html += '<span id="s-feedback" style="margin-left:12px;font-size:13px;color:var(--rb-green);display:none">\u5df2\u4fdd\u5b58</span>';
-
+  html += '<button class="btn-primary" id="s-save"><i data-lucide="check"></i>保存设置</button>';
+  html += '<span id="s-fb" style="margin-left:12px;font-size:13px;display:none"></span>';
   html += '</div></div>';
   return html;
 }
 
-/* wire up save */
-function bindSave() {
+function feedback(msg, ok) {
+  var fb = document.getElementById('s-fb');
+  if (!fb) return;
+  fb.textContent = msg;
+  fb.style.color = ok ? 'var(--rb-green)' : 'var(--rb-red)';
+  fb.style.display = 'inline';
+  clearTimeout(fb._t);
+  fb._t = setTimeout(function () { fb.style.display = 'none'; }, 2600);
+}
+
+function bind(api) {
+  // 原生文件夹选择（Tauri dialog；浏览器 dev 无则提示手动输入）
+  var pick = document.getElementById('s-output-pick');
+  if (pick) {
+    pick.addEventListener('click', function () {
+      var dlg = window.__TAURI__ && window.__TAURI__.dialog;
+      if (!dlg || !dlg.open) {
+        feedback('浏览器环境无系统选择框，请手动输入路径', false);
+        return;
+      }
+      dlg.open({ directory: true, multiple: false }).then(function (sel) {
+        if (sel) document.getElementById('s-output').value = sel;
+      });
+    });
+  }
+
   var btn = document.getElementById('s-save');
   if (!btn) return;
   btn.addEventListener('click', function () {
-    /* plain text fields */
-    for (var i = 0; i < FIELD_MAP.length; i++) {
-      var f = FIELD_MAP[i];
+    var payload = {};
+    var key = document.getElementById('s-key');
+    if (key && key.value.trim()) payload.dashscope_key = key.value.trim();  // 留空=不改
+    for (var i = 0; i < TEXT_FIELDS.length; i++) {
+      var f = TEXT_FIELDS[i];
       var el = document.getElementById(f.id);
-      writeStore(f.key, el ? el.value.trim() : '');
+      if (el) payload[f.key] = el.value.trim();
     }
-    /* model fields */
     for (var j = 0; j < MODEL_FIELDS.length; j++) {
       var m = MODEL_FIELDS[j];
       var mel = document.getElementById(m.id);
-      writeStore(m.key, mel ? mel.value.trim() : '');
+      if (mel) payload[m.key] = mel.value.trim();
     }
-    /* feedback */
-    var fb = document.getElementById('s-feedback');
-    if (fb) {
-      fb.style.display = 'inline';
-      clearTimeout(fb._timer);
-      fb._timer = setTimeout(function () { fb.style.display = 'none'; }, 2000);
-    }
+    btn.disabled = true;
+    api.setConfig(payload).then(function () {
+      feedback('已保存（立即生效）', true);
+      if (key) key.value = '';  // 清空 key 输入，避免明文停留
+    }).catch(function (e) {
+      feedback('保存失败：' + ((e && e.detail) || '后端未响应'), false);
+    }).then(function () { btn.disabled = false; });
   });
 }
 
 export function render(container, api) {
-  container.innerHTML = buildForm();
-  bindSave();
-  if (window.lucide) window.lucide.createIcons();
+  container.innerHTML = '<div class="placeholder">加载设置…</div>';
+  api.getConfig().then(function (cfg) {
+    container.innerHTML = buildForm(cfg);
+    bind(api);
+    if (window.lucide) window.lucide.createIcons();
+  }).catch(function () {
+    // 后端拿不到也给空表单（至少能填）
+    container.innerHTML = buildForm(null);
+    bind(api);
+    if (window.lucide) window.lucide.createIcons();
+  });
 }

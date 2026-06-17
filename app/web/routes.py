@@ -268,6 +268,23 @@ def get_stats(storage: Storage = Depends(get_storage)) -> dict:
     }
 
 
+@api.get("/config")
+def get_config() -> dict:
+    """读当前生效配置（API key 打码）。设置界面加载时拉。"""
+    from app.web import config_api
+
+    return config_api.get_config()
+
+
+@api.post("/config")
+def set_config(payload: dict = Body(...)) -> dict:
+    """保存设置：即时设进 os.environ（运行中下次请求生效）+ 落配置 .env（重启仍在）。"""
+    from app.web import config_api
+
+    applied = config_api.set_config(payload)
+    return {"ok": True, "applied": applied}
+
+
 @api.get("/jobs/{job_id}")
 def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     job = storage.get_job(job_id)

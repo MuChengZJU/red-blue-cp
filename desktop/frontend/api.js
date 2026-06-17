@@ -34,6 +34,8 @@ export const api = {
   getBatches()               { return _fetch("GET",  "/api/batches"); },
   getBatchItems(batchId)     { return _fetch("GET",  "/api/batches/" + batchId + "/items"); },
   importList(payload)        { return _fetch("POST", "/api/import-list", payload); },
+  getConfig()                { return _fetch("GET",  "/api/config"); },
+  setConfig(payload)         { return _fetch("POST", "/api/config", payload); },
   downloadUrl(id)            { return _base + "/api/jobs/" + id + "/download"; },
 };
 
