@@ -74,7 +74,17 @@ function renderJob(job) {
   } else if (job.status === 'failed') {
     var errMsg = job.error_message || '\u672a\u77e5\u9519\u8bef';
     subtitle = '<span class="fail-note">' + esc(errMsg) + '</span>';
-    actions = '<button class="mini red" data-retry="' + esc(job.id) + '">\u21bb \u91cd\u8bd5</button>';
+    var logx = job.log_excerpt && String(job.log_excerpt).trim();
+    if (logx) {
+      subtitle += '<div class="fail-detail" id="faildet-' + esc(job.id) + '"'
+        + ' style="display:none;margin-top:6px;font-size:12px;color:var(--muted);'
+        + 'white-space:pre-wrap;font-family:ui-monospace,monospace;'
+        + 'background:var(--soft-2);border-radius:6px;padding:8px;max-height:160px;overflow:auto">'
+        + esc(job.log_excerpt) + '</div>';
+    }
+    actions = (logx ? '<button class="mini" data-detail="' + esc(job.id) + '">\u8be6\u60c5</button>' : '')
+      + '<button class="mini red" data-retry="' + esc(job.id) + '">\u21bb \u91cd\u8bd5</button>'
+      + '<button class="mini red" data-del="' + esc(job.id) + '">\u5220\u9664</button>';
   } else {
     subtitle = platformLabel(job.platform) +
       '<span>' + esc(shortUrl(job.url)) + '</span>';
@@ -163,6 +173,29 @@ function bindEvents(root, api) {
         el.disabled = false;
         el.textContent = '\u21bb \u91cd\u8bd5';
       });
+    });
+  });
+  root.querySelectorAll('[data-del]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id = el.getAttribute('data-del');
+      if (!id) return;
+      el.disabled = true;
+      el.textContent = '删除中...';
+      api.deleteJob(id).then(function () {
+        return load(root, api);
+      }).catch(function () {
+        el.disabled = false;
+        el.textContent = '删除';
+      });
+    });
+  });
+  root.querySelectorAll('[data-detail]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      var id = el.getAttribute('data-detail');
+      var det = document.getElementById('faildet-' + id);
+      if (det) det.style.display = det.style.display === 'none' ? 'block' : 'none';
     });
   });
   root.querySelectorAll('[data-batch-toggle]').forEach(function (el) {
