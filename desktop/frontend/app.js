@@ -78,14 +78,19 @@ if (modalBg) {
 // Boot：Tauri 环境先拿 serve 的 port/token 配好 api，再渲染首屏；
 // 普通浏览器 dev 无 __TAURI__，走 api.js 默认 base（127.0.0.1:8000）。
 async function boot() {
-  try {
-    var tauri = window.__TAURI__;
-    if (tauri && tauri.core && typeof tauri.core.invoke === 'function') {
-      var cfg = await tauri.core.invoke('get_api_config');
-      configure({ base: 'http://127.0.0.1:' + cfg.port, token: cfg.token });
+  var tauri = window.__TAURI__;
+  if (tauri && tauri.core && typeof tauri.core.invoke === 'function') {
+    // serve 后台异步起，config 可能没立即就绪 → 轮询直到拿到 port/token（最多 ~20s）。
+    for (var i = 0; i < 40; i++) {
+      try {
+        var cfg = await tauri.core.invoke('get_api_config');
+        if (cfg && cfg.port) {
+          configure({ base: 'http://127.0.0.1:' + cfg.port, token: cfg.token });
+          break;
+        }
+      } catch (e) { /* serve 还没就绪，稍后重试 */ }
+      await new Promise(function (r) { setTimeout(r, 500); });
     }
-  } catch (e) {
-    console.error('get_api_config 失败，回退默认 base：', e);
   }
   show('jobs');
 }

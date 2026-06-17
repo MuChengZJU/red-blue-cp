@@ -3,7 +3,6 @@
 // 退出时 kill sidecar；单实例（二次启动聚焦旧窗、不起第二个 serve）。
 
 use std::sync::Mutex;
-use std::time::Duration;
 
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, State};
@@ -35,53 +34,41 @@ fn get_api_config(state: State<ApiState>) -> Result<ApiConfig, String> {
 }
 
 /// spawn sidecar，阻塞读到 {"port","token"} 为止（带超时），返回 (config, child, 剩余事件流)。
-fn start_serve(
-    app: &tauri::AppHandle,
-) -> Result<
-    (
-        Option<ApiConfig>,
-        CommandChild,
-        tauri::async_runtime::Receiver<CommandEvent>,
-    ),
-    String,
-> {
-    let (mut rx, child) = app
+/// 后台异步起 sidecar：**绝不阻塞主线程**（block_on 在 setup 会冻住 macOS 窗口、点不动）。
+/// 立即存 child；读到 stdout 的 {port,token} 再存 config（get_api_config 在此前返回 Err，前端轮询等）。
+async fn run_serve(handle: tauri::AppHandle) {
+    let spawned = handle
         .shell()
         .sidecar("rbcp-serve")
-        .map_err(|e| format!("定位 rbcp-serve 失败: {e}"))?
-        .spawn()
-        .map_err(|e| format!("启动 rbcp-serve 失败: {e}"))?;
+        .and_then(|c| c.spawn());
+    let (mut rx, child) = match spawned {
+        Ok(v) => v,
+        Err(e) => {
+            eprintln!("启动 rbcp-serve 失败: {e}");
+            return;
+        }
+    };
+    // 立即存 child（退出时好 kill），即使还没拿到 port/token。
+    *handle.state::<ApiState>().child.lock().unwrap() = Some(child);
 
-    // 阻塞读首个能解析成 ApiConfig 的 stdout 行；20s 超时防 serve 卡死时 App 永远打不开。
-    let config = tauri::async_runtime::block_on(async {
-        let read = async {
-            while let Some(event) = rx.recv().await {
-                match event {
-                    CommandEvent::Stdout(line) => {
-                        let s = String::from_utf8_lossy(&line);
-                        if let Ok(cfg) = serde_json::from_str::<ApiConfig>(s.trim()) {
-                            return Some(cfg);
-                        }
-                    }
-                    CommandEvent::Terminated(payload) => {
-                        eprintln!("[rbcp-serve] 启动阶段就退出了: {:?}", payload);
-                        return None;
-                    }
-                    _ => {}
+    while let Some(event) = rx.recv().await {
+        match event {
+            CommandEvent::Stdout(line) => {
+                let s = String::from_utf8_lossy(&line);
+                if let Ok(cfg) = serde_json::from_str::<ApiConfig>(s.trim()) {
+                    *handle.state::<ApiState>().config.lock().unwrap() = Some(cfg);
                 }
             }
-            None
-        };
-        match tokio::time::timeout(Duration::from_secs(20), read).await {
-            Ok(cfg) => cfg,
-            Err(_) => {
-                eprintln!("[rbcp-serve] 等待 port/token 超时（20s）");
-                None
+            CommandEvent::Stderr(line) => {
+                eprintln!("[rbcp-serve] {}", String::from_utf8_lossy(&line));
             }
+            CommandEvent::Terminated(payload) => {
+                eprintln!("[rbcp-serve] 退出: {:?}", payload);
+                break;
+            }
+            _ => {}
         }
-    });
-
-    Ok((config, child, rx))
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -99,32 +86,8 @@ pub fn run() {
         .manage(ApiState::default())
         .invoke_handler(tauri::generate_handler![get_api_config])
         .setup(|app| {
-            let handle = app.handle().clone();
-            match start_serve(&handle) {
-                Ok((config, child, mut rx)) => {
-                    let state = app.state::<ApiState>();
-                    *state.config.lock().unwrap() = config;
-                    *state.child.lock().unwrap() = Some(child);
-                    // 继续 drain 事件流（否则子进程 stdout 缓冲写满会卡）。
-                    tauri::async_runtime::spawn(async move {
-                        while let Some(event) = rx.recv().await {
-                            match event {
-                                CommandEvent::Stderr(line) => {
-                                    eprintln!("[rbcp-serve] {}", String::from_utf8_lossy(&line));
-                                }
-                                CommandEvent::Terminated(payload) => {
-                                    eprintln!("[rbcp-serve] 退出: {:?}", payload);
-                                    break;
-                                }
-                                _ => {}
-                            }
-                        }
-                    });
-                }
-                Err(e) => {
-                    eprintln!("启动本地服务失败: {e}");
-                }
-            }
+            // 后台异步起 serve，setup 立即返回 → 窗口马上可交互（不再被 block_on 冻住）。
+            tauri::async_runtime::spawn(run_serve(app.handle().clone()));
             Ok(())
         })
         .build(tauri::generate_context!())
