@@ -3,9 +3,16 @@ export async function render(container, api) {
   // Loading state
   container.innerHTML = '<div class="page-head"><h2>账单</h2><span class="sub">加载中…</span></div>';
 
+  function esc(s) {
+    return String(s == null ? '' : s)
+      .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+  }
+
   var data;
+  var jobs = [];
   try {
     data = await api.getStats();
+    try { jobs = await api.getJobs(); } catch (_je) { jobs = []; }
   } catch (_e) {
     container.innerHTML =
       '<div class="page-head"><h2>账单</h2><span class="sub">加载失败</span></div>' +
@@ -106,6 +113,52 @@ export async function render(container, api) {
       '</div>' +
       '<div class="ca">\u00a5' + (Number(sv.cost_yuan) || 0).toFixed(2) + '</div>' +
       '</div>';
+  }
+  html += '</div>';
+
+  // 逐篇明细：每篇的费用 + 各环节 chip（按费用降序）
+  var PLAT = { bilibili: 'B站', xiaohongshu: '小红书' };
+  var billed = (jobs || []).filter(function(j) {
+    return j && j.usage && Number(j.usage.total_cost_yuan) > 0;
+  });
+  billed.sort(function(a, b) {
+    return Number(b.usage.total_cost_yuan) - Number(a.usage.total_cost_yuan);
+  });
+  html += '<div class="panel"><h3>逐篇明细 · ' + billed.length + ' 篇</h3>';
+  if (billed.length === 0) {
+    html += '<p style="color:var(--muted);font-size:13px;font-weight:600">还没有按篇计费的记录。</p>';
+  } else {
+    for (var bi = 0; bi < billed.length; bi++) {
+      var bj = billed[bi];
+      var bt = esc(bj.title || bj.url || '无标题');
+      var plat = PLAT[bj.platform] || esc(bj.platform || '');
+      var bcost = Number(bj.usage.total_cost_yuan) || 0;
+      // 同环节多次调用聚合成一个 chip（如 6 次图文理解合并）
+      var evs = bj.usage.events || [];
+      var agg = {};
+      var order = [];
+      for (var ei = 0; ei < evs.length; ei++) {
+        var ev = evs[ei];
+        var st = ev.stage || 'unknown';
+        if (!agg[st]) { agg[st] = { cost: 0, n: 0 }; order.push(st); }
+        agg[st].cost += Number(ev.cost_yuan) || 0;
+        agg[st].n += 1;
+      }
+      var chips = '';
+      for (var oi = 0; oi < order.length; oi++) {
+        var st2 = order[oi];
+        var times = agg[st2].n > 1 ? ' ×' + agg[st2].n : '';
+        chips += '<span class="tmchip">' + (NAMES[st2] || esc(st2)) +
+          times + ' ¥' + agg[st2].cost.toFixed(3) + '</span>';
+      }
+      html +=
+        '<div class="cost-row">' +
+        '<div class="ct" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px" title="' + bt + '">' +
+        '<span class="tmchip">' + plat + '</span> ' + bt + '</div>' +
+        '<div class="tm">' + chips + '</div>' +
+        '<div class="ca">¥' + bcost.toFixed(3) + '</div>' +
+        '</div>';
+    }
   }
   html += '</div>';
 
