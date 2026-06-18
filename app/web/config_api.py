@@ -56,15 +56,22 @@ def set_config(updates: dict[str, Any]) -> list[str]:
     """更新提供的字段：设进 os.environ（即时生效）+ 持久化到配置 .env。
 
     - 只处理 _FIELDS 里的已知字段，其余忽略。
-    - dashscope_key 为空串 → 跳过（不误清已有 key）；其它字段允许置空（如清空代理）。
+    - 这些字段空串无意义且有害，跳过（置空=保持原值，不写不持久化）：
+      key（不误清已有）/ output_dir（空串 → Path("") 落 cwd，知识库写进启动目录）/
+      asr|vlm|llm_model（空串 → model="" 发给 DashScope → HTTP 400，无法转录）。
+      设置页这些字段没预填时点保存会提交空串，正是这条把 model 清空导致转录 400 的根因。
+    - 只有 proxy 允许置空（清空代理是合法操作）。
     返回实际写入的环境变量名列表。
     """
+    _SKIP_IF_EMPTY = {
+        "dashscope_key", "output_dir", "asr_model", "vlm_model", "llm_model",
+    }
     applied: dict[str, str] = {}
     for ui, env in _FIELDS.items():
         if ui not in updates or updates[ui] is None:
             continue
         val = str(updates[ui]).strip()
-        if ui == "dashscope_key" and val == "":
+        if ui in _SKIP_IF_EMPTY and val == "":
             continue
         os.environ[env] = val
         applied[env] = val

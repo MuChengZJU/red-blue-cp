@@ -56,6 +56,32 @@ def test_empty_key_does_not_overwrite(clean, monkeypatch):
     assert os.environ["RBCP_VLM_MODEL"] == "qwen3-vl-flash"
 
 
+def test_empty_output_dir_does_not_persist(clean, monkeypatch):
+    """空 output_dir 不能写入：否则 Path("") 会把知识库落到当前工作目录。"""
+    monkeypatch.setenv("RBCP_OUTPUT_DIR", "/home/u/transcript")
+    c = TestClient(app)
+    r = c.post("/api/config", json={"output_dir": "", "proxy": "http://127.0.0.1:1"})
+    assert "RBCP_OUTPUT_DIR" not in r.json()["applied"]  # 跳过，未写
+    assert os.environ["RBCP_OUTPUT_DIR"] == "/home/u/transcript"  # 原值保留
+    body = (clean / ".env").read_text(encoding="utf-8")
+    assert "RBCP_OUTPUT_DIR=\n" not in body and "RBCP_OUTPUT_DIR=" not in body
+
+
+def test_empty_model_fields_do_not_persist(clean, monkeypatch):
+    """空模型字段不能写入：否则 RBCP_LLM_MODEL="" 会让 model="" 发给 DashScope → 400。"""
+    monkeypatch.setenv("RBCP_LLM_MODEL", "qwen-plus")
+    c = TestClient(app)
+    r = c.post("/api/config", json={
+        "asr_model": "", "vlm_model": "", "llm_model": "", "proxy": "http://127.0.0.1:1",
+    })
+    applied = r.json()["applied"]
+    assert "RBCP_LLM_MODEL" not in applied
+    assert "RBCP_ASR_MODEL" not in applied
+    assert "RBCP_VLM_MODEL" not in applied
+    assert os.environ["RBCP_LLM_MODEL"] == "qwen-plus"  # 原值保留，没被空串清掉
+    assert "RBCP_PROXY" in applied  # proxy 仍可写（含清空）
+
+
 def test_persist_merges_existing(clean):
     c = TestClient(app)
     c.post("/api/config", json={"dashscope_key": "sk-aaa1111bbbb"})

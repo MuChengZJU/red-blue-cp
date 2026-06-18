@@ -10,9 +10,12 @@ import traceback
 from pathlib import Path
 from typing import Callable
 
-from app.config import load_config
+import requests
+
+from app.config import load_config, resolve_output_dir
+from app.extract import model
 from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
@@ -21,6 +24,7 @@ from app.extract.extractor import detect_platform
 from app.extract.storage import Storage
 from app.web import artifacts
 from app.web import digest_cache
+from app.web import thumbnail_cache
 from app.extract.urls import clean_url, dedup_key
 from app.web.auth import require_token
 
@@ -93,7 +97,7 @@ class CommentsRequest(BaseModel):
 
 
 def get_storage() -> Storage:
-    db_path = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    db_path = resolve_output_dir()
     return Storage(db_path / "_index.sqlite")
 
 
@@ -103,7 +107,7 @@ def get_pipeline_fn() -> Callable[[str], dict]:
     from app.extract import pipeline as pipeline_mod
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = os.getenv("RBCP_PROXY") or None
     return lambda url: pipeline_mod.fetch_single(
         url, api_key=api_key, output_dir=output_dir, proxy=proxy
@@ -129,6 +133,12 @@ def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
     while exc is not None and seen < max_levels:
         msg = str(exc).strip()
         parts.append(f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__)
+        # 外部 API 的真实报错体（如 DashScope「模型不存在 / 参数非法」的 JSON）才是
+        # 可定位的信息——之前只进服务器日志，GUI 看不到，用户「没日志」就是指这个。
+        # 这类响应体是服务商的 JSON 错误，不含本机路径/用户名，可安全展示给用户。
+        excerpt = (getattr(exc, "payload_excerpt", None) or "").strip()
+        if excerpt:
+            parts.append(f"  ↳ 服务端响应：{excerpt[:800]}")
         exc = exc.__cause__ or exc.__context__
         seen += 1
     return "\n".join(parts)
@@ -341,7 +351,7 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
     from app.extract import discover
     from app.extract.comments import write_comments_md
 
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     note_id = discover.note_id_from_url(payload.url)
     try:
         comments = await discover.discover_comments(payload.url, with_sub=payload.sub)
@@ -396,7 +406,7 @@ async def import_list(
         return {"ok": True, "count": 0, "skipped_duplicates": skipped_duplicates}
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = os.getenv("RBCP_PROXY") or None
     asyncio.create_task(
         asyncio.to_thread(
@@ -431,13 +441,15 @@ def get_digest(
     job_id: int,
     provider=Depends(get_digest_provider),
 ):
-    cached = digest_cache.load(job_id)
-    if cached is not None:
-        return cached
     try:
         art = artifacts.load_extract(job_id)
     except FileNotFoundError:
         raise HTTPException(status_code=409, detail="need_retranscribe") from None
+    # 同一 job_id 复跑（retry / 批量重跑）会用新内容覆盖 artifact，但 digest 缓存
+    # 还是旧的——只有当缓存里的 text_sha256 与当前 artifact 一致才复用，否则重算。
+    cached = digest_cache.load(job_id)
+    if cached is not None and cached.get("extract", {}).get("text_sha256") == art["text_sha256"]:
+        return cached
     from app.digest.contracts import digest as run_digest
     from app.extract.contracts import Segment
 
@@ -456,6 +468,78 @@ def get_digest(
     return envelope
 
 
+_XHS_REFERER = "https://www.xiaohongshu.com/"
+_BILI_REFERER = "https://www.bilibili.com/"
+
+
+def _thumbnail_referer(platform: str | None) -> str:
+    """封面图防盗链 Referer：小红书必须带（红线#11），B 站亦带；其余给 B 站默认。"""
+    if platform == "xiaohongshu":
+        return _XHS_REFERER
+    return _BILI_REFERER
+
+
+@api.get("/jobs/{job_id}/thumbnail")
+def get_thumbnail(
+    job_id: int,
+    storage: Storage = Depends(get_storage),
+) -> Response:
+    """封面缩略图：按 job_id 取 cover_url，命中缓存直返，否则按需抓取 + 缓存。
+
+    红线#1：只走 job_id，不接受任意路径。
+    无 job / 无 artifact / 无 cover_url / 上游抓取失败 → 404（语义：「无缩略图」，绝不 500）。
+    """
+    job = storage.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        art = artifacts.load_extract(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="No thumbnail") from None
+    cover_url = art.get("cover_url")
+    if not cover_url:
+        raise HTTPException(status_code=404, detail="No thumbnail")
+
+    cached = thumbnail_cache.load(job_id)
+    if cached is not None:
+        data, content_type = cached
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={"Cache-Control": "max-age=86400"},
+        )
+
+    from app.extract.pipeline import build_proxies
+
+    platform = art.get("platform") or job.get("platform")
+    headers = {
+        **model.DEFAULT_MEDIA_HEADERS,
+        "Referer": _thumbnail_referer(platform),
+    }
+    try:
+        resp = requests.get(
+            cover_url,
+            headers=headers,
+            timeout=(5, 15),
+            proxies=build_proxies(os.getenv("RBCP_PROXY")),
+        )
+    except Exception as error:  # noqa: BLE001 - 抓封面失败一律降级 404，绝不 500
+        logger.warning("[thumbnail %s] fetch failed: %s", job_id, error)
+        raise HTTPException(status_code=404, detail="No thumbnail") from None
+    if resp.status_code != 200:
+        logger.warning("[thumbnail %s] upstream HTTP %s for %s", job_id, resp.status_code, cover_url)
+        raise HTTPException(status_code=404, detail="No thumbnail")
+
+    content_type = resp.headers.get("content-type", "image/jpeg")
+    thumbnail_cache.save(job_id, resp.content, content_type)
+    return Response(
+        content=resp.content,
+        media_type=content_type,
+        headers={"Cache-Control": "max-age=86400"},
+    )
+
+
 @api.delete("/jobs/{job_id}")
 def delete_job(
     job_id: int, storage: Storage = Depends(get_storage),
@@ -464,6 +548,7 @@ def delete_job(
         raise HTTPException(status_code=404, detail="Job not found")
     artifacts.delete(job_id)
     digest_cache.delete(job_id)
+    thumbnail_cache.delete(job_id)
     return {"deleted": job_id}
 
 

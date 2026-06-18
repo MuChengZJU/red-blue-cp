@@ -81,6 +81,7 @@ def on_job_success(job_id: int, result: Any) -> None:
     text_sha256 = _get_field(result, "text_sha256", "text_sha256")
     segments = _get_field(result, "segments", "segments")
     readable_text = _get_field(result, "readable_text", "readable_text")
+    cover_url = _get_field(result, "cover_url", "cover_url")
     if canonical_text is None and text_sha256 is None:
         return  # mock 环境下无实际数据，跳过
     data = {
@@ -88,5 +89,6 @@ def on_job_success(job_id: int, result: Any) -> None:
         "text_sha256": text_sha256,
         "segments": _serialize_segments(segments),
         "readable_text": readable_text,
+        "cover_url": cover_url,
     }
     save_extract(job_id, data)

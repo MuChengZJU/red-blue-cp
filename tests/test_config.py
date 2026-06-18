@@ -86,3 +86,19 @@ def test_candidate_order(fake_userdir, tmp_path, monkeypatch):
     # 带 explicit 时它排最前
     paths = cfg.candidate_config_paths("/x/y.env")
     assert paths[0] == Path("/x/y.env")
+
+
+def test_resolve_output_dir_empty_env_falls_back(monkeypatch):
+    # 设置页存空串 → RBCP_OUTPUT_DIR=""，不能解析成 cwd（红线#4：知识库别落启动目录）
+    monkeypatch.setenv("RBCP_OUTPUT_DIR", "")
+    assert cfg.resolve_output_dir() == Path("~/transcript").expanduser()
+
+
+def test_resolve_output_dir_unset_falls_back(monkeypatch):
+    monkeypatch.delenv("RBCP_OUTPUT_DIR", raising=False)
+    assert cfg.resolve_output_dir() == Path("~/transcript").expanduser()
+
+
+def test_resolve_output_dir_honors_explicit(monkeypatch, tmp_path):
+    monkeypatch.setenv("RBCP_OUTPUT_DIR", str(tmp_path / "kb"))
+    assert cfg.resolve_output_dir() == tmp_path / "kb"

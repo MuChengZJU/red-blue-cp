@@ -81,6 +81,8 @@ def stub_single(monkeypatch):
             # 0.6：fetch_single 返回值新增 canonical/指纹/segments，桩需补齐
             text="正文X", text_sha256="sha256X", segments=None,
             readable_text="正文X",
+            # ExtractResult.metadata 是带默认 dict 的真实字段，桩须匹配（fetch_single 读 cover_url）
+            metadata={},
             **kw,
         ),
     )

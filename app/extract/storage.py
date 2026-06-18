@@ -415,6 +415,12 @@ class Storage:
         md_path = job.get("md_path")
         with self._connect() as conn:
             conn.execute("DELETE FROM jobs WHERE id = ?", (job_id,))
+            # 解绑批次条目对这条 job 的引用：否则批次卡片指向已删 job，
+            # 批量重跑也会捞到失效 job_id（reset_for_retry/mark_done 落空）。
+            # 置空后重跑会按 job_id IS NULL 重新建 job。
+            conn.execute(
+                "UPDATE batch_item SET job_id = NULL WHERE job_id = ?", (job_id,)
+            )
         if md_path:
             try:
                 os.remove(md_path)

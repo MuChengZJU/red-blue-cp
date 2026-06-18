@@ -60,6 +60,12 @@ def extract_url(
         media_paths = _save_media(info, media_dir)
         metadata["media_paths"] = [str(p) for p in media_paths]
 
+    # 封面缩略图来源：B 站取 view_data['pic']；小红书图文取首图当封面。
+    # 只放进 metadata（ExtractResult 是冻结契约，不加字段）。
+    cover_url = info.get("cover_url") or (info.get("image_urls") or [None])[0]
+    if cover_url:
+        metadata["cover_url"] = cover_url
+
     # 决策 C：text=canonical 原始原文（锚定坐标系）；readable_text=清洗版（.md 正文用）；两份都存。
     readable_text = provider.llm_clean(raw_text)
     return ExtractResult(

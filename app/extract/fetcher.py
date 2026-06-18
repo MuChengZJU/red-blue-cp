@@ -114,6 +114,7 @@ def fetch_bilibili(url: str, *, proxies: dict[str, str] | None = None) -> dict[s
         duration_sec=view_data.get("duration"),
         referer=canonical_url,
         desc=view_data.get("desc") or None,
+        cover_url=_with_protocol(str(view_data["pic"])) if view_data.get("pic") else None,
         raw={"view": view_payload, "aid": aid, "cid": cid},
     )
 
@@ -497,6 +498,7 @@ def _standard_result(
     referer: str,
     raw: dict[str, Any],
     desc: str | None = None,
+    cover_url: str | None = None,
 ) -> dict[str, Any]:
     return {
         "platform": platform,
@@ -514,5 +516,6 @@ def _standard_result(
         "duration_sec": duration_sec,
         "referer": referer,
         "desc": desc or None,
+        "cover_url": cover_url,
         "raw": raw,
     }

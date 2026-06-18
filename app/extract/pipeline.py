@@ -55,10 +55,13 @@ def _provider_from_env(
     proxies: dict[str, str] | None = None,
     media_proxies: dict[str, str] | None = None,
 ) -> DashscopeProvider:
-    asr_model = os.getenv("RBCP_ASR_MODEL", "paraformer-v2")
+    # 用 `or 默认` 而非 getenv(key, default)：设置页存空串后 env 被设成 ""，
+    # getenv 的默认值不生效，会把 model="" 发给 DashScope → HTTP 400（无法转录）。
+    # 空串等同未设，回退默认模型名。
+    asr_model = os.getenv("RBCP_ASR_MODEL") or "paraformer-v2"
     # PR#46 收尾：VLM/LLM 模型也接进 provider（之前运行时只认 ASR 模型，这两个 env 形同虚设）。
-    vlm_model = os.getenv("RBCP_VLM_MODEL", "qwen3-vl-flash")
-    llm_model = os.getenv("RBCP_LLM_MODEL", "qwen-plus")
+    vlm_model = os.getenv("RBCP_VLM_MODEL") or "qwen3-vl-flash"
+    llm_model = os.getenv("RBCP_LLM_MODEL") or "qwen-plus"
     diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
         "1", "true", "yes", "on",
     }
@@ -112,6 +115,9 @@ def fetch_single(
         "text_sha256": result.text_sha256,
         "segments": result.segments,
         "readable_text": result.readable_text,
+        # 封面缩略图 URL（B 站封面 / 小红书首图），artifacts 据此落 sidecar，
+        # 缩略图端点据此按需抓取并缓存。
+        "cover_url": result.metadata.get("cover_url"),
     }
 
     if comments:

@@ -10,7 +10,7 @@ from typing import Callable
 
 import typer
 import uvicorn
-from app.config import candidate_config_paths, config_dir, load_config
+from app.config import candidate_config_paths, config_dir, load_config, resolve_output_dir
 
 from app.extract.errors import RbcpError, format_error_for_user
 from app.extract.extractor import extract_url
@@ -56,7 +56,7 @@ def run_pipeline(url: str) -> str:
     load_config()
     url = clean_url(url)  # 分享文案抽 URL + 去追踪参数（小红书保 token）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     pipeline = _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
     return pipeline(url)["md_path"]
 
@@ -207,7 +207,7 @@ def fetch(
     if not all_:
         url = clean_url(url)  # 单篇：分享文案抽 URL + 去追踪参数（--all 是博主主页 URL，不动）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
     if proxy and (all_ or comments):
@@ -375,7 +375,7 @@ def batch(
     """批量下载插件导出的 notes.json：走代理、断点续传、token 过期跳过、汇总成败。"""
     load_config()
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
     if proxy and comments:
@@ -512,7 +512,7 @@ def ls(
     from app.extract.facade import Jobs
 
     load_config()
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     jobs = Jobs(output_dir=output_dir)
     rows = jobs.list(limit=limit)
     cost = jobs.total_cost_yuan()

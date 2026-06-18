@@ -35,6 +35,17 @@ def config_dir() -> Path:
     return path
 
 
+def resolve_output_dir() -> Path:
+    """知识库输出目录（~/transcript 默认）。
+
+    用 ``or`` 而非 ``getenv(key, default)``：当 ``RBCP_OUTPUT_DIR`` 被设成**空串**
+    （设置页存空值的历史脏数据）时，``getenv(key, default)`` 会返回 ""，
+    ``Path("")`` 解析成当前工作目录——知识库会误落到 serve 的启动目录（违反红线#4）。
+    空串在这里等同未设，回退默认目录。
+    """
+    return Path(os.getenv("RBCP_OUTPUT_DIR") or "~/transcript").expanduser()
+
+
 def candidate_config_paths(explicit_path: str | None = None) -> list[Path]:
     """配置文件候选，按优先级从高到低（不含进程环境变量；纯查询，无副作用、不建目录）。"""
     candidates: list[Path] = []

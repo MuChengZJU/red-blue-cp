@@ -147,6 +147,22 @@ class TestSafeErrorDetail:
         for leak in ("/home/", ".venv", "site-packages", 'File "', "line "):
             assert leak not in detail, f"泄漏了 {leak!r}"
 
+    def test_api_error_body_surfaced_for_diagnosis(self):
+        # DashScope 真实报错体（模型不存在等）必须进 log_excerpt，否则 GUI 没日志没法排查
+        from app.web.routes import _safe_error_detail
+        from app.extract.errors import ApiError
+
+        err = ApiError(
+            "DashScope llm_clean HTTP 400",
+            provider="dashscope",
+            api_code=400,
+            payload_excerpt='{"error":{"message":"Model not exist: ","code":"InvalidParameter"}}',
+        )
+        detail = _safe_error_detail(err)
+        assert "HTTP 400" in detail
+        assert "Model not exist" in detail        # 真实原因可见
+        assert "InvalidParameter" in detail
+
 
 # ── GET /api/jobs ─────────────────────────────────────────────
 

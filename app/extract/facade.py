@@ -143,7 +143,8 @@ class Jobs:
 
     def __init__(self, output_dir: Path | None = None) -> None:
         if output_dir is None:
-            output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+            from app.config import resolve_output_dir
+            output_dir = resolve_output_dir()
         self._db_path = Path(output_dir) / "_index.sqlite"
 
     def _storage(self):

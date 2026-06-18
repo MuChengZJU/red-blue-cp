@@ -84,3 +84,25 @@ class TestRunPipeline:
         )
         with pytest.raises(RuntimeError, match="403"):
             pipeline("https://www.bilibili.com/video/BV1test123")
+
+
+class TestProviderModelDefaults:
+    """设置页存空串后 RBCP_*_MODEL="" 会让 model="" 发给 DashScope → HTTP 400。
+    空串必须回退默认模型名，否则无法转录（实测根因）。"""
+
+    def test_empty_model_envs_fall_back_to_defaults(self, monkeypatch):
+        from app.extract.pipeline import _provider_from_env
+
+        monkeypatch.setenv("RBCP_ASR_MODEL", "")
+        monkeypatch.setenv("RBCP_VLM_MODEL", "")
+        monkeypatch.setenv("RBCP_LLM_MODEL", "")
+        p = _provider_from_env("sk-test")
+        assert p.asr_model == "paraformer-v2"
+        assert p.vlm_model == "qwen3-vl-flash"
+        assert p.llm_model == "qwen-plus"
+
+    def test_explicit_model_envs_still_honored(self, monkeypatch):
+        from app.extract.pipeline import _provider_from_env
+
+        monkeypatch.setenv("RBCP_LLM_MODEL", "qwen-max")
+        assert _provider_from_env("sk-test").llm_model == "qwen-max"

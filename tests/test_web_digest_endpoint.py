@@ -54,6 +54,27 @@ def test_digest_endpoint_cache_hit_second_call(seeded_job):
     assert digest_cache.load(seeded_job) is not None
 
 
+def test_digest_cache_invalidated_when_artifact_changes(seeded_job):
+    """同一 job_id 复跑后 artifact 内容变了，digest 不能再返回旧缓存。"""
+    c = TestClient(app)
+    first = c.get(f"/api/jobs/{seeded_job}/digest").json()
+    assert digest_cache.load(seeded_job) is not None
+
+    # 模拟重跑：用新内容覆盖 artifact（新 text_sha256）
+    new_text = "完全不同的转录内容\n第二句也变了。"
+    artifacts.save_extract(seeded_job, {
+        "canonical_text": new_text,
+        "text_sha256": text_fingerprint(new_text),
+        "segments": None,
+        "readable_text": "新可读版",
+    })
+
+    second = c.get(f"/api/jobs/{seeded_job}/digest").json()
+    assert second["extract"]["canonical_text"] == new_text
+    assert second["extract"]["text_sha256"] == text_fingerprint(new_text)
+    assert second["extract"]["text_sha256"] != first["extract"]["text_sha256"]
+
+
 def test_digest_missing_artifacts_returns_409(tmp_path, monkeypatch):
     monkeypatch.setattr(artifacts, "_CACHE_DIR", tmp_path / "extract")
     monkeypatch.setattr(digest_cache, "_CACHE_DIR", tmp_path / "digest")
