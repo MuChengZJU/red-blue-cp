@@ -15,10 +15,13 @@ fi
 uv pip install --python .venv/bin/python -e "$REPO_ROOT" pyinstaller >/dev/null
 
 # uvicorn 的动态 import PyInstaller 静态分析抓不到 → 补 hidden-import（spike 验过的 4 个）。
-# templates 是 Jinja2 模板需打进包；pydoll 桌面端不用，排除以缩小包。
+# 两处 Jinja2 模板都要打进包：app/web/templates（WebUI 页面）+ app/extract/templates
+# （Markdown 渲染 note.md.j2，markdown.py 按 __file__ 相对加载，漏了会 TemplateNotFound）。
+# pydoll 桌面端不用，排除以缩小包。
 .venv/bin/pyinstaller --onefile --name rbcp-serve \
   --paths "$REPO_ROOT" \
   --add-data "$REPO_ROOT/app/web/templates:app/web/templates" \
+  --add-data "$REPO_ROOT/app/extract/templates:app/extract/templates" \
   --hidden-import uvicorn.loops.auto \
   --hidden-import uvicorn.protocols.http.auto \
   --hidden-import uvicorn.protocols.websockets.auto \

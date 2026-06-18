@@ -42,13 +42,38 @@ document.querySelectorAll('.nav-item[data-s]').forEach(function (el) {
   });
 });
 
-// Bind compose (new URL submit)
-var urlInput = document.querySelector('.url-row input');
-var submitBtn = document.querySelector('.url-row .btn-primary');
-if (submitBtn && urlInput) {
-  submitBtn.addEventListener('click', function () {
+// 转录输入：表单提交（回车也触发）+ 实时平台检测提示
+var urlForm = document.getElementById('url-form');
+var urlInput = document.getElementById('url-input');
+var submitHint = document.getElementById('submit-hint');
+
+function detectPlatform(text) {
+  var t = (text || '').toLowerCase();
+  if (/bilibili\.com|b23\.tv|\bbv[0-9a-z]{8,}/.test(t)) return 'bilibili';
+  if (/xiaohongshu\.com|xhslink\.com|xhs\.cn/.test(t)) return 'xiaohongshu';
+  return null;
+}
+
+function updateHint() {
+  if (!submitHint) return;
+  var v = (urlInput && urlInput.value || '').trim();
+  if (!v) { submitHint.className = 'submit-hint'; submitHint.textContent = ''; return; }
+  var p = detectPlatform(v);
+  if (p === 'bilibili') { submitHint.className = 'submit-hint ok'; submitHint.innerHTML = '<span class="plat b">B站</span> 识别成功，回车转录'; }
+  else if (p === 'xiaohongshu') { submitHint.className = 'submit-hint ok'; submitHint.innerHTML = '<span class="plat x">小红书</span> 识别成功，回车转录'; }
+  else { submitHint.className = 'submit-hint warn'; submitHint.textContent = '未识别链接 · 仅支持 B 站 / 小红书'; }
+}
+
+if (urlForm && urlInput) {
+  var _submitting = false;  // 防连续回车重复建任务（后端 409 去重只拦"已完成"，挡不住并发中的）
+  urlInput.addEventListener('input', updateHint);
+  urlForm.addEventListener('submit', function (e) {
+    e.preventDefault();
+    if (_submitting || !urlInput.value.trim()) return;
+    _submitting = true;
     var mount = document.querySelector('#compose-mount');
     if (mount) renderCompose(mount, api, urlInput.value);
+    setTimeout(function () { _submitting = false; }, 1500);
   });
 }
 

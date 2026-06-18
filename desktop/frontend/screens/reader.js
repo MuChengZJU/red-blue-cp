@@ -57,7 +57,21 @@ export function render(container, api, jobId) {
 
   container.innerHTML = '<div class="placeholder">\u52a0\u8f7d\u4e2d\u2026</div>';
 
+  // \u6e10\u8fdb\u52a0\u8f7d\uff1a\u901f\u89c8\uff08digest\uff09\u8981\u73b0\u7b97 LLM\u3001\u6162\uff1b\u5148\u7528\u5df2\u8f6c\u597d\u7684 .md \u5168\u6587\u9876\u4e0a\uff0c\u8ba9\u7528\u6237\u7acb\u523b\u80fd\u8bfb\uff0c
+  // \u901f\u89c8\u751f\u6210\u5b8c\u518d\u6574\u4f53\u66ff\u6362\u6210\u7cbe\u534e/\u5361\u7247/\u8109\u7edc\u3002digest \u5148\u56de\u6765\u5c31\u522b\u8ba9 .md \u8986\u76d6\u3002
+  // 350ms \u5185 digest \u5c31\u56de\u6765\uff08\u547d\u4e2d\u7f13\u5b58\uff09\u5219\u4e0d\u95ea\u8fd9\u5c42\u4e2d\u95f4\u6001\u3002
+  var digestSettled = false;
+  var mdPending = api.getMarkdown(jobId).catch(function () { return null; });
+  setTimeout(function () {
+    if (digestSettled) return;
+    mdPending.then(function (md) {
+      if (digestSettled || md == null) return;
+      _renderMdDoc(container, md, '\u901f\u89c8\u751f\u6210\u4e2d\uff0c\u5148\u770b\u5168\u6587\u2026\uff08\u9ad8\u4eae / \u5361\u7247 / \u8109\u7edc\u9a6c\u4e0a\u5c31\u597d\uff09');
+    });
+  }, 350);
+
   api.getDigest(jobId).then(function(data) {
+    digestSettled = true;
     container.innerHTML = '';
 
     var extract = data.extract || {};
@@ -71,6 +85,8 @@ export function render(container, api, jobId) {
 
     var view   = 'digest';
     var hlOnly = false;
+    var markdownCached = null;   // 整篇 markdown 懒加载缓存（成功才赋值，失败置 null 允许重试）
+    var markdownLoading = false;
 
     /* -- reader-head --------------------------------------------------- */
     var head = document.createElement('div');
@@ -106,9 +122,10 @@ export function render(container, api, jobId) {
     var segBtns = {};
     var views   = {};
     var segDefs = [
-      ['digest', '\u7cbe\u534e\u901f\u89c8', '\u2460'],
-      ['clean',  '\u6e05\u6d17\u5168\u6587', '\u2461'],
-      ['raw',    '\u539f\u59cb\u9010\u5b57', '\u2462']
+      ['digest',   '\u7cbe\u534e\u901f\u89c8', '\u2460'],
+      ['clean',    '\u6e05\u6d17\u5168\u6587', '\u2461'],
+      ['markdown', '\u6574\u7bc7\u9605\u8bfb', '\u2462'],
+      ['raw',      '\u539f\u59cb\u9010\u5b57', '\u2463']
     ];
     for (var si = 0; si < segDefs.length; si++) {
       (function(def) {
@@ -141,11 +158,13 @@ export function render(container, api, jobId) {
       var text = '';
       if (view === 'digest') text = canonicalText;
       else if (view === 'clean') text = readableText;
+      else if (view === 'markdown' && markdownCached !== null) text = _stripFrontmatter(markdownCached);
       else if (view === 'raw' && segments) {
         text = segments.map(function(s) {
           return '[' + fmtTime(s.start_sec) + '] ' + s.text;
         }).join('\n');
       }
+      if (!text) return;  // 整篇还在加载 / 无内容 → 不复制空串、不显示假「已复制」
       if (navigator.clipboard && navigator.clipboard.writeText) {
         navigator.clipboard.writeText(text).then(function() {
           copyBtn.innerHTML = '<i data-lucide="check"></i>\u5df2\u590d\u5236';
@@ -159,12 +178,36 @@ export function render(container, api, jobId) {
     tools.appendChild(copyBtn);
 
     /* -- export .md ---------------------------------------------------- */
-    var exportBtn = document.createElement('a');
+    // \u7528 button + \u5e26\u9274\u6743\u7684 fetch\u2192blob\u2192\u4fdd\u5b58\uff0c\u4e0d\u7528 <a href> \u8df3\u8f6c\uff08\u8df3\u8f6c\u4e0d\u5e26 token \u2192
+    // 401\u300cNot authenticated\u300d\u4e14\u628a webview \u5bfc\u822a\u5230 401 \u9875\u3001\u65e0\u9000\u8def\uff0c\u5c31\u662f\u7528\u6237\u53cd\u9988\u7684\u90a3\u4e2a bug\uff09\u3002
+    var exportBtn = document.createElement('button');
     exportBtn.className = 'toggle';
-    exportBtn.href = api.downloadUrl(jobId);
-    exportBtn.download = '';
     exportBtn.style.textDecoration = 'none';
     exportBtn.innerHTML = '<i data-lucide="download"></i>\u5bfc\u51fa';
+    var exportLabel = function (txt) {
+      exportBtn.innerHTML = '<i data-lucide="download"></i>' + txt;
+      if (window.lucide) lucide.createIcons();
+    };
+    exportBtn.addEventListener('click', function () {
+      exportBtn.disabled = true;
+      api.downloadMarkdown(jobId).then(function (blob) {
+        var fname = ((digest && digest.title) || ('rbcp-note-' + jobId))
+          .replace(/[\\/:*?"<>|]/g, '_') + '.md';
+        var url = URL.createObjectURL(blob);
+        var a = document.createElement('a');
+        a.href = url;
+        a.download = fname;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+        exportLabel('\u5df2\u5bfc\u51fa');
+        setTimeout(function () { exportLabel('\u5bfc\u51fa'); }, 1500);
+      }).catch(function () {
+        exportLabel('\u5bfc\u51fa\u5931\u8d25');
+        setTimeout(function () { exportLabel('\u5bfc\u51fa'); }, 1800);
+      }).then(function () { exportBtn.disabled = false; });
+    });
     tools.appendChild(exportBtn);
 
     head.appendChild(tools);
@@ -345,6 +388,31 @@ export function render(container, api, jobId) {
     rvRaw.appendChild(rawList);
     container.appendChild(rvRaw);
 
+    /* === (4) 整篇连贯阅读：markdown 渲染（懒加载 .md）================== */
+    var rvMarkdown = document.createElement('div');
+    rvMarkdown.className = 'rview';
+    rvMarkdown.id = 'rv-markdown';
+    views.markdown = rvMarkdown;
+    var mdInner = document.createElement('div');
+    mdInner.className = 'inner';
+    var mdBody = document.createElement('article');
+    mdBody.className = 'markdown-body';
+    mdBody.innerHTML = '<div class="placeholder">加载全文…</div>';
+    mdInner.appendChild(mdBody);
+    rvMarkdown.appendChild(mdInner);
+    container.appendChild(rvMarkdown);
+
+    function loadMarkdownView() {
+      if (markdownCached !== null || markdownLoading) return;
+      markdownLoading = true;
+      api.getMarkdown(jobId).then(function (md) {
+        markdownCached = typeof md === 'string' ? md : String(md == null ? '' : md);
+        mdBody.innerHTML = _renderMarkdownHtml(markdownCached);
+      }).catch(function () {
+        mdBody.innerHTML = '<div class="placeholder">无法加载全文</div>';
+      }).finally(function () { markdownLoading = false; });  // 无论成败都复位，允许重试
+    }
+
     /* -- bind hl toggle now that ftEl exists ---------------------------- */
     hlBtn.addEventListener('click', function() {
       hlOnly = !hlOnly;
@@ -355,11 +423,12 @@ export function render(container, api, jobId) {
     /* -- view switch --------------------------------------------------- */
     function switchView(v) {
       view = v;
-      var keys = ['digest', 'clean', 'raw'];
+      var keys = ['digest', 'clean', 'markdown', 'raw'];
       for (var k = 0; k < keys.length; k++) {
         if (views[keys[k]])    views[keys[k]].classList.toggle('on',    keys[k] === v);
         if (segBtns[keys[k]])  segBtns[keys[k]].classList.toggle('on',  keys[k] === v);
       }
+      if (v === 'markdown') loadMarkdownView();
     }
 
     /* -- jumpTo (card / outline -> highlight scroll) ------------------- */
@@ -384,6 +453,7 @@ export function render(container, api, jobId) {
     if (window.lucide) lucide.createIcons();
 
   }).catch(function(err) {
+    digestSettled = true;
     container.innerHTML = '';
     // 409 = \u65e9\u671f\u8f6c\u5f55\u65e0 canonical/segments\uff08Task 1.0 \u524d\uff09\uff0c\u901f\u89c8\u6ca1\u6570\u636e\u6e90\u3002
     // \u4e0d\u62a5\u9519\uff0c\u56de\u9000\u663e\u793a\u5df2\u6709\u7684 .md \u53ef\u8bfb\u5168\u6587\uff08\u5b8c\u6574\u901f\u89c8\u9700\u91cd\u65b0\u8f6c\u5f55\uff09\u3002
@@ -402,25 +472,54 @@ export function render(container, api, jobId) {
   });
 }
 
+/** \u6e32\u67d3\u6574\u7bc7 .md \u6587\u6863\uff08\u590d\u5236\u5168\u6587 + \u63d0\u793a\u6761 + markdown \u6e32\u67d3\uff09\u3002\u65e9\u671f\u8f6c\u5f55\u56de\u9000 & \u901f\u89c8\u751f\u6210\u4e2d\u90fd\u7528\u5b83\u3002 */
+function _renderMdDoc(container, md, bannerText) {
+  container.innerHTML = '';
+  // \u4e00\u952e\u590d\u5236\u5168\u6587
+  var bar = document.createElement('div');
+  bar.className = 'md-fallback-bar';
+  var copyBtn = document.createElement('button');
+  copyBtn.className = 'toggle';
+  copyBtn.innerHTML = '<i data-lucide="copy"></i>\u590d\u5236\u5168\u6587';
+  copyBtn.addEventListener('click', function () {
+    var text = _stripFrontmatter(md);
+    if (!text || !navigator.clipboard || !navigator.clipboard.writeText) return;
+    navigator.clipboard.writeText(text).then(function () {
+      copyBtn.innerHTML = '<i data-lucide="check"></i>\u5df2\u590d\u5236';
+      if (window.lucide) lucide.createIcons();
+      setTimeout(function () {
+        copyBtn.innerHTML = '<i data-lucide="copy"></i>\u590d\u5236\u5168\u6587';
+        if (window.lucide) lucide.createIcons();
+      }, 1500);
+    });
+  });
+  bar.appendChild(copyBtn);
+  container.appendChild(bar);
+
+  if (bannerText) {
+    var banner = document.createElement('div');
+    banner.className = 'md-fallback-banner';
+    banner.textContent = bannerText;
+    container.appendChild(banner);
+  }
+  // \u548c\u300c\u6574\u7bc7\u9605\u8bfb\u300d\u89c6\u56fe\u540c\u4e00\u5957 markdown \u6e32\u67d3\uff0c\u522b\u518d\u628a .md \u6e90\u7801\u5f53\u7eaf\u6587\u672c\u7cca\u4e0a\u53bb
+  var body = document.createElement('article');
+  body.className = 'markdown-body';
+  body.innerHTML = _renderMarkdownHtml(md);
+  container.appendChild(body);
+  if (window.lucide) lucide.createIcons();
+}
+
 /** \u65e9\u671f\u8f6c\u5f55\uff08\u65e0 artifacts\uff09\u56de\u9000\uff1a\u663e\u793a\u5df2\u6709 .md \u53ef\u8bfb\u5168\u6587 + \u91cd\u8f6c\u63d0\u793a\u3002 */
 function renderMarkdownFallback(container, api, jobId) {
   container.innerHTML = '<div class="placeholder">\u52a0\u8f7d\u53ef\u8bfb\u5168\u6587\u2026</div>';
   api.getMarkdown(jobId).then(function(md) {
-    container.innerHTML = '';
-    var banner = document.createElement('div');
-    banner.style.cssText = 'padding:10px 14px;margin-bottom:14px;border-radius:8px;'
-      + 'background:rgba(217,130,26,.12);color:#9a5a00;font-size:13px;line-height:1.6;';
-    banner.textContent = '\u65e9\u671f\u8f6c\u5f55\uff1a\u4ec5\u53ef\u8bfb\u5168\u6587\u3002'
-      + '\u751f\u6210\u5b8c\u6574\u901f\u89c8\uff08\u9ad8\u4eae / \u5361\u7247 / \u8109\u7edc\uff09\u9700\u91cd\u65b0\u8f6c\u5f55\u3002';
-    container.appendChild(banner);
-    var body = document.createElement('div');
-    body.style.cssText = 'white-space:pre-wrap;line-height:1.9;font-size:15px;max-width:760px;';
-    body.textContent = _stripFrontmatter(md);
-    container.appendChild(body);
+    _renderMdDoc(container, md, '\u65e9\u671f\u8f6c\u5f55\uff1a\u4ec5\u53ef\u8bfb\u5168\u6587\u3002\u751f\u6210\u5b8c\u6574\u901f\u89c8\uff08\u9ad8\u4eae / \u5361\u7247 / \u8109\u7edc\uff09\u9700\u91cd\u65b0\u8f6c\u5f55\u3002');
   }).catch(function() {
     var div = document.createElement('div');
     div.className = 'placeholder';
     div.textContent = '\u9700\u91cd\u65b0\u8f6c\u5f55\uff08\u65e0\u53ef\u8bfb\u5185\u5bb9\uff09';
+    container.innerHTML = '';
     container.appendChild(div);
   });
 }
@@ -429,4 +528,18 @@ function _stripFrontmatter(md) {
   if (typeof md !== 'string') return md == null ? '' : String(md);
   var m = md.match(/^---\n[\s\S]*?\n---\n?/);
   return (m ? md.slice(m[0].length) : md).trim();
+}
+
+// .md → 连贯 HTML（marked + DOMPurify 防 XSS，去 frontmatter，复用 WebUI detail 管线）。
+// CDN 没加载到则降级为安全纯文本。供「整篇阅读」视图和早期转录回退共用。
+function _renderMarkdownHtml(md) {
+  var src = _stripFrontmatter(md);
+  if (window.marked && window.DOMPurify) {
+    var rawHtml = window.marked.parse(src, { gfm: true, breaks: true });
+    return window.DOMPurify.sanitize(rawHtml, { ADD_ATTR: ['target', 'rel'] });
+  }
+  var safe = document.createElement('div');
+  safe.style.cssText = 'white-space:pre-wrap;line-height:1.9';
+  safe.textContent = src;
+  return safe.outerHTML;
 }

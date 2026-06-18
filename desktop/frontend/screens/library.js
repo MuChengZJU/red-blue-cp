@@ -60,7 +60,8 @@ function renderCard(job) {
   var ch = t.charAt(0) || '?';
   return (
     '<div class="lib-card" data-open="' + id + '">' +
-    '<div class="lib-cover">' + ch + '</div>' +
+    '<div class="lib-cover"><span class="cover-ch">' + esc(ch) + '</span>' +
+    '<img class="lib-thumb" data-thumb="' + id + '" alt=""></div>' +
     '<div class="lib-meta">' +
     platformBadge(job.platform) +
     '<div class="lib-title">' + t + '</div>' +
@@ -130,6 +131,30 @@ function renderAll(container, api) {
   html += '</div>';
   container.innerHTML = html;
   bindEvents(container, api);
+  loadThumbs(container, api);
+}
+
+// 缩略图懒加载 + 缓存（objectURL 或 'none'），避免每次 search/sort 重渲染都重新下载。
+var _thumbCache = {};
+var _thumbLoading = {};   // 正在请求中的 id，避免快速 search/sort 重渲染时重复下载
+function loadThumbs(root, api) {
+  root.querySelectorAll('[data-thumb]').forEach(function (img) {
+    var id = img.getAttribute('data-thumb');
+    var cached = _thumbCache[id];
+    if (cached === 'none') return;
+    if (cached) { img.src = cached; img.classList.add('loaded'); return; }
+    if (_thumbLoading[id]) return;   // 已在飞，等它回来统一填
+    _thumbLoading[id] = true;
+    api.fetchThumbnail(id).then(function (blob) {
+      delete _thumbLoading[id];
+      if (!blob) { _thumbCache[id] = 'none'; return; }
+      var url = URL.createObjectURL(blob);
+      _thumbCache[id] = url;
+      // 元素可能已被重渲染替换 → 重新按 id 查当前 DOM 里的 img
+      var cur = root.querySelector('[data-thumb="' + id + '"]');
+      if (cur) { cur.src = url; cur.classList.add('loaded'); }
+    }).catch(function () { delete _thumbLoading[id]; });
+  });
 }
 
 /* events */
@@ -206,6 +231,11 @@ function bindEvents(root, api) {
       el.disabled = true;
       el.textContent = '\u5220\u9664\u4e2d\u2026';
       api.deleteJob(id).then(function () {
+        // 释放该 job 的缩略图 objectURL，避免删除后内存泄漏
+        if (_thumbCache[id] && _thumbCache[id] !== 'none') {
+          try { URL.revokeObjectURL(_thumbCache[id]); } catch (_e) { /* ok */ }
+        }
+        delete _thumbCache[id];
         _jobs = _jobs.filter(function (j) { return String(j.id) !== String(id); });
         renderAll(root, api);
       }).catch(function () {

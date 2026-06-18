@@ -1,3 +1,6 @@
+// 逐篇明细排序态（跨重渲染保持）：cost-desc / cost-asc / time-desc / time-asc
+let _billSort = 'cost-desc';
+
 /** @param {HTMLElement} container @param {import('../api.js').api} api */
 export async function render(container, api) {
   // Loading state
@@ -116,53 +119,90 @@ export async function render(container, api) {
   }
   html += '</div>';
 
-  // 逐篇明细：每篇的费用 + 各环节 chip（按费用降序）
-  var PLAT = { bilibili: 'B站', xiaohongshu: '小红书' };
-  var billed = (jobs || []).filter(function(j) {
-    return j && j.usage && Number(j.usage.total_cost_yuan) > 0;
-  });
-  billed.sort(function(a, b) {
-    return Number(b.usage.total_cost_yuan) - Number(a.usage.total_cost_yuan);
-  });
-  html += '<div class="panel"><h3>逐篇明细 · ' + billed.length + ' 篇</h3>';
-  if (billed.length === 0) {
-    html += '<p style="color:var(--muted);font-size:13px;font-weight:600">还没有按篇计费的记录。</p>';
-  } else {
-    for (var bi = 0; bi < billed.length; bi++) {
-      var bj = billed[bi];
-      var bt = esc(bj.title || bj.url || '无标题');
-      var plat = PLAT[bj.platform] || esc(bj.platform || '');
-      var bcost = Number(bj.usage.total_cost_yuan) || 0;
-      // 同环节多次调用聚合成一个 chip（如 6 次图文理解合并）
-      var evs = bj.usage.events || [];
-      var agg = {};
-      var order = [];
-      for (var ei = 0; ei < evs.length; ei++) {
-        var ev = evs[ei];
-        var st = ev.stage || 'unknown';
-        if (!agg[st]) { agg[st] = { cost: 0, n: 0 }; order.push(st); }
-        agg[st].cost += Number(ev.cost_yuan) || 0;
-        agg[st].n += 1;
-      }
-      var chips = '';
-      for (var oi = 0; oi < order.length; oi++) {
-        var st2 = order[oi];
-        var times = agg[st2].n > 1 ? ' ×' + agg[st2].n : '';
-        chips += '<span class="tmchip">' + (NAMES[st2] || esc(st2)) +
-          times + ' ¥' + agg[st2].cost.toFixed(3) + '</span>';
-      }
-      html +=
-        '<div class="cost-row">' +
-        '<div class="ct" style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:360px" title="' + bt + '">' +
-        '<span class="tmchip">' + plat + '</span> ' + bt + '</div>' +
-        '<div class="tm">' + chips + '</div>' +
-        '<div class="ca">¥' + bcost.toFixed(3) + '</div>' +
-        '</div>';
-    }
-  }
-  html += '</div>';
+  // 逐篇明细占位：表格 + 可排序（费用 / 时间），渲染后填充。
+  html += '<div class="panel" id="bill-detail"></div>';
 
   html += '</div>'; // page-body
 
   container.innerHTML = html;
+
+  // ── 逐篇明细：表格 + 表头点击按「费用 / 时间」排序（替代原来的列表 + chip）──
+  var PLAT = { bilibili: 'B站', xiaohongshu: '小红书' };
+  var billed = (jobs || []).filter(function (j) {
+    return j && j.usage && Number(j.usage.total_cost_yuan) > 0;
+  });
+
+  function fmtDate(s) {
+    if (!s) return '—';
+    var d = new Date(s);
+    if (isNaN(d.getTime())) return esc(s);
+    var p = function (n) { return (n < 10 ? '0' : '') + n; };
+    return (d.getMonth() + 1) + '/' + d.getDate() + ' ' + p(d.getHours()) + ':' + p(d.getMinutes());
+  }
+
+  function billRowHtml(bj) {
+    var bt = esc(bj.title || bj.url || '无标题');
+    var plat = PLAT[bj.platform] || esc(bj.platform || '');
+    var bcost = Number(bj.usage.total_cost_yuan) || 0;
+    // 同环节多次调用聚合成一个 chip（如 6 次图文理解合并）
+    var evs = bj.usage.events || [];
+    var agg = {}, order = [];
+    for (var ei = 0; ei < evs.length; ei++) {
+      var ev = evs[ei], st = ev.stage || 'unknown';
+      if (!agg[st]) { agg[st] = { cost: 0, n: 0 }; order.push(st); }
+      agg[st].cost += Number(ev.cost_yuan) || 0;
+      agg[st].n += 1;
+    }
+    var chips = '';
+    for (var oi = 0; oi < order.length; oi++) {
+      var st2 = order[oi];
+      var times = agg[st2].n > 1 ? ' ×' + agg[st2].n : '';
+      chips += '<span class="tmchip">' + (NAMES[st2] || esc(st2)) +
+        times + ' ¥' + agg[st2].cost.toFixed(3) + '</span>';
+    }
+    return '<tr>' +
+      '<td class="bill-title" title="' + bt + '"><span class="tmchip">' + plat + '</span> ' + bt + '</td>' +
+      '<td class="bill-chips">' + chips + '</td>' +
+      '<td class="bill-cost">¥' + bcost.toFixed(3) + '</td>' +
+      '<td class="bill-time">' + fmtDate(bj.created_at) + '</td>' +
+      '</tr>';
+  }
+
+  function renderBillTable() {
+    var panel = document.getElementById('bill-detail');
+    if (!panel) return;
+    if (billed.length === 0) {
+      panel.innerHTML = '<h3>逐篇明细</h3><p style="color:var(--muted);font-size:13px;font-weight:600">还没有按篇计费的记录。</p>';
+      return;
+    }
+    var asc = _billSort.indexOf('-asc') !== -1;
+    var byTime = _billSort.indexOf('time') === 0;
+    var dir = asc ? 1 : -1;
+    billed.sort(function (a, b) {
+      if (byTime) return dir * String(a.created_at || '').localeCompare(String(b.created_at || ''));
+      return dir * (Number(a.usage.total_cost_yuan) - Number(b.usage.total_cost_yuan));
+    });
+    var arrow = function (col) {
+      if (_billSort.indexOf(col) !== 0) return '';
+      return asc ? ' ↑' : ' ↓';
+    };
+    var rows = '';
+    for (var bi = 0; bi < billed.length; bi++) rows += billRowHtml(billed[bi]);
+    panel.innerHTML =
+      '<h3>逐篇明细 · ' + billed.length + ' 篇</h3>' +
+      '<table class="bill-table"><thead><tr>' +
+      '<th>内容</th><th>环节</th>' +
+      '<th class="sortable" data-sort="cost">费用' + arrow('cost') + '</th>' +
+      '<th class="sortable" data-sort="time">时间' + arrow('time') + '</th>' +
+      '</tr></thead><tbody>' + rows + '</tbody></table>';
+    panel.querySelectorAll('th.sortable').forEach(function (th) {
+      th.addEventListener('click', function () {
+        var col = th.getAttribute('data-sort');
+        // 同列再点切升/降；切到另一列默认降序
+        _billSort = (_billSort === col + '-desc') ? col + '-asc' : col + '-desc';
+        renderBillTable();
+      });
+    });
+  }
+  renderBillTable();
 }

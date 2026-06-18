@@ -1,5 +1,47 @@
 let _timer = null;
 var _batchExpanded = {};
+var _lastSig = null;
+var _filter = 'all';  // 任务状态筛选：all / running / done / failed（对齐 WebUI）
+
+// 筛选用计数：running 桶含 pending（排队也算"处理中"），与 WebUI updateCounts 一致
+function bucketCounts(jobs) {
+  var c = { all: 0, running: 0, done: 0, failed: 0 };
+  for (var i = 0; i < jobs.length; i++) {
+    c.all++;
+    var s = jobs[i].status;
+    if (s === 'running' || s === 'pending') c.running++;
+    else if (s === 'done') c.done++;
+    else if (s === 'failed') c.failed++;
+  }
+  return c;
+}
+
+function applyFilter(jobs) {
+  if (_filter === 'all') return jobs;
+  return jobs.filter(function (j) {
+    if (_filter === 'running') return j.status === 'running' || j.status === 'pending';
+    return j.status === _filter;
+  });
+}
+
+function renderFilterBar(jobs) {
+  var c = bucketCounts(jobs);
+  var defs = [
+    ['all', '全部', ''],
+    ['running', '处理中', 'run'],
+    ['done', '完成', 'done'],
+    ['failed', '失败', 'fail'],
+  ];
+  var chips = defs.map(function (d) {
+    var key = d[0], label = d[1], dotCls = d[2];
+    var on = _filter === key ? ' on' : '';
+    var dot = dotCls ? '<span class="dot ' + dotCls + '"></span>' : '';
+    return '<button class="filter-chip' + on + '" data-filter="' + key + '"'
+      + ' aria-pressed="' + (_filter === key ? 'true' : 'false') + '">'
+      + dot + label + ' <span class="cnt">' + c[key] + '</span></button>';
+  }).join('');
+  return '<div class="filters">' + chips + '</div>';
+}
 
 var STATUS_LABEL = {
   pending: '\u6392\u961f',
@@ -101,21 +143,32 @@ function renderJob(job) {
 
 function renderBatch(batch) {
   var title = esc(batch.title || batch.name || ('\u6279\u6b21 #' + batch.id));
-  var done = batch.done_count != null ? batch.done_count : 0;
-  var total = batch.total_count != null ? batch.total_count : 0;
-  var running = batch.running_count != null ? batch.running_count : 0;
-  var pending = batch.pending_count != null ? batch.pending_count : 0;
-  var failed = batch.failed_count != null ? batch.failed_count : 0;
-  var pct = total > 0 ? Math.round((done / total) * 100) : 0;
+  // \u540e\u7aef list_batches \u7ed9\u7684\u662f counts={status: \u6570\u91cf} \u5b57\u5178\uff08done/failed/skipped/pending\uff09\uff0c
+  // \u6ca1\u6709\u6241\u5e73\u7684 *_count \u5b57\u6bb5\uff0c\u4e5f\u4e0d\u5355\u5217 running\u2014\u2014\u4e0e WebUI batchCardHtml \u5bf9\u9f50\u3002
+  var c = batch.counts || {};
+  var done = c.done || 0;
+  var failed = c.failed || 0;
+  var skipped = c.skipped || 0;
+  var pending = c.pending || 0;
+  var total = done + failed + skipped + pending;
+  var finished = done + failed + skipped;
+  var pct = total > 0 ? Math.round((finished / total) * 100) : 0;
 
-  var counts = '\u5b8c\u6210 ' + done +
-    (running ? ' \u00b7 \u4e0b\u8f7d\u4e2d ' + running : '') +
-    (pending ? ' \u00b7 \u6392\u961f ' + pending : '') +
-    (failed ? ' \u00b7 \u5931\u8d25 ' + failed : '');
+  // \u8fdb\u5ea6\u6587\u6848\uff1a\u5b8c\u6210/\u603b\u6570 \u00b7 \u4f30\u7b97\u8d39\u7528\uff08\u5bf9\u9f50 WebUI batch-progress-text\uff09
+  var cost = Number(batch.cost_yuan || 0);
+  var costText = cost > 0 ? ' \u00b7 \u4f30\u7b97 \u00a5' + (cost >= 0.01 ? cost.toFixed(2) : cost.toFixed(4)) : '';
+  var counts =
+    '<span>\u2713 ' + done + '</span>' +
+    (failed ? '<span class="sep">\u00b7</span><span>\u2717 ' + failed + '</span>' : '') +
+    (skipped ? '<span class="sep">\u00b7</span><span>\u293c ' + skipped + '</span>' : '') +
+    (pending ? '<span class="sep">\u00b7</span><span>\u5f85 ' + pending + '</span>' : '');
 
   return (
     '<div class="batch" data-batch-id="' + esc(batch.id) + '">' +
-    '<div class="bt" data-batch-toggle="' + esc(batch.id) + '" style="cursor:pointer">\ud83d\udce6 ' + title + '</div>' +
+    '<div class="batch-head" data-batch-toggle="' + esc(batch.id) + '" style="cursor:pointer">' +
+    '<div class="bt">\ud83d\udce6 ' + title + '</div>' +
+    '<div class="batch-prog-text">' + finished + '/' + total + esc(costText) + '</div>' +
+    '</div>' +
     '<div class="counts">' + counts + '</div>' +
     '<div class="progress" style="width:100%;margin-top:10px"><i style="width:' + pct + '%"></i></div>' +
     '<div class="batch-items" data-batch-items="' + esc(batch.id) + '"></div>' +
@@ -123,14 +176,7 @@ function renderBatch(batch) {
   );
 }
 
-function expandBatch(api, batchId, root) {
-  if (_batchExpanded[batchId]) {
-    _batchExpanded[batchId] = false;
-    var el = root.querySelector('[data-batch-items="' + batchId + '"]');
-    if (el) el.innerHTML = '';
-    return;
-  }
-  _batchExpanded[batchId] = true;
+function fillBatchItems(api, batchId, root) {
   api.getBatchItems(batchId).then(function (items) {
     var el = root.querySelector('[data-batch-items="' + batchId + '"]');
     if (!el) return;
@@ -144,6 +190,17 @@ function expandBatch(api, batchId, root) {
         esc(item.title || item.url || '#' + item.id) + '</div></div></div>';
     }).join('');
   }).catch(function () {});
+}
+
+function expandBatch(api, batchId, root) {
+  if (_batchExpanded[batchId]) {
+    _batchExpanded[batchId] = false;
+    var el = root.querySelector('[data-batch-items="' + batchId + '"]');
+    if (el) el.innerHTML = '';
+    return;
+  }
+  _batchExpanded[batchId] = true;
+  fillBatchItems(api, batchId, root);
 }
 
 function bindEvents(root, api) {
@@ -204,6 +261,21 @@ function bindEvents(root, api) {
       if (bid) expandBatch(api, bid, root);
     });
   });
+  root.querySelectorAll('[data-filter]').forEach(function (el) {
+    el.addEventListener('click', function () {
+      var f = el.getAttribute('data-filter');
+      if (!f || f === _filter) return;
+      _filter = f;
+      _lastSig = null;   // 强制重渲染（数据没变但筛选变了）
+      load(root, api);
+    });
+  });
+  root.querySelectorAll('[data-reload]').forEach(function (el) {
+    el.addEventListener('click', function (e) {
+      e.stopPropagation();
+      location.reload();
+    });
+  });
 }
 
 function load(container, api) {
@@ -217,9 +289,19 @@ function load(container, api) {
   return Promise.all([batchP, jobsP]).then(function (results) {
     var batches = results[0];
     var jobs = results[1];
+
+    // 数据没变就不重渲染——否则 2 秒一次的轮询会把用户手动展开的失败「详情」
+    // 和批次明细冲掉（与 WebUI refreshBatches 的 signature 同思路）。
+    var sig = _filter + '|' + JSON.stringify(batches) + '|' + JSON.stringify(jobs)
+      + '|' + Object.keys(_batchExpanded).filter(function (k) { return _batchExpanded[k]; }).join(',');
+    if (sig === _lastSig) return;
+    _lastSig = sig;
+
     var html = '';
 
-    if (Array.isArray(batches) && batches.length) {
+    // 批次卡片是聚合视图——只在「全部」筛选下显示；选了具体状态时只看任务行，
+    // 否则会出现「批次显示全量计数、任务行却被筛掉」的两层可见性不一致。
+    if (_filter === 'all' && Array.isArray(batches) && batches.length) {
       html += batches.map(renderBatch).join('');
     }
 
@@ -229,20 +311,33 @@ function load(container, api) {
         '<div class="job"><div class="st fail"><span class="dot fail"></span>\u9519\u8bef</div>' +
         '<div class="info"><div class="jt" style="color:var(--rb-red)">\u65e0\u6cd5\u52a0\u8f7d\u4efb\u52a1\u5217\u8868</div>' +
         '<div class="ju"><span class="fail-note">' + esc(msg) + '</span></div></div>' +
-        '<div class="act"><button class="mini" onclick="location.reload()">\u5237\u65b0</button></div></div>';
+        '<div class="act"><button class="mini" data-reload="1">\u5237\u65b0</button></div></div>';
     } else if (Array.isArray(jobs) && jobs.length) {
-      html += jobs.map(renderJob).join('');
-    } else {
-      html += '<div style="padding:40px 0;text-align:center;color:var(--muted);font-weight:600;font-size:13px">\u6682\u65e0\u4efb\u52a1</div>';
+      // \u72b6\u6001\u7b5b\u9009 chip\uff08\u8ba1\u6570\u7528\u5168\u91cf jobs\uff09+ \u8fc7\u6ee4\u540e\u7684\u5217\u8868
+      html += renderFilterBar(jobs);
+      var view = applyFilter(jobs);
+      if (view.length) {
+        html += view.map(renderJob).join('');
+      } else {
+        html += '<div class="empty">\u6ca1\u6709\u300c' + esc(STATUS_LABEL[_filter] || _filter) + '\u300d\u7684\u4efb\u52a1</div>';
+      }
+    } else if (!(Array.isArray(batches) && batches.length)) {
+      html += '<div class="empty">\u6682\u65e0\u4efb\u52a1 \u00b7 \u5728\u5de6\u4e0a\u89d2\u7c98\u8d34\u94fe\u63a5\u5f00\u59cb\u8f6c\u5f55</div>';
     }
 
     container.innerHTML = html;
     bindEvents(container, api);
+    // 重渲染会清空批次明细 DOM——把仍处于展开态的批次重新填回，否则用户得再点一次。
+    Object.keys(_batchExpanded).forEach(function (bid) {
+      if (_batchExpanded[bid]) fillBatchItems(api, bid, container);
+    });
   });
 }
 
 export function render(container, api) {
   if (_timer) { clearInterval(_timer); _timer = null; }
+  _lastSig = null;  // 容器是新空的，强制首帧渲染（否则沿用旧 signature 会留白）
+  container.innerHTML = '<div class="loading"><span class="spinner"></span>加载中…</div>';
   load(container, api);
   _timer = setInterval(function () { load(container, api); }, 2000);
 }
