@@ -48,6 +48,17 @@ build-backend = "hatchling.build"
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
 
+# sdist 只装 Python 包 + 元数据；显式 include 防把 desktop/（Rust target、.venv、
+# PyInstaller 产物）等扫进来（曾打出 ~1GB sdist，PyPI 会拒）。
+[tool.hatch.build.targets.sdist]
+include = [
+  "/app",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
