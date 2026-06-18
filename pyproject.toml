@@ -1,7 +1,7 @@
 [project]
 name = "red-blue-cp"
-version = "0.5.2"
-description = "B站小红书 Content Pipeline — URL to Markdown"
+version = "0.6.0"
+description = "B站小红书 Content Pipeline — URL 转忠实原文 + 速览（高亮/卡片/脉络）"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"

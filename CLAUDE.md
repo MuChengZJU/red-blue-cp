@@ -11,12 +11,12 @@
 
 ## 当前阶段
 
-**0.5.2 已发布**（PyPI + GitHub Release，MIT 开源）：P0 URL→Markdown 闭环、博主全量/评论、M4 安全批量、M5a 流式+用量、M5b WebUI v2。**浏览器插件 0.3.1**（油猴主推）。
+**0.6.0 已发布**（PyPI + GitHub Release，MIT 开源）：速览产品 Pipeline = **Extract→Digest→Render**。`service/`→`extract/`（采集转录→忠实原文，无损）+ 新 `digest/`（原文→高亮/卡片/脉络，有损 LLM，确定性服务端锚定，与 extract 隔离）+ `app/config.py`（platformdirs 配置发现）+ **CLI** `rbcp digest/ls` + **`desktop/`**（RBCP Desktop = Tauri v2 + PyInstaller sidecar，内置 serve，全功能：任务/文件库/账单/设置/速览阅读器）。612 测试。桌面端本版仅 **macOS arm64、未签名**（首开右键→打开过 Gatekeeper），引擎/CLI/WebUI 全平台走 PyPI。
+**历史**：0.5.2 = P0 URL→Markdown 闭环、博主全量/评论、M4 安全批量、M5a 流式+用量、M5b WebUI v2。**浏览器插件 0.3.1**（油猴主推）。
 
-**0.6 速览产品（M6）开发中——已在 `feat/0.6-extract-digest-render` 建成 + 验证、未发布**：Pipeline = **Extract→Digest→Render**。`service/`→`extract/`（采集转录→忠实原文，无损）+ 新 `digest/`（原文→高亮/卡片/脉络，有损 LLM，确定性服务端锚定，与 extract 隔离）+ `app/config.py`（platformdirs 配置发现）+ **CLI** `rbcp digest/ls` + **`desktop/`**（Tauri v2 + PyInstaller sidecar，三形态渲染）。566 测试。两条真链路（extract / digest）实测过。
-**收尾欠账**：desktop 用了 vendored 引擎拷贝（待接真 app/ 或 `rbcp digest --json`）；未发布/打包。
+**桌面端注意**：跑的是**冻结的 PyInstaller sidecar**（`desktop/src-tauri/binaries/rbcp-serve-<triple>`）。改了 Python 源码必须 `desktop/sidecar/build.sh` 重打 + 重启 app 才生效；前端（`desktop/frontend/`）改动靠重载（Cmd+R）。
 
-**下一步**：见 PLAN §v0.6 与 task；0.6 收尾后是 RBCP Cloud/计费/Mobile（串行往后，未设计透）。
+**下一步**：托管版 RBCP Cloud（按实际使用计费）、手机端、桌面端跨平台（Windows）——走私有云，引擎层继续开源（串行往后，未设计透）。
 
 调整阶段/范围改 PLAN.md，加功能改 PRD.md，改实现改 SPEC.md——**改文档前对话里说一句**。
 
