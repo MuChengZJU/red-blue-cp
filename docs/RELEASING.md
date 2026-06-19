@@ -2,7 +2,7 @@
 
 本仓库的发布**自动化**：打 tag `v*` → GitHub Actions（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）跑测试 → `uv build` → **PyPI Trusted Publishing（OIDC）自动发布**。**不需要、也不要手动 `uv publish` 或 PyPI token。**
 
-PyPI 是「打 tag 自动发」，**不是**命令行手动发。桌面端 `.app` 走单独的 GitHub Release（手动 `gh release create` 附二进制）。
+PyPI 是「打 tag 自动发」，**不是**命令行手动发。桌面端 `.dmg` 走单独的 GitHub Release（手动 `gh release create` 附二进制）。
 
 ## 一次性前置（已配好，新人参考）
 
@@ -43,26 +43,36 @@ git push origin vX.Y.Z                          # ← 这一步触发 publish.ym
 
 去 Actions 看 `Publish to PyPI` 跑绿；几分钟后 https://pypi.org/project/red-blue-cp/ 出现新版本。验证：`pipx install red-blue-cp==X.Y.Z`。
 
-### 4. GitHub Release（附桌面 .app，手动）
+### 4. GitHub Release（附桌面 .dmg，手动）
 
-CI 只发 PyPI，不建 Release。桌面端二进制单独发：
+CI 只发 PyPI，不建 Release。桌面端二进制单独发。`tauri.conf.json` 的 `bundle.targets` 已设 `["app", "dmg"]`，构建即出 DMG：
 
 ```bash
-# 构建桌面 .app（macOS arm64）
+# 构建桌面 .dmg（macOS arm64）
 cd desktop/sidecar && bash build.sh             # 先重打 sidecar（含最新 Python 源码）
-cd .. && cargo tauri build                       # 出 src-tauri/target/release/bundle/macos/RBCP Desktop.app
-# 打包（用 ditto 保 macOS 元数据）
-ditto -c -k --keepParent \
-  "src-tauri/target/release/bundle/macos/RBCP Desktop.app" \
-  "RBCP-Desktop-X.Y.Z-macos-arm64.app.zip"
-# 建 Release，附 zip
+cd .. && cargo tauri build --bundles dmg         # 出 src-tauri/target/release/bundle/dmg/RBCP Desktop_X.Y.Z_aarch64.dmg
+# 重命名成无空格资产名
+cp "src-tauri/target/release/bundle/dmg/RBCP Desktop_X.Y.Z_aarch64.dmg" \
+   "RBCP-Desktop-X.Y.Z-macos-arm64.dmg"
+# 建 Release，附 dmg
 gh release create vX.Y.Z \
   --title "vX.Y.Z — 主题" \
   --notes-file <release-notes.md> \
-  "RBCP-Desktop-X.Y.Z-macos-arm64.app.zip"
+  "RBCP-Desktop-X.Y.Z-macos-arm64.dmg"
 ```
 
-桌面端**未签名**，Release 正文要写明首次打开「右键 → 打开」过 Gatekeeper。
+桌面端**未签名**，Release 正文要写明：打开 DMG → 拖进「应用程序」→ 首次「右键 → 打开」过 Gatekeeper。
+
+### 4b. 云端跨平台构建（mac + Windows）
+
+`.github/workflows/desktop-release.yml` 在云端构建桌面端二进制，**无需本地 Windows**：
+
+- **触发**：打 tag `v*` 自动构建并上传到对应 Release（mac `.dmg` + Windows `.exe`）；或 `workflow_dispatch` 手动跑（只产 artifact 供下载测试，不动 Release）。
+- **手动测试一发**（不打 tag）：`gh workflow run "Desktop Release" --ref main`，跑完去 Actions 下载 `windows-exe` / `macos-dmg` artifact。
+- **macOS** job 跑 `macos-14`（arm64）→ `build.sh` 打 sidecar → `cargo tauri build --bundles dmg`。
+- **Windows** job 跑 `windows-latest`（x64）→ PyInstaller 打 `rbcp-serve.exe`（`--add-data` 用 `;` 分隔）→ sidecar smoke 测试（非阻断）→ `cargo tauri build --bundles nsis` 出 `.exe`。
+
+> ⚠️ **Windows「能构建 ≠ 已验证」**：CI 只保证打得出包，引擎的 ffmpeg / 路径 / `%APPDATA%` 配置发现尚未在 Windows 实机跑过真链路。smoke 测试只挡「装上就崩」级别的错。要正式 GA Windows，须实机点验 + 按暴露的坑回修引擎。Intel Mac（x86_64）同理未排期。
 
 ## 想反悔（tag 推出去之前）
 
