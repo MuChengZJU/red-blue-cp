@@ -9,8 +9,8 @@ from unittest.mock import patch, MagicMock
 import pytest
 import requests
 
-from app.service.model import DashscopeProvider, _retry_network
-from app.service.errors import ApiError, NetworkError
+from app.extract.model import DashscopeProvider, _retry_network
+from app.extract.errors import ApiError, NetworkError
 
 
 def _resp(*, status_code=200, text="", json_data=None):
@@ -37,7 +37,7 @@ def _chat_ok(text="cleaned"):
 @pytest.fixture(autouse=True)
 def _no_sleep():
     """退避 sleep 置空，测试不真睡。"""
-    with patch("app.service.model.time.sleep") as mock_sleep:
+    with patch("app.extract.model.time.sleep") as mock_sleep:
         yield mock_sleep
 
 
@@ -91,7 +91,7 @@ class TestRetryHelper:
 
 class TestLlmCleanRetry:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_timeout_twice_then_success(self, mock_post):
         mock_post.side_effect = [
             requests.exceptions.Timeout("read timeout=180"),
@@ -102,7 +102,7 @@ class TestLlmCleanRetry:
         assert provider.llm_clean("raw") == "cleaned"
         assert mock_post.call_count == 3
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_always_timeout_raises_network_error(self, mock_post):
         mock_post.side_effect = requests.exceptions.Timeout("read timeout=180")
         provider = DashscopeProvider(api_key="k")
@@ -110,7 +110,7 @@ class TestLlmCleanRetry:
             provider.llm_clean("raw")
         assert mock_post.call_count == 3
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_connection_error_retried(self, mock_post):
         mock_post.side_effect = [
             requests.exceptions.ConnectionError("conn reset"),
@@ -120,7 +120,7 @@ class TestLlmCleanRetry:
         assert provider.llm_clean("raw") == "cleaned"
         assert mock_post.call_count == 2
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_http_400_not_retried_raises_api_error(self, mock_post):
         mock_post.return_value = _resp(status_code=400, text='{"code":"InvalidApiKey"}')
         provider = DashscopeProvider(api_key="bad")
@@ -133,7 +133,7 @@ class TestLlmCleanRetry:
 
 class TestVlmRetry:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_timeout_twice_then_success(self, mock_post):
         mock_post.side_effect = [
             requests.exceptions.Timeout("t"),
@@ -144,7 +144,7 @@ class TestVlmRetry:
         assert provider.vlm("http://img") == "desc"
         assert mock_post.call_count == 3
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_http_400_not_retried(self, mock_post):
         mock_post.return_value = _resp(status_code=400, text="{}")
         provider = DashscopeProvider(api_key="k")
@@ -157,7 +157,7 @@ class TestVlmRetry:
 
 class TestWaitForTranscriptionRetry:
 
-    @patch("app.service.model.requests.get")
+    @patch("app.extract.model.requests.get")
     def test_poll_timeout_retried_then_succeeds(self, mock_get):
         succeeded = _resp(
             status_code=200,
@@ -176,12 +176,12 @@ class TestWaitForTranscriptionRetry:
             succeeded,
         ]
         provider = DashscopeProvider(api_key="k")
-        from app.service.errors import ParseError
+        from app.extract.errors import ParseError
         with pytest.raises(ParseError):
             provider._wait_for_transcription("task-1")
         assert mock_get.call_count == 3
 
-    @patch("app.service.model.requests.get")
+    @patch("app.extract.model.requests.get")
     def test_poll_always_timeout_raises_network_error(self, mock_get):
         mock_get.side_effect = requests.exceptions.Timeout("t")
         provider = DashscopeProvider(api_key="k")

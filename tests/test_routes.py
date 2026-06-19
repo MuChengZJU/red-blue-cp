@@ -24,7 +24,7 @@ def tmp_md_dir(tmp_path):
 @pytest.fixture
 def mock_storage(tmp_md_dir):
     """In-memory storage backed by a real SQLite under tmp_path."""
-    from app.service.storage import Storage
+    from app.extract.storage import Storage
     return Storage(tmp_md_dir / "test.db")
 
 
@@ -132,7 +132,7 @@ class TestSafeErrorDetail:
 
     def test_no_paths_or_username_leak(self):
         from app.web.routes import _safe_error_detail
-        from app.service.errors import NetworkError
+        from app.extract.errors import NetworkError
 
         try:
             try:
@@ -146,6 +146,22 @@ class TestSafeErrorDetail:
         assert "TimeoutError" in detail            # 异常链保留，便于排查
         for leak in ("/home/", ".venv", "site-packages", 'File "', "line "):
             assert leak not in detail, f"泄漏了 {leak!r}"
+
+    def test_api_error_body_surfaced_for_diagnosis(self):
+        # DashScope 真实报错体（模型不存在等）必须进 log_excerpt，否则 GUI 没日志没法排查
+        from app.web.routes import _safe_error_detail
+        from app.extract.errors import ApiError
+
+        err = ApiError(
+            "DashScope llm_clean HTTP 400",
+            provider="dashscope",
+            api_code=400,
+            payload_excerpt='{"error":{"message":"Model not exist: ","code":"InvalidParameter"}}',
+        )
+        detail = _safe_error_detail(err)
+        assert "HTTP 400" in detail
+        assert "Model not exist" in detail        # 真实原因可见
+        assert "InvalidParameter" in detail
 
 
 # ── GET /api/jobs ─────────────────────────────────────────────

@@ -7,7 +7,7 @@ import sqlite3
 
 import pytest
 
-from app.service.storage import Storage
+from app.extract.storage import Storage
 
 
 @pytest.fixture
@@ -123,3 +123,13 @@ class TestBatchItemCrud:
         st.mark_batch_item_done(bid, "n1", md_path="/x/n1.md")
         st.add_batch_items(bid, [{"note_id": "n1", "url": "http://a"}])  # 重复 add
         assert st.get_batch_item_statuses(bid)["n1"] == "done"  # 仍是 done，没被重置
+
+    def test_delete_job_clears_batch_item_reference(self, db_path):
+        # 删 job 必须解绑 batch_item.job_id，否则批次卡片悬挂 + 重跑捞到失效 job_id
+        st, bid = self._batch(db_path)
+        st.add_batch_items(bid, [{"note_id": "n1", "url": "http://a"}])
+        job_id = st.create_job("http://a", platform="xiaohongshu")
+        st.set_batch_item_job(bid, "n1", job_id)
+        assert st.delete_job(job_id) is True
+        items = {it["note_id"]: it for it in st.list_batch_items(bid)}
+        assert items["n1"]["job_id"] is None  # 引用已解绑，重跑会按 job_id IS NULL 重建

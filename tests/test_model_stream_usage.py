@@ -16,7 +16,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 import requests
 
-from app.service.model import DashscopeProvider, _parse_sse_stream
+from app.extract.model import DashscopeProvider, _parse_sse_stream
 
 
 # ── 测试 helper：伪造流式响应 ──────────────────────────────────
@@ -83,13 +83,13 @@ class TestParseSseStream:
 
 class TestLlmCleanStreaming:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_returns_accumulated_text(self, mock_post):
         mock_post.return_value = _mock_stream_response(["清洗", "后的", "文本"], _USAGE)
         provider = DashscopeProvider(api_key="test-key")
         assert provider.llm_clean("raw") == "清洗后的文本"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_payload_requests_stream_with_usage(self, mock_post):
         mock_post.return_value = _mock_stream_response(["ok"], _USAGE)
         provider = DashscopeProvider(api_key="test-key")
@@ -99,7 +99,7 @@ class TestLlmCleanStreaming:
         assert payload["stream_options"] == {"include_usage": True}
         assert mock_post.call_args.kwargs["stream"] is True
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_read_timeout_covers_token_gap_not_full_generation(self, mock_post):
         # 流式后 read 超时只需覆盖 token 间隔；600s 是兜底不是常态
         mock_post.return_value = _mock_stream_response(["ok"], _USAGE)
@@ -108,7 +108,7 @@ class TestLlmCleanStreaming:
         timeout = mock_post.call_args.kwargs["timeout"]
         assert timeout[1] >= 600
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_records_usage_event(self, mock_post):
         mock_post.return_value = _mock_stream_response(["ok"], _USAGE)
         provider = DashscopeProvider(api_key="test-key")
@@ -121,7 +121,7 @@ class TestLlmCleanStreaming:
         assert event["output_tokens"] == 39
         assert event["elapsed_seconds"] >= 0
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_no_usage_in_stream_still_returns_text(self, mock_post):
         # DashScope 不回 usage 时正文照常，event 记 None token（页面端兜底）
         mock_post.return_value = _mock_stream_response(["ok"])
@@ -131,7 +131,7 @@ class TestLlmCleanStreaming:
         assert event["input_tokens"] is None
         assert event["output_tokens"] is None
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_midstream_timeout_does_not_retry_post(self, mock_post):
         # 建连重试归 _retry_network；流中断不能整段重跑（放大等待的根因）
         resp = MagicMock()
@@ -144,15 +144,15 @@ class TestLlmCleanStreaming:
         resp.iter_lines.side_effect = _broken_lines
         mock_post.return_value = resp
         provider = DashscopeProvider(api_key="test-key")
-        from app.service.errors import NetworkError
+        from app.extract.errors import NetworkError
 
         with pytest.raises(NetworkError):
             provider.llm_clean("raw")
         assert mock_post.call_count == 1
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_http_error_still_raises_api_error(self, mock_post):
-        from app.service.errors import ApiError
+        from app.extract.errors import ApiError
 
         resp = MagicMock()
         resp.status_code = 429
@@ -167,13 +167,13 @@ class TestLlmCleanStreaming:
 
 class TestVlmStreaming:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_returns_accumulated_text(self, mock_post):
         mock_post.return_value = _mock_stream_response(["图片里", "有只猫"], _USAGE)
         provider = DashscopeProvider(api_key="test-key")
         assert provider.vlm("https://example.com/cat.jpg") == "图片里有只猫"
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_records_usage_event_per_image(self, mock_post):
         mock_post.return_value = _mock_stream_response(["ok"], _USAGE)
         provider = DashscopeProvider(api_key="test-key")
@@ -202,14 +202,14 @@ class TestAsrUsage:
         with (
             patch.object(provider, "_upload_audio_to_oss", return_value="oss://k"),
             patch.object(provider, "_submit_transcription_task", return_value="tid"),
-            patch("app.service.model.requests.get") as mock_get,
-            patch("app.service.model._extract_transcription_text", return_value="转写文本"),
+            patch("app.extract.model.requests.get") as mock_get,
+            patch("app.extract.model._extract_transcription_text", return_value=("转写文本", ())),
         ):
             poll_resp = MagicMock()
             poll_resp.status_code = 200
             poll_resp.json.return_value = poll_payload
             mock_get.return_value = poll_resp
-            assert provider.asr("https://example.com/a.mp3") == "转写文本"
+            assert provider.asr("https://example.com/a.mp3")[0] == "转写文本"
 
         event = provider.usage_events[0]
         assert event["stage"] == "asr"
@@ -220,7 +220,7 @@ class TestAsrUsage:
 
 class TestStreamResponseClosed:
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_response_closed_after_parse(self, mock_post):
         # Codex review P2：[DONE] 即停不读到 EOF，不 close 会占住连接池
         resp = _mock_stream_response(["ok"], _USAGE)
@@ -229,7 +229,7 @@ class TestStreamResponseClosed:
         provider.llm_clean("raw")
         resp.close.assert_called_once()
 
-    @patch("app.service.model.requests.post")
+    @patch("app.extract.model.requests.post")
     def test_response_closed_even_on_midstream_error(self, mock_post):
         resp = MagicMock()
         resp.status_code = 200
@@ -241,7 +241,7 @@ class TestStreamResponseClosed:
         resp.iter_lines.side_effect = _broken_lines
         mock_post.return_value = resp
         provider = DashscopeProvider(api_key="test-key")
-        from app.service.errors import NetworkError
+        from app.extract.errors import NetworkError
 
         with pytest.raises(NetworkError):
             provider.llm_clean("raw")

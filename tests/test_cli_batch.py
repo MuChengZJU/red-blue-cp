@@ -5,7 +5,7 @@ from __future__ import annotations
 from typer.testing import CliRunner
 
 import app.cli as cli
-from app.service.errors import ConfigError
+from app.extract.errors import ConfigError
 
 runner = CliRunner()
 
@@ -25,7 +25,7 @@ def test_batch_outputs_human_summary(monkeypatch, tmp_path):
         captured["kw"] = kw
         return _summary()
 
-    monkeypatch.setattr("app.service.batch.run_batch", fake_run)
+    monkeypatch.setattr("app.extract.batch.run_batch", fake_run)
     notes = tmp_path / "n.json"
     notes.write_text("{}")
     result = runner.invoke(cli.app, ["batch", str(notes)])
@@ -39,7 +39,7 @@ def test_batch_outputs_human_summary(monkeypatch, tmp_path):
 def test_batch_proxy_from_flag(monkeypatch, tmp_path):
     captured = {}
     monkeypatch.setattr(
-        "app.service.batch.run_batch",
+        "app.extract.batch.run_batch",
         lambda path, **kw: captured.update(kw) or _summary(),
     )
     notes = tmp_path / "n.json"
@@ -55,7 +55,7 @@ def test_batch_config_error_exits_1(monkeypatch, tmp_path):
     def boom(path, **kw):
         raise ConfigError("清单 schema_version=2，本版只认 1")
 
-    monkeypatch.setattr("app.service.batch.run_batch", boom)
+    monkeypatch.setattr("app.extract.batch.run_batch", boom)
     notes = tmp_path / "n.json"
     notes.write_text("{}")
     result = runner.invoke(cli.app, ["batch", str(notes)])
@@ -65,7 +65,7 @@ def test_batch_config_error_exits_1(monkeypatch, tmp_path):
 
 def test_batch_proxy_comments_warns_browser_leg(monkeypatch, tmp_path):
     # --proxy + --comments：评论走 pydoll 真实 IP，必须警告（Codex P1）
-    monkeypatch.setattr("app.service.batch.run_batch", lambda path, **kw: _summary())
+    monkeypatch.setattr("app.extract.batch.run_batch", lambda path, **kw: _summary())
     notes = tmp_path / "n.json"
     notes.write_text("{}")
     result = runner.invoke(
@@ -75,7 +75,7 @@ def test_batch_proxy_comments_warns_browser_leg(monkeypatch, tmp_path):
 
 
 def test_batch_json_output(monkeypatch, tmp_path):
-    monkeypatch.setattr("app.service.batch.run_batch", lambda path, **kw: _summary())
+    monkeypatch.setattr("app.extract.batch.run_batch", lambda path, **kw: _summary())
     notes = tmp_path / "n.json"
     notes.write_text("{}")
     result = runner.invoke(cli.app, ["batch", str(notes), "--json"])

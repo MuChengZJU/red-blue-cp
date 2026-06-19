@@ -11,8 +11,8 @@ from unittest.mock import patch
 
 import pytest
 
-import app.service.batch as batch_mod
-from app.service.storage import Storage
+import app.extract.batch as batch_mod
+from app.extract.storage import Storage
 
 
 NOTE_A = "6877baac000000002201e6a7"
@@ -189,7 +189,7 @@ class TestCodexFindings:
 
     def test_web_pipeline_fn_honors_rbcp_proxy(self, monkeypatch, tmp_path):
         # P1：WebUI 单条/重试管道也要吃 RBCP_PROXY，批量任务重试不丢代理
-        import app.service.pipeline as pipeline_mod
+        import app.extract.pipeline as pipeline_mod
         from app.web.routes import get_pipeline_fn
 
         captured = {}
@@ -289,19 +289,19 @@ class TestTitleCleanup:
     """0.5.1 实测反馈：回填标题带日期/作者/ID 渣 + 已回填的脏标题要再洗。"""
 
     def test_parse_strips_date_author_and_id(self):
-        from app.service.storage import _title_from_md_stem
+        from app.extract.storage import _title_from_md_stem
         stem = "2025-06-16-清华月半猫-21年就有了3500B的MoE模型，却没ChatGPT？-68502a8000000000230269f0"
         assert _title_from_md_stem(stem, "68502a8000000000230269f0") == \
             "21年就有了3500B的MoE模型，却没ChatGPT？"
 
     def test_placeholder_title_returns_none(self):
         # 当年没标题的笔记，文件名里标题位就是 note_id → 别当标题
-        from app.service.storage import _title_from_md_stem
+        from app.extract.storage import _title_from_md_stem
         nid = "681f91c40000000022036404"
         assert _title_from_md_stem(f"2025-05-10-清华月半猫-{nid}-{nid}", nid) is None
 
     def test_unrecognized_stem_returns_as_is(self):
-        from app.service.storage import _title_from_md_stem
+        from app.extract.storage import _title_from_md_stem
         assert _title_from_md_stem("随手存的文件", "abc123") == "随手存的文件"
 
     def test_recleans_previously_backfilled_ugly_titles(self, tmp_path):

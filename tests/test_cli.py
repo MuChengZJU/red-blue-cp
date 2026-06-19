@@ -45,7 +45,7 @@ class TestRunCommand:
     @patch("app.cli.run_pipeline")
     def test_run_failure_shows_human_message(self, mock_run):
         """裸异常翻人话：不支持的链接给可操作提示，不糊 Python traceback。"""
-        from app.service.errors import UnsupportedUrlError
+        from app.extract.errors import UnsupportedUrlError
         mock_run.side_effect = UnsupportedUrlError("douyin", operation="detect_platform")
         result = runner.invoke(app, ["run", "https://www.douyin.com/video/1"])
         assert result.exit_code == 1
@@ -55,18 +55,20 @@ class TestRunCommand:
 class TestServeCommand:
 
     @patch("app.cli.uvicorn")
-    def test_serve_starts_uvicorn(self, mock_uvicorn):
-        result = runner.invoke(app, ["serve"])
-        mock_uvicorn.run.assert_called_once()
+    def test_serve_runs_server(self, mock_uvicorn):
+        # 0.6 新实现：构造 uvicorn.Config 后用 uvicorn.Server(cfg).run()（不再 uvicorn.run）
+        runner.invoke(app, ["serve"])
+        mock_uvicorn.Server.return_value.run.assert_called_once()
 
     @patch("app.cli.uvicorn")
-    def test_serve_binds_0000(self, mock_uvicorn):
+    def test_serve_binds_loopback(self, mock_uvicorn):
+        # 红线：默认绑 127.0.0.1（回环），不再 0.0.0.0
         runner.invoke(app, ["serve"])
-        call_kwargs = mock_uvicorn.run.call_args[1]
-        assert call_kwargs.get("host") == "0.0.0.0"
+        cfg_kwargs = mock_uvicorn.Config.call_args.kwargs
+        assert cfg_kwargs.get("host") == "127.0.0.1"
 
     @patch("app.cli.uvicorn")
     def test_serve_no_workers_flag(self, mock_uvicorn):
         runner.invoke(app, ["serve"])
-        call_kwargs = mock_uvicorn.run.call_args[1]
-        assert call_kwargs.get("workers", 1) == 1
+        cfg_kwargs = mock_uvicorn.Config.call_args.kwargs
+        assert cfg_kwargs.get("workers", 1) == 1

@@ -10,18 +10,18 @@ from typing import Callable
 
 import typer
 import uvicorn
-from dotenv import load_dotenv
+from app.config import candidate_config_paths, config_dir, load_config, resolve_output_dir
 
-from app.service.errors import RbcpError, format_error_for_user
-from app.service.extractor import extract_url
-from app.service.markdown import render_and_write
-from app.service.pipeline import (
+from app.extract.errors import RbcpError, format_error_for_user
+from app.extract.extractor import extract_url
+from app.extract.markdown import render_and_write
+from app.extract.pipeline import (
     _provider_from_env,
     build_proxies,
     fetch_single as _fetch_single,
 )
-from app.service.pricing import summarize_usage
-from app.service.urls import clean_url
+from app.extract.pricing import summarize_usage
+from app.extract.urls import clean_url
 
 
 app = typer.Typer()
@@ -53,10 +53,10 @@ def _create_pipeline_fn(api_key: str, output_dir: Path) -> Callable[[str], dict]
 
 def run_pipeline(url: str) -> str:
     """Run the URL-to-Markdown pipeline and return the generated file path."""
-    load_dotenv()
+    load_config()
     url = clean_url(url)  # 分享文案抽 URL + 去追踪参数（小红书保 token）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     pipeline = _create_pipeline_fn(api_key=api_key, output_dir=output_dir)
     return pipeline(url)["md_path"]
 
@@ -73,12 +73,62 @@ def run(url: str) -> None:
     typer.echo(f"Done: {md_path}")
 
 
+
+def _build_serve_config(
+    *,
+    desktop: bool = False,
+    host: str | None = None,
+    port: int | None = None,
+) -> uvicorn.Config:
+    """Build a ``uvicorn.Config`` for the *serve* command.
+
+    Desktop mode always binds ``127.0.0.1`` on a random port (port 0).
+    """
+    if desktop:
+        return uvicorn.Config("app.web.routes:app", host="127.0.0.1", port=0, workers=1)
+    return uvicorn.Config(
+        "app.web.routes:app",
+        host=host or "127.0.0.1",
+        port=port or 8000,
+        workers=1,
+    )
+
+
+class _DesktopServer(uvicorn.Server):
+    """Print the kernel-assigned port and auth token as JSON to stdout."""
+
+    async def startup(self, sockets=None):  # type: ignore[override]
+        await super().startup(sockets)
+        if self.servers:
+            real_port = self.servers[0].sockets[0].getsockname()[1]
+            from app.web import auth
+
+            print(
+                _json.dumps({"port": real_port, "token": auth._ACTIVE_TOKEN or ""}),
+                flush=True,
+            )
+
+
 @app.command("serve")
 def serve(
     port: int = typer.Option(8000, "--port", help="监听端口（多实例用不同端口错开）"),
+    host: str | None = typer.Option(None, "--host", help="绑定地址（默认 127.0.0.1）"),
+    desktop: bool = typer.Option(
+        False, "--desktop", is_flag=True, help="桌面模式：127.0.0.1+随机端口，stdout 回吐 port/token"
+    ),
 ) -> None:
-    load_dotenv()
-    uvicorn.run("app.web.routes:app", host="0.0.0.0", port=port, workers=1)
+    load_config()
+    if desktop:
+        from app.web import auth
+
+        os.environ["RBCP_DESKTOP"] = "1"
+        auth.new_token()
+        cfg = _build_serve_config(desktop=True)
+        server = _DesktopServer(cfg)
+        asyncio.run(server.serve())
+    else:
+        cfg = _build_serve_config(host=host, port=port)
+        uvicorn.Server(cfg).run()
 
 
 def _build_note_url(note_id: str, xsec_token: str) -> str:
@@ -94,8 +144,8 @@ def login() -> None:
 
     会等你扫完码、回到终端按回车再保存——不会自动关。
     """
-    load_dotenv()
-    from app.service import discover
+    load_config()
+    from app.extract import discover
 
     typer.echo("即将弹出浏览器并打开小红书。")
     typer.echo("→ 用手机扫码登录，看到自己头像/进入首页后，回这里按【回车】。")
@@ -115,8 +165,8 @@ def list_uploader(
     json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
 ) -> None:
     """列博主全量笔记清单（不下载）。撞风控/半份时退出码非 0。"""
-    load_dotenv()
-    from app.service import discover
+    load_config()
+    from app.extract import discover
 
     result = asyncio.run(discover.discover_user_posts(url))
 
@@ -153,11 +203,11 @@ def fetch(
     proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
 ) -> None:
     """抓单篇笔记，或用 --all 抓整个博主。"""
-    load_dotenv()
+    load_config()
     if not all_:
         url = clean_url(url)  # 单篇：分享文案抽 URL + 去追踪参数（--all 是博主主页 URL，不动）
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
     if proxy and (all_ or comments):
@@ -227,7 +277,7 @@ def _fetch_all(
     proxy: str | None = None,
 ) -> None:
     """博主全量：列清单 → 预览 → 确认 → 逐条下载。半份清单默认拒绝继续。"""
-    from app.service import discover
+    from app.extract import discover
 
     listing = asyncio.run(discover.discover_user_posts(url))
     est = listing["estimate"]
@@ -323,9 +373,9 @@ def batch(
     json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
 ) -> None:
     """批量下载插件导出的 notes.json：走代理、断点续传、token 过期跳过、汇总成败。"""
-    load_dotenv()
+    load_config()
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = proxy or os.getenv("RBCP_PROXY") or None
 
     if proxy and comments:
@@ -335,7 +385,7 @@ def batch(
             fg=typer.colors.YELLOW,
         )
 
-    from app.service.batch import run_batch
+    from app.extract.batch import run_batch
 
     try:
         summary = run_batch(
@@ -371,3 +421,133 @@ def batch(
             f"⚠ 这些清单已过期，需重新抓清单：{', '.join(summary['token_expired'])}",
             fg=typer.colors.YELLOW,
         )
+
+
+@app.command("digest")
+def digest(
+    url: str,
+    json_out: bool = typer.Option(False, "--json", help="按 0.6 契约输出 extract+digest JSON"),
+    text_only: bool = typer.Option(False, "--text-only", help="跳过 VLM/ASR，只取现成正文"),
+    proxy: str = typer.Option(None, "--proxy", help="走代理护 IP（http://host:port）；默认读 RBCP_PROXY"),
+) -> None:
+    """抓 URL → 速览：高亮 / 卡片金句 / 脉络三形态。
+
+    --json 出机器可读的 {"extract": {...}, "digest": {...}}（0.6 digest-json 契约，Desktop 消费）；
+    不加 --json 给人看精简渲染（高亮句 + 金句 + 脉络标题）。
+    """
+    import dataclasses
+
+    from app.digest.contracts import digest as run_digest
+    from app.extract.pipeline import _provider_from_env, build_proxies
+
+    load_config()
+    url = clean_url(url)
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    proxy = proxy or os.getenv("RBCP_PROXY") or None
+
+    try:
+        proxies = build_proxies(proxy)
+        provider = _provider_from_env(api_key, proxies=proxies)
+        result = extract_url(url, provider, text_only=text_only, proxies=proxies)
+        digest_result = run_digest(
+            result.text,
+            provider=provider,
+            text_sha256=result.text_sha256,
+            segments=result.segments,
+        )
+    except Exception as error:  # noqa: BLE001
+        if json_out:
+            typer.echo(_json.dumps(
+                {"ok": False, "error": str(error),
+                 "message": format_error_for_user(error)}, ensure_ascii=False))
+        else:
+            typer.secho(format_error_for_user(error), fg=typer.colors.RED)
+        raise typer.Exit(code=1) from None
+
+    if json_out:
+        # 0.6 digest-json 契约：extract 子集 + digest 全量（dataclasses.asdict 递归）。
+        envelope = {
+            "extract": {
+                "canonical_text": result.text,
+                "text_sha256": result.text_sha256,
+                "segments": (
+                    [dataclasses.asdict(s) for s in result.segments]
+                    if result.segments is not None else None
+                ),
+                "readable_text": result.readable_text,
+            },
+            "digest": dataclasses.asdict(digest_result),
+        }
+        typer.echo(_json.dumps(envelope, ensure_ascii=False))
+        return
+
+    # 人话精简渲染
+    text = result.text
+    typer.secho(f"《{result.title or url}》", fg=typer.colors.CYAN, bold=True)
+    if digest_result.highlights:
+        typer.secho("\n高亮：", fg=typer.colors.GREEN)
+        for h in digest_result.highlights:
+            typer.echo(f"  · {text[h.span_start:h.span_end]}")
+    if digest_result.cards:
+        typer.secho("\n金句：", fg=typer.colors.GREEN)
+        for c in digest_result.cards:
+            typer.echo(f"  「{c.quote}」")
+    if digest_result.outline:
+        typer.secho("\n脉络：", fg=typer.colors.GREEN)
+
+        def _print_outline(nodes, depth: int = 0) -> None:
+            for node in nodes:
+                typer.echo(f"  {'  ' * depth}- {node.title}")
+                _print_outline(node.children, depth + 1)
+
+        _print_outline(digest_result.outline)
+
+
+@app.command("ls")
+def ls(
+    limit: int = typer.Option(20, "--limit", help="最多列多少条"),
+    json_out: bool = typer.Option(False, "--json", help="输出机器可读 JSON"),
+) -> None:
+    """列最近的任务（从知识库 _index.sqlite 读）+ 累计估算费用。"""
+    from app.extract.facade import Jobs
+
+    load_config()
+    output_dir = resolve_output_dir()
+    jobs = Jobs(output_dir=output_dir)
+    rows = jobs.list(limit=limit)
+    cost = jobs.total_cost_yuan()
+
+    if json_out:
+        typer.echo(_json.dumps({"jobs": rows, "total_cost_yuan": cost}, ensure_ascii=False))
+        return
+
+    if not rows:
+        typer.echo("还没有任务记录。")
+    else:
+        for row in rows:
+            status = row.get("status", "?")
+            title = row.get("title") or row.get("url") or "?"
+            typer.echo(f"  [{row.get('id')}] {status:8} {title}")
+    typer.echo(f"累计估算费用：￥{cost:.4f}")
+
+
+@app.command("config")
+def config() -> None:
+    """查看当前生效的配置来源（修了「~/.config/rbcp/.env 从未被读」的硬伤），并引导写入。"""
+    primary = load_config()
+    cfg_dir = config_dir()
+    typer.echo(f"用户配置目录：{cfg_dir}")
+    typer.echo("配置发现顺序（高→低，已存在的环境变量永不被覆盖）：")
+    typer.echo("  1. 进程环境变量")
+    for i, path in enumerate(candidate_config_paths(), start=2):
+        mark = "✓" if path.is_file() else "·"
+        tag = "  ← 当前生效" if primary is not None and path == primary else ""
+        typer.echo(f"  {i}. [{mark}] {path}{tag}")
+
+    key = os.getenv("DASHSCOPE_API_KEY", "")
+    if key:
+        masked = f"{key[:4]}…{key[-2:]}" if len(key) > 6 else "已设置"
+        typer.echo(f"DASHSCOPE_API_KEY：{masked}")
+    else:
+        typer.secho("DASHSCOPE_API_KEY：未设置（必填）", fg=typer.colors.YELLOW)
+        typer.echo(f"  写入示例：echo 'DASHSCOPE_API_KEY=sk-...' >> {cfg_dir / '.env'}")

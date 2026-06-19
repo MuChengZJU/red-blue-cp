@@ -1,0 +1,70 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Red Blue CP · 桌面</title>
+<link href="https://fonts.bunny.net/css?family=plus-jakarta-sans:500,600,700,800" rel="stylesheet">
+<script src="https://unpkg.com/lucide@latest"></script>
+<!-- 整篇连贯阅读视图的 markdown 渲染（与 WebUI detail 同版本） -->
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<aside class="sidebar">
+  <div class="brand">
+    <svg class="logo-mark" width="30" height="30" viewBox="0 0 36 36" fill="none" aria-hidden="true">
+      <rect x="3" y="3" width="21" height="21" rx="7.5" fill="#e5484d"/>
+      <rect x="12" y="12" width="21" height="21" rx="7.5" fill="#2563eb"/>
+    </svg>
+    <div class="brand-text"><h1><span class="g">红蓝CP</span></h1><div class="tag">B站 · 小红书 → 速览知识库</div></div>
+  </div>
+  <div class="newblock">
+    <form class="url-row" id="url-form">
+      <input id="url-input" autocomplete="off" placeholder="粘贴 B 站 / 小红书链接，或整段分享文案，回车转录">
+      <button class="btn-primary" type="submit"><i data-lucide="sparkles"></i>转录</button>
+    </form>
+    <div class="submit-hint" id="submit-hint"></div>
+    <button class="btn-soft"><i data-lucide="file-json-2"></i>批量导入 notes.json</button>
+    <div id="compose-mount"></div>
+  </div>
+  <nav class="nav">
+    <div class="nav-item" data-s="library"><img class="navic" src="https://api.iconify.design/flat-color-icons/library.svg" alt="">文件库</div>
+    <div class="nav-item active" data-s="jobs"><img class="navic" src="https://api.iconify.design/flat-color-icons/todo-list.svg" alt="">任务列表</div>
+    <div class="nav-sep"></div>
+    <div class="nav-item" data-s="usage"><img class="navic" src="https://api.iconify.design/flat-color-icons/currency-exchange.svg" alt="">账单</div>
+    <div class="nav-item" data-s="settings"><img class="navic" src="https://api.iconify.design/flat-color-icons/settings.svg" alt="">设置</div>
+  </nav>
+  <div class="sidebar-foot">
+    <div class="cost">累计费用 <b id="cum-cost">—</b></div>
+    <div class="api-status"><span class="dot g"></span>百炼 API</div>
+  </div>
+</aside>
+
+<div class="main">
+  <section class="screen" id="library"><div class="screen-mount"></div></section>
+  <section class="screen active" id="jobs"><div class="screen-mount"></div></section>
+  <section class="screen" id="reader"><div class="screen-mount"></div></section>
+  <section class="screen" id="usage"><div class="screen-mount"></div></section>
+  <section class="screen" id="settings"><div class="screen-mount"></div></section>
+</div>
+
+<!-- 批量导入 notes.json（app.js 给 #modal 加 .on 显示） -->
+<div class="modal-bg" id="modal">
+  <div class="modal">
+    <h3>批量导入 notes.json</h3>
+    <p>从浏览器插件导出的 notes.json（文件或剪贴板），逐条转录。</p>
+    <div class="modal-mount"></div>
+    <div class="acts">
+      <button class="toggle">取消</button>
+      <button class="btn-primary">导入</button>
+    </div>
+  </div>
+</div>
+
+<script type="module" src="app.js"></script>
+<script>if(window.lucide) lucide.createIcons();</script>
+</body>
+</html>

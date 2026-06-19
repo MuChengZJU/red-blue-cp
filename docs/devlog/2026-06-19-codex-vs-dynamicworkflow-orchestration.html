@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>V0.6 复盘 · Codex(mimo) 并行 vs DynamicWorkflow(Opus) 并行</title>
+<style>
+:root{--red:#e23744;--blue:#2b6cb0;--bg:#0f1115;--card:#1a1d24;--ink:#e6e8eb;--mut:#9aa3ad;--ok:#3fb950;--bad:#f85149;--warn:#d29922;--line:#2a2f3a}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.65 -apple-system,BlinkMacSystemFont,"PingFang SC","Segoe UI",sans-serif;padding:32px 18px}
+.wrap{max-width:980px;margin:0 auto}
+h1{font-size:24px;margin:0 0 4px;background:linear-gradient(90deg,var(--red),var(--blue));-webkit-background-clip:text;background-clip:text;color:transparent;font-weight:800}
+.sub{color:var(--mut);font-size:13px;margin-bottom:24px}
+h2{font-size:18px;margin:30px 0 10px;border-left:4px solid var(--blue);padding-left:10px}
+.tldr{background:linear-gradient(135deg,#241a1c,#16202c);border:1px solid var(--line);border-radius:12px;padding:16px 18px;margin-bottom:8px}
+.tldr b{color:#fff}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:4px 16px;margin:10px 0}
+table{width:100%;border-collapse:collapse;font-size:13.5px;margin:6px 0}
+th,td{border:1px solid var(--line);padding:8px 10px;text-align:left;vertical-align:top}
+th{background:#222632;color:#fff;font-weight:600}
+td code,p code,li code{background:#11141a;color:#9fd3ff;padding:1px 5px;border-radius:4px;font-size:12.5px}
+.ok{color:var(--ok);font-weight:700}.bad{color:var(--bad);font-weight:700}.warn{color:var(--warn);font-weight:700}
+.pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:20px;font-weight:700}
+.pe{background:#3a2426;color:#ff9ba2}.pp{background:#243a2c;color:#9be6ad}.pm{background:#3a3424;color:#e6d49b}
+ul{margin:8px 0 14px;padding-left:20px}li{margin:4px 0}
+.exp{border-left:3px solid var(--red);background:#181b22;border-radius:0 8px 8px 0;padding:10px 16px;margin:10px 0}
+.exp h3{margin:4px 0 6px;font-size:15px}.tag{color:var(--mut);font-size:12px}
+.k{color:var(--mut)}
+.foot{color:var(--mut);font-size:12px;margin-top:28px;border-top:1px solid var(--line);padding-top:12px}
+</style>
+</head>
+<body><div class="wrap">
+
+<h1>Codex(mimo) 并行 vs DynamicWorkflow(Opus) 并行</h1>
+<div class="sub">V0.6 复盘 · 2026-06-13~18 四会话 · 运行时/提示词结构与稳定调用</div>
+
+<div class="tldr">
+<b>一句话:</b> 不是「mimo 代码能力差」。主因是 <b>运行时/工具带不匹配</b> + 一个真实的计划级契约缺陷。
+Codex 的 <code>apply_patch</code> <b>按 model-slug 查内置 catalog 决定实现</b>,mimo 不在 catalog → 根本没被注入 apply_patch 工具和 V4A 指令,再叠 CJK 字符 panic、中途预算静默停。
+而 DW 顺,是因为它的子 agent <b>和主会话同一个运行时</b>:同一个 <code>Edit</code> 工具(unicode 安全/原子写)、同一本规则书(CLAUDE.md)、同模型家族(Opus)、结果回流即验。
+<b>差距在「同物种同工具带」vs「异物种自带会卡的工具」,不在「上下文多少」。</b>
+</div>
+
+<h2>① 开发分工(都在真写代码,干净的控制变量对照)</h2>
+<div class="card"><table>
+<tr><th>模块</th><th>谁写的</th><th>结果</th></tr>
+<tr><td>digest 锚定引擎 / CLI / desktop spike</td><td>DynamicWorkflow(Opus 子 agent)+主 Opus</td><td class="ok">顺,零返工</td></tr>
+<tr><td>桌面 6 屏前端 + 一批 web 端点</td><td>Codex + mimo-v2.5-pro 并行</td><td class="warn">6 屏高光;结构性任务反复翻车</td></tr>
+<tr><td>Tauri/Rust 壳 / 所有 commit / 最后一公里</td><td>主 Opus</td><td>—</td></tr>
+<tr><td>收尾修 bug + 四项 WebUI 对齐 + 缩略图</td><td>DynamicWorkflow(Opus)</td><td class="ok">当场抓 16 问题,零新债</td></tr>
+</table></div>
+
+<h2>② 失败归因:计划 vs 执行(重证据)</h2>
+<p class="k">任务包写得<b>非常细</b>(契约/字段/边界/验收命令俱全)。「光是计划不够细」基本被证伪。</p>
+<div class="card"><table>
+<tr><th>失败</th><th>性质</th><th>根因</th></tr>
+<tr><td>task 1.0 sed 改坏 pipeline.py(烧 587k 没 commit)</td><td><span class="pill pe">计划+执行</span></td><td>任务包两条约束自相矛盾(文件白名单 vs 不许新增失败测试,在 test_proxy_passthrough 上互斥)→ sed 硬解改坏</td></tr>
+<tr><td>task 1.2 最难重构没做(停"Step 3")</td><td><span class="pill pe">执行/运行时</span></td><td>一包塞太多,做完前两步 token 预算到了就停、没 commit。拆小后即过</td></tr>
+<tr><td>settings.js 报 completed 实为 stub</td><td><span class="pill pe">执行/运行时</span></td><td>apply_patch 对全角中文持续匹配失败;加一句"整文件覆盖"一次过</td></tr>
+<tr><td>reader.js 写入 <code>\uXXXX</code> 字面量(仓库 15 处)</td><td><span class="pill pe">执行/运行时</span></td><td>apply_patch 把 unicode 转义当字面字符串写入</td></tr>
+</table>
+<p><b>纯模型能力锅几乎没有。</b> 成功轴=独立/纯新建/无特殊字符/不碰复杂既有文件;失败轴=结构性重构 + <b>特殊字符(独立失败轴)</b>。</p></div>
+
+<h2>③ 代码层 + 提示词层:四种机制到底差在哪</h2>
+<div class="card"><table>
+<tr><th></th><th>提示词层(上下文怎么拼)</th><th>代码/特性层(控制流·工具·上下文管理)</th></tr>
+<tr><th>① CC 主会话</th><td>系统提示 + 全局/项目 CLAUDE.md + 按需 Skill + <b>全量累积会话历史</b></td><td>单窗口,长了自动压缩;Read/Edit 工具</td></tr>
+<tr><th>② CC 子 agent</th><td>自己的精简系统提示 + 单条 prompt + CLAUDE.md 在场;<b>不继承会话历史</b></td><td><b>主模型即兴决定派不派</b>;<b>只回传最终消息</b>(上下文防火墙);每 agent 全新窗口</td></tr>
+<tr><th>③ DynamicWorkflow</th><td>每个 <code>agent()</code> prompt <b>写死在 JS 脚本里</b> + 可带 <b>JSON Schema</b>(校验失败自动重试);默认继承 Opus</td><td><b>控制流是确定性代码</b>(parallel/pipeline/循环);脚本只攥结构化返回(小)→能 scale;内建对抗验证</td></tr>
+<tr><th>④ CC→Codex</th><td>Codex <b>自己的</b> base 指令 + <b>AGENTS.md(不读 CLAUDE.md)</b> + 管道喂的任务包;XML 块结构</td><td><b>另一个进程</b>:自己的 loop、<b>apply_patch 按 slug 接线</b>、自己的 sandbox/预算;CC 只看 JSONL 事件流</td></tr>
+</table>
+<ul>
+<li><b>①②③ 同一运行时</b>,只差控制流(一窗口/主模型派/代码编排)和上下文范围(累积/每 agent 全新)。</li>
+<li><b>②③ 跟 ④ 的代码层差异不在上下文,在工具带</b>:②③ 用同一个 unicode 安全的 <code>Edit</code>;④ 的 apply_patch 按 model-slug 查目录接线,mimo 不在目录→工具压根没注入。<b>这是代码层静默断线,提示词层看不见。</b></li>
+<li>纠正直觉:②③④ 都精简上下文起步、都不继承会话历史。差距是「同物种能自己 grep 补齐」vs「异物种补齐弱+工具会卡」。</li>
+</ul></div>
+
+<h2>④ 速度:端到端是「任务类型依赖」的</h2>
+<div class="card"><ul>
+<li><span class="ok">甜区任务</span>(独立/新建/无特殊字符):codex+mimo 端到端更快(6 屏一波拿下)。</li>
+<li><span class="bad">结构性/复杂既有文件/特殊字符</span>:codex+mimo 端到端更慢——快速生成被返工吃光(1.0 烧 587k+手修、1.2 重发、收尾一整会话)。</li>
+<li><span class="warn">DW-Opus</span>:单位 token 慢但首轮成功率高、返工少,硬活上打平甚至更快。</li>
+</ul><p><b>mimo 的快只有在「甜区任务 + 严格验证」下才兑现成端到端的快。</b></p></div>
+
+<h2>⑤ 下一步:3 条实验(按依赖排序,不堆建议)</h2>
+<div class="exp"><h3>A · 前置闸门 <span class="tag">~10 行 spike</span></h3>
+单跑一次 <code>codex exec</code>+mimo,做个<b>必须改含中文文件并 commit</b> 的小任务:mimo 拿没拿到 apply_patch?碰中文 panic 没?先 <code>curl</code> mimo 的 <code>/v1/responses</code> 看通不通。<b>这条决定方向</b>:不通就切「禁 apply_patch、强制 shell 整文件写」。</div>
+<div class="exp"><h3>B · 正面对照 <span class="tag">同任务端到端</span></h3>
+选一个自包含真实任务,跑两次:DW-Opus 一路、codex-mimo 一路。量<b>端到端墙钟(到测试绿+已 commit)</b>+质量。用数据替代猜。</div>
+<div class="exp"><h3>C · 自建稳定调用封装 <span class="tag">核心欠债</span></h3>
+官方 codex-rescue 是"单次转发器",不为并行开发设计。先写薄封装,最高杠杆=<b>不信 exit 0、解析事件流</b>:流以 <code>turn.completed</code> 收尾才算成 / 测试命令 <code>exit_code==0</code> / <code>file_change</code> 真落盘 / <code>git rev-parse</code> 确认真 commit / 超预算或没 commit=未完成上报 / CJK panic 降级 shell 整写。<span class="k">(main 上 AGENTS.md 当规则书蓝本那个提交,已做了"喂规则书给 codex"的一半。)</span></div>
+
+<div class="foot">
+来源:本地源码 <code>codex.mjs</code>/<code>gpt-5-4-prompting</code> · Codex issues #14046(apply_patch 按 slug 选实现)·#8161(禁 apply_patch 走 shell)·#9580(CJK panic)·#24629(自设预算静默停)·#18018(谎报 committed)·#15451(--output-schema 带工具静默坏)·Discussion #7782(wire_api 仅 responses) · 社区:firecrawl / particula(oh-my-codex) / danielvaughan。
+完整版:<code>docs/devlog/2026-06-19-codex-vs-dynamicworkflow-orchestration.md</code>
+</div>
+
+</div></body></html>

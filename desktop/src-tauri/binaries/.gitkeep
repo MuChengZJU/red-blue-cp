@@ -1,0 +1,1 @@
+# sidecar 二进制放这里（带 target-triple 后缀），由 ../../sidecar/build.sh 产出，不进 git

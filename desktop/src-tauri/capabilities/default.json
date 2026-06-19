@@ -1,0 +1,20 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "壳 spawn 常驻 rbcp-serve sidecar；前端经 get_api_config 拿 port/token 调本地 HTTP。",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "dialog:default",
+    {
+      "identifier": "shell:allow-execute",
+      "allow": [
+        {
+          "name": "binaries/rbcp-serve",
+          "sidecar": true,
+          "args": true
+        }
+      ]
+    }
+  ]
+}

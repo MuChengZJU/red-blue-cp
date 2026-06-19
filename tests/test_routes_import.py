@@ -4,8 +4,8 @@ from __future__ import annotations
 
 from fastapi.testclient import TestClient
 
-import app.service.batch as batch_mod
-from app.service.storage import Storage
+import app.extract.batch as batch_mod
+from app.extract.storage import Storage
 from app.web.routes import app
 
 client = TestClient(app)

@@ -5,7 +5,7 @@ import tempfile
 from pathlib import Path
 
 import pytest
-from app.service.storage import Storage
+from app.extract.storage import Storage
 
 
 @pytest.fixture

@@ -6,7 +6,7 @@ M4b 各 service 按这些类抛、M4c batch 按 kind/reason 分流，都依赖�
 
 import pytest
 
-from app.service.errors import (
+from app.extract.errors import (
     RbcpError,
     UnsupportedUrlError,
     ConfigError,

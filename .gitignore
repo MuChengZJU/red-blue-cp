@@ -17,3 +17,10 @@ uv.lock
 # 实验/临时（用完即弃，不进仓库）
 _sandbox/
 _tmp/
+
+# 知识库索引 DB（红线#4：只该落在 ~/transcript，从仓库目录起 serve 会误写到这）
+_index.sqlite
+**/_index.sqlite
+
+# PyInstaller 打包 spec（spike/实验产物，按需重生成）
+rbcp-serve-*.spec

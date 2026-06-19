@@ -14,8 +14,8 @@ from fastapi.testclient import TestClient
 from typer.testing import CliRunner
 
 import app.cli as cli
-import app.service.comments as comments_mod
-import app.service.discover as discover
+import app.extract.comments as comments_mod
+import app.extract.discover as discover
 from app.web.routes import app as web_app
 
 
@@ -71,13 +71,19 @@ def stub_single(monkeypatch):
 
     实现已从 cli 抽到 service.pipeline（M4a），patch 目标随之改到 pipeline.*。
     """
-    import app.service.pipeline as pipeline
+    import app.extract.pipeline as pipeline
     monkeypatch.setattr(pipeline, "_provider_from_env", lambda api_key, **kw: object())
     monkeypatch.setattr(
         pipeline, "extract_url",
         lambda url, provider, **kw: types.SimpleNamespace(
             title="标题X", author="作者X", platform="xiaohongshu",
-            content_type="video", **kw,
+            content_type="video",
+            # 0.6：fetch_single 返回值新增 canonical/指纹/segments，桩需补齐
+            text="正文X", text_sha256="sha256X", segments=None,
+            readable_text="正文X",
+            # ExtractResult.metadata 是带默认 dict 的真实字段，桩须匹配（fetch_single 读 cover_url）
+            metadata={},
+            **kw,
         ),
     )
     monkeypatch.setattr(

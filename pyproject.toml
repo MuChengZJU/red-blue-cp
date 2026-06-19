@@ -1,7 +1,7 @@
 [project]
 name = "red-blue-cp"
-version = "0.5.2"
-description = "B站小红书 Content Pipeline — URL to Markdown"
+version = "0.6.0"
+description = "B站小红书 Content Pipeline — URL 转忠实原文 + 速览（高亮/卡片/脉络）"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
@@ -27,7 +27,8 @@ dependencies = [
     "uvicorn",
     "jinja2",
     "typer",
-    "pydoll-python",  # P1：博主全量/评论用，CDP 连系统 Chrome 拦截接口；discover.py 内懒加载
+    "pydoll-python", # P1：博主全量/评论用，CDP 连系统 Chrome 拦截接口；discover.py 内懒加载
+    "platformdirs>=4.10.0",
 ]
 
 [project.urls]
@@ -46,6 +47,17 @@ build-backend = "hatchling.build"
 # templates/*.html、*.md.j2 等非 .py 文件在包目录内，hatchling 默认一并打进 wheel。
 [tool.hatch.build.targets.wheel]
 packages = ["app"]
+
+# sdist 只装 Python 包 + 元数据；显式 include 防把 desktop/（Rust target、.venv、
+# PyInstaller 产物）等扫进来（曾打出 ~1GB sdist，PyPI 会拒）。
+[tool.hatch.build.targets.sdist]
+include = [
+  "/app",
+  "/README.md",
+  "/CHANGELOG.md",
+  "/LICENSE",
+  "/pyproject.toml",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

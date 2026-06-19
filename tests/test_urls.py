@@ -1,6 +1,6 @@
 """URL 清理 / 分享文案提取测试。"""
 
-from app.service.urls import clean_url
+from app.extract.urls import clean_url
 
 
 class TestExtractFromShareText:

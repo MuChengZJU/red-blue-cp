@@ -3,25 +3,33 @@
 from __future__ import annotations
 
 import asyncio
+import dataclasses
 import logging
 import os
 import traceback
 from pathlib import Path
 from typing import Callable
 
-from dotenv import load_dotenv
-from fastapi import Body, Depends, FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse
+import requests
+
+from app.config import load_config, resolve_output_dir
+from app.extract import model
+from fastapi import APIRouter, Body, Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, PlainTextResponse, RedirectResponse, Response
 from fastapi.templating import Jinja2Templates
 from pydantic import BaseModel, Field
 
-from app.service.errors import RbcpError, format_error_for_user
-from app.service.extractor import detect_platform
-from app.service.storage import Storage
-from app.service.urls import clean_url, dedup_key
+from app.extract.errors import RbcpError, format_error_for_user
+from app.extract.extractor import detect_platform
+from app.extract.storage import Storage
+from app.web import artifacts
+from app.web import digest_cache
+from app.web import thumbnail_cache
+from app.extract.urls import clean_url, dedup_key
+from app.web.auth import require_token
 
 
-load_dotenv()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
+load_config()  # 防御性：直接 uvicorn 启动时也保证 .env 已加载
 
 logger = logging.getLogger("rbcp")
 if not logger.handlers:
@@ -43,6 +51,37 @@ app = FastAPI()
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
 
 
+def _maybe_enable_cors(target_app: FastAPI) -> bool:
+    """桌面模式下放宽 CORS：前端从 tauri://localhost 跨源调本地 serve。
+
+    serve 仅绑 127.0.0.1（外部够不着）+ Bearer token 鉴权，不用 cookie，
+    故 allow_origins=["*"] 安全。非桌面（WebUI 同源）不加，保持原行为。
+    """
+    if os.getenv("RBCP_DESKTOP") == "1":
+        from fastapi.middleware.cors import CORSMiddleware
+
+        target_app.add_middleware(
+            CORSMiddleware,
+            allow_origins=["*"],
+            allow_methods=["*"],
+            allow_headers=["*"],
+        )
+        return True
+    return False
+
+
+_maybe_enable_cors(app)
+
+# 静态托管桌面前端：浏览器/QA 开 /app/ 同源加载、调本地 API（dev/QA 便利；Tauri 打包走 frontendDist）。
+_DESKTOP_FRONTEND = Path(__file__).resolve().parent.parent.parent / "desktop" / "frontend"
+if _DESKTOP_FRONTEND.is_dir():
+    from fastapi.staticfiles import StaticFiles
+
+    app.mount("/app", StaticFiles(directory=str(_DESKTOP_FRONTEND), html=True), name="desktop-frontend")
+
+api = APIRouter(prefix="/api", dependencies=[Depends(require_token)])
+
+
 class CreateJobRequest(BaseModel):
     url: str = Field(..., min_length=1)
     force: bool = False  # 已下过仍强制重下（M5b 去重）
@@ -58,21 +97,28 @@ class CommentsRequest(BaseModel):
 
 
 def get_storage() -> Storage:
-    db_path = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    db_path = resolve_output_dir()
     return Storage(db_path / "_index.sqlite")
 
 
 def get_pipeline_fn() -> Callable[[str], dict]:
     """WebUI 单条/重试的下载管道。走 pipeline.fetch_single 并吃 RBCP_PROXY——
     批量产生的 job 在 UI 点重试也不会丢代理护 IP（Codex review P1）。"""
-    from app.service import pipeline as pipeline_mod
+    from app.extract import pipeline as pipeline_mod
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = os.getenv("RBCP_PROXY") or None
     return lambda url: pipeline_mod.fetch_single(
         url, api_key=api_key, output_dir=output_dir, proxy=proxy
     )
+
+
+def get_digest_provider():
+    from app.extract.pipeline import _provider_from_env, build_proxies
+
+    api_key = os.getenv("DASHSCOPE_API_KEY", "")
+    return _provider_from_env(api_key, proxies=build_proxies(os.getenv("RBCP_PROXY")))
 
 
 def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
@@ -87,6 +133,12 @@ def _safe_error_detail(error: BaseException, *, max_levels: int = 5) -> str:
     while exc is not None and seen < max_levels:
         msg = str(exc).strip()
         parts.append(f"{type(exc).__name__}: {msg}" if msg else type(exc).__name__)
+        # 外部 API 的真实报错体（如 DashScope「模型不存在 / 参数非法」的 JSON）才是
+        # 可定位的信息——之前只进服务器日志，GUI 看不到，用户「没日志」就是指这个。
+        # 这类响应体是服务商的 JSON 错误，不含本机路径/用户名，可安全展示给用户。
+        excerpt = (getattr(exc, "payload_excerpt", None) or "").strip()
+        if excerpt:
+            parts.append(f"  ↳ 服务端响应：{excerpt[:800]}")
         exc = exc.__cause__ or exc.__context__
         seen += 1
     return "\n".join(parts)
@@ -123,6 +175,7 @@ def _run_job(
             usage=result.get("usage"),
         )
         logger.info("[job %s] done: %s", job_id, result["md_path"])
+        artifacts.on_job_success(job_id, result)
     except Exception as error:
         tb = traceback.format_exc()
         # error_message 存「人话」；log_excerpt 存**脱敏的异常链摘要**（不含 traceback/
@@ -155,7 +208,7 @@ def cleanup_running_jobs() -> None:
     get_storage().cleanup_running()
 
 
-@app.post("/api/jobs")
+@api.post("/jobs")
 async def create_job(
     payload: CreateJobRequest,
     storage: Storage = Depends(get_storage),
@@ -188,7 +241,7 @@ async def create_job(
     return {"job_id": job_id}
 
 
-@app.post("/api/jobs/{job_id}/retry")
+@api.post("/jobs/{job_id}/retry")
 async def retry_job(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -206,7 +259,7 @@ async def retry_job(
     return {"job_id": job_id}
 
 
-@app.get("/api/jobs")
+@api.get("/jobs")
 def list_jobs(
     limit: int = 20,
     offset: int = 0,
@@ -216,13 +269,33 @@ def list_jobs(
     return storage.list_jobs(limit=limit, offset=offset, exclude_batched=exclude_batched)
 
 
-@app.get("/api/stats")
+@api.get("/stats")
 def get_stats(storage: Storage = Depends(get_storage)) -> dict:
-    """全局统计（P1h）：所有任务的累计估算费用。"""
-    return {"total_cost_yuan": storage.total_cost_yuan()}
+    """全局统计（P1h）：累计估算费用 + 按环节聚合。"""
+    return {
+        "total_cost_yuan": storage.total_cost_yuan(),
+        "by_stage": storage.stats_by_stage(),
+    }
 
 
-@app.get("/api/jobs/{job_id}")
+@api.get("/config")
+def get_config() -> dict:
+    """读当前生效配置（API key 打码）。设置界面加载时拉。"""
+    from app.web import config_api
+
+    return config_api.get_config()
+
+
+@api.post("/config")
+def set_config(payload: dict = Body(...)) -> dict:
+    """保存设置：即时设进 os.environ（运行中下次请求生效）+ 落配置 .env（重启仍在）。"""
+    from app.web import config_api
+
+    applied = config_api.set_config(payload)
+    return {"ok": True, "applied": applied}
+
+
+@api.get("/jobs/{job_id}")
 def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     job = storage.get_job(job_id)
     if job is None:
@@ -230,7 +303,7 @@ def get_job(job_id: int, storage: Storage = Depends(get_storage)) -> dict:
     return job
 
 
-@app.get("/api/jobs/{job_id}/markdown")
+@api.get("/jobs/{job_id}/markdown")
 def get_markdown(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -243,7 +316,7 @@ def get_markdown(
     return PlainTextResponse(content, media_type="text/markdown")
 
 
-@app.get("/api/jobs/{job_id}/download")
+@api.get("/jobs/{job_id}/download")
 def download_markdown(
     job_id: int,
     storage: Storage = Depends(get_storage),
@@ -256,24 +329,29 @@ def download_markdown(
     )
 
 
-@app.post("/api/uploaders/posts")
+def _reject_in_desktop() -> None:
+    if os.getenv("RBCP_DESKTOP") == "1":
+        raise HTTPException(status_code=404, detail="disabled_in_desktop")
+
+
+@api.post("/uploaders/posts", dependencies=[Depends(_reject_in_desktop)])
 async def uploader_posts(payload: UploaderPostsRequest) -> dict:
     """列博主全量笔记清单。返回 SPEC §4.3 契约（含 complete 硬字段）。
 
     浏览器抓取较慢且全局串行，这里直接 await（单用户 MVP 可接受）。
     """
-    from app.service import discover
+    from app.extract import discover
 
     return await discover.discover_user_posts(payload.user_url)
 
 
-@app.post("/api/comments")
+@api.post("/comments", dependencies=[Depends(_reject_in_desktop)])
 async def fetch_comments(payload: CommentsRequest) -> dict:
     """抓单篇笔记评论，写出 {note_id}.comments.md，返回路径 + 条数。"""
-    from app.service import discover
-    from app.service.comments import write_comments_md
+    from app.extract import discover
+    from app.extract.comments import write_comments_md
 
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     note_id = discover.note_id_from_url(payload.url)
     try:
         comments = await discover.discover_comments(payload.url, with_sub=payload.sub)
@@ -290,7 +368,7 @@ async def fetch_comments(payload: CommentsRequest) -> dict:
     }
 
 
-@app.post("/api/import-list")
+@api.post("/import-list")
 async def import_list(
     payload: dict = Body(...),
     allow_partial: bool = False,
@@ -303,7 +381,7 @@ async def import_list(
     早校验 schema：不合规立即 400，不开后台任务。
     M5b 去重（E2）：默认跳过已成功下过的笔记（按 note_id 对 dedup_key），force=true 全量重下。
     """
-    from app.service import batch as batch_mod
+    from app.extract import batch as batch_mod
 
     try:
         batch_mod._load_and_validate(payload, allow_partial=allow_partial)
@@ -328,7 +406,7 @@ async def import_list(
         return {"ok": True, "count": 0, "skipped_duplicates": skipped_duplicates}
 
     api_key = os.getenv("DASHSCOPE_API_KEY", "")
-    output_dir = Path(os.getenv("RBCP_OUTPUT_DIR", "~/transcript")).expanduser()
+    output_dir = resolve_output_dir()
     proxy = os.getenv("RBCP_PROXY") or None
     asyncio.create_task(
         asyncio.to_thread(
@@ -344,18 +422,137 @@ async def import_list(
     return {"ok": True, "count": len(notes), "skipped_duplicates": skipped_duplicates}
 
 
-@app.get("/api/batches")
+@api.get("/batches")
 def api_list_batches(storage: Storage = Depends(get_storage)) -> dict:
     """批次列表 + 每批的状态计数，供任务列表批次卡片轮询。"""
     return {"batches": storage.list_batches(limit=50)}
 
 
-@app.get("/api/batches/{batch_id}/items")
+@api.get("/batches/{batch_id}/items")
 def api_batch_items(batch_id: int, storage: Storage = Depends(get_storage)) -> dict:
     """批次全部条目（含 job_id，可点进 /jobs/{id} 详情）。"""
     if storage.get_batch(batch_id) is None:
         raise HTTPException(status_code=404, detail="Batch not found")
     return {"items": storage.list_batch_items(batch_id)}
+
+
+@api.get("/jobs/{job_id}/digest")
+def get_digest(
+    job_id: int,
+    provider=Depends(get_digest_provider),
+):
+    try:
+        art = artifacts.load_extract(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=409, detail="need_retranscribe") from None
+    # 同一 job_id 复跑（retry / 批量重跑）会用新内容覆盖 artifact，但 digest 缓存
+    # 还是旧的——只有当缓存里的 text_sha256 与当前 artifact 一致才复用，否则重算。
+    cached = digest_cache.load(job_id)
+    if cached is not None and cached.get("extract", {}).get("text_sha256") == art["text_sha256"]:
+        return cached
+    from app.digest.contracts import digest as run_digest
+    from app.extract.contracts import Segment
+
+    segs = tuple(Segment(**d) for d in art["segments"]) if art["segments"] is not None else None
+    dr = run_digest(art["canonical_text"], provider=provider, text_sha256=art["text_sha256"], segments=segs)
+    envelope = {
+        "extract": {
+            "canonical_text": art["canonical_text"],
+            "text_sha256": art["text_sha256"],
+            "segments": art["segments"],
+            "readable_text": art.get("readable_text"),
+        },
+        "digest": dataclasses.asdict(dr),
+    }
+    digest_cache.save(job_id, envelope)
+    return envelope
+
+
+_XHS_REFERER = "https://www.xiaohongshu.com/"
+_BILI_REFERER = "https://www.bilibili.com/"
+
+
+def _thumbnail_referer(platform: str | None) -> str:
+    """封面图防盗链 Referer：小红书必须带（红线#11），B 站亦带；其余给 B 站默认。"""
+    if platform == "xiaohongshu":
+        return _XHS_REFERER
+    return _BILI_REFERER
+
+
+@api.get("/jobs/{job_id}/thumbnail")
+def get_thumbnail(
+    job_id: int,
+    storage: Storage = Depends(get_storage),
+) -> Response:
+    """封面缩略图：按 job_id 取 cover_url，命中缓存直返，否则按需抓取 + 缓存。
+
+    红线#1：只走 job_id，不接受任意路径。
+    无 job / 无 artifact / 无 cover_url / 上游抓取失败 → 404（语义：「无缩略图」，绝不 500）。
+    """
+    job = storage.get_job(job_id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="Job not found")
+
+    try:
+        art = artifacts.load_extract(job_id)
+    except FileNotFoundError:
+        raise HTTPException(status_code=404, detail="No thumbnail") from None
+    cover_url = art.get("cover_url")
+    if not cover_url:
+        raise HTTPException(status_code=404, detail="No thumbnail")
+
+    cached = thumbnail_cache.load(job_id)
+    if cached is not None:
+        data, content_type = cached
+        return Response(
+            content=data,
+            media_type=content_type,
+            headers={"Cache-Control": "max-age=86400"},
+        )
+
+    from app.extract.pipeline import build_proxies
+
+    platform = art.get("platform") or job.get("platform")
+    headers = {
+        **model.DEFAULT_MEDIA_HEADERS,
+        "Referer": _thumbnail_referer(platform),
+    }
+    try:
+        resp = requests.get(
+            cover_url,
+            headers=headers,
+            timeout=(5, 15),
+            proxies=build_proxies(os.getenv("RBCP_PROXY")),
+        )
+    except Exception as error:  # noqa: BLE001 - 抓封面失败一律降级 404，绝不 500
+        logger.warning("[thumbnail %s] fetch failed: %s", job_id, error)
+        raise HTTPException(status_code=404, detail="No thumbnail") from None
+    if resp.status_code != 200:
+        logger.warning("[thumbnail %s] upstream HTTP %s for %s", job_id, resp.status_code, cover_url)
+        raise HTTPException(status_code=404, detail="No thumbnail")
+
+    content_type = resp.headers.get("content-type", "image/jpeg")
+    thumbnail_cache.save(job_id, resp.content, content_type)
+    return Response(
+        content=resp.content,
+        media_type=content_type,
+        headers={"Cache-Control": "max-age=86400"},
+    )
+
+
+@api.delete("/jobs/{job_id}")
+def delete_job(
+    job_id: int, storage: Storage = Depends(get_storage),
+) -> dict:
+    if not storage.delete_job(job_id):
+        raise HTTPException(status_code=404, detail="Job not found")
+    artifacts.delete(job_id)
+    digest_cache.delete(job_id)
+    thumbnail_cache.delete(job_id)
+    return {"deleted": job_id}
+
+
+app.include_router(api)
 
 
 @app.get("/")

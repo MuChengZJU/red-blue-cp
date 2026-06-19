@@ -24,6 +24,14 @@
 - **单篇笔记 → 主要给人用**：浏览器点一下，或一条命令。
 - **博主全量 → 主要给 Agent 用**：先列清单，Agent 按规则筛选，再逐条下。筛选规则不写死进工具，交 Agent，保持灵活。
 
+**0.6 形态演进（2026-06-15 定，详见 [PLAN v0.6](PLAN.md) / [devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md)）**：从"管道 + 自部署 WebUI"演进为**给人的速览产品**（引擎仍开源，加产品层）。
+
+- 产品 = **RBCP**，一条 Pipeline：**Extract**（采集转录→忠实原文，无损）→ **Digest**（高亮/卡片/脉络，有损 LLM，与 Extract 隔离）→ **Render**。
+- 形态壳：**RBCP CLI**（`rbcp`，给 Agent/脚本/批量）+ **RBCP Desktop**（Tauri GUI，给人，灵魂=速览；**原门控 P2 桌面 GUI 在此正式启动**）+ 将来 **RBCP Mobile**（触达，连云）。
+- **RBCP Cloud（私有）** = 托管后端 + 计费，单独私有仓库，**不在开源范围**。
+- 命名消歧：单说 RBCP=整个产品；指明用 RBCP CLI / RBCP Desktop / RBCP Mobile。
+- 砍：本地模型（伪需求）；defer：收藏夹同步（隐私）、知识库管理（保留最小 Library）。
+
 ### 第二层 · 核心流水线
 
 | 平台 | 内容类型 | 主路径 | 兜底 |

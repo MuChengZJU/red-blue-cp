@@ -13,10 +13,10 @@ import json
 
 import pytest
 
-from app.service import batch as batch_mod
-from app.service.batch import run_batch
-from app.service.errors import AuthError, ConfigError, NetworkError
-from app.service.storage import Storage
+from app.extract import batch as batch_mod
+from app.extract.batch import run_batch
+from app.extract.errors import AuthError, ConfigError, NetworkError
+from app.extract.storage import Storage
 
 
 # ── fixtures ────────────────────────────────────────────────────

@@ -13,7 +13,7 @@ from pathlib import Path
 
 import pytest
 
-from app.service.discover import (
+from app.extract.discover import (
     Comment,
     CommentPage,
     Note,

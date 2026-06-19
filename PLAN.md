@@ -13,6 +13,7 @@
 | M2 | 3-5 | P1 规模化（按子优先级串行） | 🔄 进行中：M2b/M2c ✅ |
 | M3 | 按需 | P2 完善 | 未启动 |
 | M4 | 3-4 | 博主安全批量 + 错误地基（插件抓清单 + 代理批量下载，补 M2b 残次品） | ✅ 阶段1完成 2026-06-06（WebUI 导入入口推迟） |
+| M6 | 并行 | **v0.6 速览产品**：Pipeline = Extract→Digest→Render + 两壳 RBCP Desktop/CLI（地基 M6a 先行，后 fan out） | ✅ 建成+验证 2026-06-16（feat/0.6，566 测试，未发布；详见 §v0.6） |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
 P1 = M2 ≈ 3-5 天（M2b/M2c ✅，M2a/d/e/f 未启动）
@@ -36,6 +37,41 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 
 **发布判据**：四块进 main → pyproject `version=0.3.0`（已 bump）→ 打 `v0.3.0` tag → CI 自动发 PyPI。
 **不在 v0.3**：Tauri 桌面 GUI（P2 门控）、知识库浏览页（Q2 待定）。
+
+---
+
+## v0.6 · 速览产品（Extract → Digest → Render；RBCP CLI / RBCP Desktop）
+
+> 方向调头（2026-06-15 定，详见 [LOG 决策纲要](LOG.md) / [devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md)）：从"开源管道层"演进为**给人的速览产品**——引擎仍开源，在其上加产品层。
+> 产品 = **RBCP**，一条 Pipeline：**Extract**（采集转录→忠实原文，开源库 `rbcp-extract`，原 Core）→ **Digest**（高亮/卡片/脉络，有损 LLM，`rbcp-digest`，与 Extract 隔离）→ **Render**。两壳 **RBCP CLI**（`rbcp`）/ **RBCP Desktop**（Tauri；原门控 P2 桌面 GUI 在此启动）；将来 **RBCP Mobile**。**RBCP Cloud（私有）** 托管+计费，单独私有仓库，不在开源范围。
+> 命名消歧：单说 RBCP=整个产品；指明用 RBCP CLI / RBCP Desktop / RBCP Mobile。
+
+### 节奏：已设计的并行干，没想清的串行
+
+**M6 并行批 ✅ 全部建成 + 验证（2026-06-16，`feat/0.6-extract-digest-render`，566 测试，两条真链路实测，未发布）**
+
+| 子里程碑 | 内容 | 状态 |
+|---|---|---|
+| M6-pre 改名 | `service/`→`extract/`（机械改名 + 弃用 shim） | ✅ |
+| 契约锁定 §A/§B/§C | dataclass 桩 + import-lint（4-lens 对抗审查补强，关键不变量自执行） | ✅ |
+| M6a 配置清零（地基） | platformdirs 配置发现（修 `~/.config/rbcp/.env` 硬伤）+ PR#46 | ✅ |
+| M6b Extract 清接口 | extract 迁冻结契约（canonical+readable+segments+sha256）+ build_canonical | ✅ 真链路（44段对齐/毫秒） |
+| M6c Digest | LLM 三形态 + 确定性服务端锚定（exact→normalized，低置信进 diagnostics）；3-lens 对抗验证修 2 major | ✅ 真链路（100% exact） |
+| M6f RBCP CLI | `rbcp digest/ls` + 门面动词；run/fetch/list 留别名（get/blogger/search 待补） | ✅ |
+| M6e Desktop 壳 | Tauri v2 + PyInstaller sidecar（spike：onefile 9MB/365ms、onedir 20MB/30ms） | ✅ build 过、端到端 |
+| M6d 速览三形态 + Render | desktop 前端同屏渲染 高亮跳读/卡片金句/脉络（codepoint 切片） | ✅ headless 验证 |
+
+**收尾欠账**：desktop 用 vendored 引擎拷贝（待接真 app/ 或 `rbcp digest --json`）；未打包/发布；CLI `get/blogger/search` 别名/全文检索待补。
+**串行往后（没设计透）**：RBCP Cloud 后端 · 计费 · RBCP Mobile · 精读跨篇 · 可追溯速览。
+
+### 砍 / defer
+
+- **砍**：本地模型 / 本地引擎（伪需求）。
+- **defer**：收藏夹自动同步（隐私死穴：平台收藏夹需公开可见才抓得到）；知识库管理（另一个产品 + 不熟，先做起来再说）。保留**最小 Library**（历史/搜索/状态/原链接，现 WebUI 已有雏形）。
+
+### 不在 v0.6（明确）
+
+RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未透，串行往后）。**商业相关（计费/定价/收款）属私有，不进开源文档。**
 
 ---
 
