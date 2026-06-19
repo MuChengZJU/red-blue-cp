@@ -184,6 +184,8 @@ uv run rbcp digest "<链接>"      # 转录 + 生成速览（高亮/卡片/脉�
 | [PLAN.md](./PLAN.md) | 里程碑进度 |
 | [LOG.md](./LOG.md) | 演进日志索引（决策 / 开发 / 经验） |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更 |
+| [AGENTS.md](./AGENTS.md) | AI agent / 贡献者规则书（CLAUDE.md `@import` 它） |
+| [RELEASING.md](./RELEASING.md) | 发布流程（打 tag → CI 自动发 PyPI + 桌面 Release） |
 | [extension/README.md](extension/README.md) | 浏览器插件安装与使用 |
 | [desktop/README.md](desktop/README.md) | 桌面客户端构建与运行 |
 
