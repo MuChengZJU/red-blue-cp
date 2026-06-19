@@ -63,7 +63,16 @@ gh release create vX.Y.Z \
 
 桌面端**未签名**，Release 正文要写明：打开 DMG → 拖进「应用程序」→ 首次「右键 → 打开」过 Gatekeeper。
 
-> **Windows / Intel Mac 待办**：当前只出 macOS arm64。Windows `.exe`/`.msi` 无法在 mac 上交叉构建——PyInstaller sidecar 必须在目标平台上打、Tauri 的 Windows 包也需 Windows 工具链。要做得搭一条 GitHub Actions 跨平台 release 工作流（`windows-latest` 跑 sidecar 打包 + `cargo tauri build` 出 NSIS/WiX 包，矩阵化上传到 Release）；且 Windows 引擎本身（ffmpeg / 路径 / `%APPDATA%` 配置发现）尚未在 Windows 上验证过。属独立工程，未排期。
+### 4b. 云端跨平台构建（mac + Windows）
+
+`.github/workflows/desktop-release.yml` 在云端构建桌面端二进制，**无需本地 Windows**：
+
+- **触发**：打 tag `v*` 自动构建并上传到对应 Release（mac `.dmg` + Windows `.exe`）；或 `workflow_dispatch` 手动跑（只产 artifact 供下载测试，不动 Release）。
+- **手动测试一发**（不打 tag）：`gh workflow run "Desktop Release" --ref main`，跑完去 Actions 下载 `windows-exe` / `macos-dmg` artifact。
+- **macOS** job 跑 `macos-14`（arm64）→ `build.sh` 打 sidecar → `cargo tauri build --bundles dmg`。
+- **Windows** job 跑 `windows-latest`（x64）→ PyInstaller 打 `rbcp-serve.exe`（`--add-data` 用 `;` 分隔）→ sidecar smoke 测试（非阻断）→ `cargo tauri build --bundles nsis` 出 `.exe`。
+
+> ⚠️ **Windows「能构建 ≠ 已验证」**：CI 只保证打得出包，引擎的 ffmpeg / 路径 / `%APPDATA%` 配置发现尚未在 Windows 实机跑过真链路。smoke 测试只挡「装上就崩」级别的错。要正式 GA Windows，须实机点验 + 按暴露的坑回修引擎。Intel Mac（x86_64）同理未排期。
 
 ## 想反悔（tag 推出去之前）
 
