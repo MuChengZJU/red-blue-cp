@@ -37,7 +37,7 @@ jobs:
       - name: Rename asset
         run: |
           src=$(ls desktop/src-tauri/target/release/bundle/dmg/*.dmg)
-          cp "$src" "RBCP-Desktop-${GITHUB_REF_NAME}-macos-arm64.dmg"
+          cp "$src" "RBCP-Desktop-${GITHUB_REF_NAME#v}-macos-arm64.dmg"
       - uses: actions/upload-artifact@v4
         with:
           name: macos-dmg
@@ -78,14 +78,15 @@ jobs:
       - name: Sidecar smoke test (起 serve + 打一下)
         shell: bash
         run: |
-          # sidecar 绑随机端口，首行 stdout 吐 {"port":...,"token":...}（见 serve_entry.py）。
+          # sidecar 绑随机端口，stdout 某行吐 {"port":...,"token":...}（见 serve_entry.py）。
+          # 注意：uvicorn 的 INFO 日志排在 JSON 前，且重定向到文件是块缓冲——
+          # 故 PYTHONUNBUFFERED=1 立即刷新 + grep 整个文件（别只读首行）。
           BIN="desktop/src-tauri/binaries/rbcp-serve-x86_64-pc-windows-msvc.exe"
-          "$BIN" > sidecar.log 2>&1 &
+          PYTHONUNBUFFERED=1 "$BIN" > sidecar.log 2>&1 &
           SVPID=$!
           PORT=""
-          for i in $(seq 1 30); do
-            line=$(head -n1 sidecar.log 2>/dev/null || true)
-            PORT=$(echo "$line" | sed -n 's/.*"port"[^0-9]*\([0-9][0-9]*\).*/\1/p')
+          for i in $(seq 1 45); do
+            PORT=$(grep -o '"port"[^0-9]*[0-9][0-9]*' sidecar.log 2>/dev/null | grep -o '[0-9][0-9]*' | tail -n1)
             [ -n "$PORT" ] && break
             sleep 1
           done
@@ -105,7 +106,7 @@ jobs:
         shell: bash
         run: |
           src=$(ls desktop/src-tauri/target/release/bundle/nsis/*.exe)
-          cp "$src" "RBCP-Desktop-${GITHUB_REF_NAME}-windows-x64-setup.exe"
+          cp "$src" "RBCP-Desktop-${GITHUB_REF_NAME#v}-windows-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         with:
           name: windows-exe
