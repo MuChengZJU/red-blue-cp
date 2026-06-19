@@ -166,9 +166,13 @@ def test_digest_failure_nonzero_exit():
 
 
 def test_digest_help_lists_command():
-    result = runner.invoke(app, ["digest", "--help"])
+    # COLUMNS=200 防 rich 帮助在窄终端（CI 默认 80 列）把 --json 截断/换行；
+    # 再去掉 ANSI 样式码，避免颜色码插进字符串打断匹配（新版 typer/rich 渲染差异）。
+    import re
+    result = runner.invoke(app, ["digest", "--help"], env={"COLUMNS": "200"})
     assert result.exit_code == 0
-    assert "--json" in result.stdout
+    out = re.sub(r"\x1b\[[0-9;]*m", "", result.stdout)
+    assert "--json" in out
 
 
 # ---------------- Extract 门面动词 ----------------
