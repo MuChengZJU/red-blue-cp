@@ -2,7 +2,7 @@
 
 本仓库的发布**自动化**：打 tag `v*` → GitHub Actions（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）跑测试 → `uv build` → **PyPI Trusted Publishing（OIDC）自动发布**。**不需要、也不要手动 `uv publish` 或 PyPI token。**
 
-PyPI 是「打 tag 自动发」，**不是**命令行手动发。桌面端 `.app` 走单独的 GitHub Release（手动 `gh release create` 附二进制）。
+PyPI 是「打 tag 自动发」，**不是**命令行手动发。桌面端 `.dmg` 走单独的 GitHub Release（手动 `gh release create` 附二进制）。
 
 ## 一次性前置（已配好，新人参考）
 
@@ -43,26 +43,27 @@ git push origin vX.Y.Z                          # ← 这一步触发 publish.ym
 
 去 Actions 看 `Publish to PyPI` 跑绿；几分钟后 https://pypi.org/project/red-blue-cp/ 出现新版本。验证：`pipx install red-blue-cp==X.Y.Z`。
 
-### 4. GitHub Release（附桌面 .app，手动）
+### 4. GitHub Release（附桌面 .dmg，手动）
 
-CI 只发 PyPI，不建 Release。桌面端二进制单独发：
+CI 只发 PyPI，不建 Release。桌面端二进制单独发。`tauri.conf.json` 的 `bundle.targets` 已设 `["app", "dmg"]`，构建即出 DMG：
 
 ```bash
-# 构建桌面 .app（macOS arm64）
+# 构建桌面 .dmg（macOS arm64）
 cd desktop/sidecar && bash build.sh             # 先重打 sidecar（含最新 Python 源码）
-cd .. && cargo tauri build                       # 出 src-tauri/target/release/bundle/macos/RBCP Desktop.app
-# 打包（用 ditto 保 macOS 元数据）
-ditto -c -k --keepParent \
-  "src-tauri/target/release/bundle/macos/RBCP Desktop.app" \
-  "RBCP-Desktop-X.Y.Z-macos-arm64.app.zip"
-# 建 Release，附 zip
+cd .. && cargo tauri build --bundles dmg         # 出 src-tauri/target/release/bundle/dmg/RBCP Desktop_X.Y.Z_aarch64.dmg
+# 重命名成无空格资产名
+cp "src-tauri/target/release/bundle/dmg/RBCP Desktop_X.Y.Z_aarch64.dmg" \
+   "RBCP-Desktop-X.Y.Z-macos-arm64.dmg"
+# 建 Release，附 dmg
 gh release create vX.Y.Z \
   --title "vX.Y.Z — 主题" \
   --notes-file <release-notes.md> \
-  "RBCP-Desktop-X.Y.Z-macos-arm64.app.zip"
+  "RBCP-Desktop-X.Y.Z-macos-arm64.dmg"
 ```
 
-桌面端**未签名**，Release 正文要写明首次打开「右键 → 打开」过 Gatekeeper。
+桌面端**未签名**，Release 正文要写明：打开 DMG → 拖进「应用程序」→ 首次「右键 → 打开」过 Gatekeeper。
+
+> **Windows / Intel Mac 待办**：当前只出 macOS arm64。Windows `.exe`/`.msi` 无法在 mac 上交叉构建——PyInstaller sidecar 必须在目标平台上打、Tauri 的 Windows 包也需 Windows 工具链。要做得搭一条 GitHub Actions 跨平台 release 工作流（`windows-latest` 跑 sidecar 打包 + `cargo tauri build` 出 NSIS/WiX 包，矩阵化上传到 Release）；且 Windows 引擎本身（ffmpeg / 路径 / `%APPDATA%` 配置发现）尚未在 Windows 上验证过。属独立工程，未排期。
 
 ## 想反悔（tag 推出去之前）
 

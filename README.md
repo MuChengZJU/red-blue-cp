@@ -94,9 +94,10 @@ rbcp digest "B站或小红书链接"     # 转录 + 生成速览（高亮/卡片
 
 0.6 起提供原生桌面 app（内置 serve，装好打开即用，界面里就能配 Key / 看任务 / 读速览）：
 
-1. 去 [Releases](https://github.com/MuChengZJU/red-blue-cp/releases) 下载 `RBCP-Desktop-*.app`（当前 **macOS arm64**）。
-2. 首次打开：直接双击会被 macOS 拦（提示「无法打开」，因为本版未做代码签名）——**右键 app → 打开**，在弹窗里再点「打开」确认一次即可，之后正常双击。
-3. 在「设置」里填百炼 API Key，回到「任务列表」粘链接即可。
+1. 去 [Releases](https://github.com/MuChengZJU/red-blue-cp/releases) 下载 `RBCP-Desktop-*.dmg`（当前 **macOS arm64**）。
+2. 打开 DMG，把 **RBCP Desktop** 拖进「应用程序」文件夹。
+3. 首次打开：直接双击会被 macOS 拦（提示「无法打开」，因为本版未做代码签名）——**右键 app → 打开**，在弹窗里再点「打开」确认一次即可，之后正常双击。
+4. 在「设置」里填百炼 API Key，回到「任务列表」粘链接即可。
 
 > 当前仅 macOS arm64，且未签名（开源项目暂无签名证书）。Windows / Intel Mac 待后续；想自己构建见 [desktop/README.md](desktop/README.md) 或下方"技术"。
 
