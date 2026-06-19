@@ -54,7 +54,7 @@
 
 - **0.6 · 速览产品（已发布）**：忠实原文之上加一层"速览"——重点**高亮跳读** / **卡片金句** / **脉络梳理**，一竖屏抓住重点（随时可切回看原文）。架构按 **Extract**（采集转录→忠实原文，无损）→ **Digest**（提炼高亮/金句/脉络，确定性服务端锚定）→ **Render**（呈现）分层；引擎保持开源。新增 **RBCP Desktop** 桌面客户端（当前 macOS arm64）。
 - **下一步**：托管版 RBCP Cloud（按实际使用计费）、手机端、桌面端跨平台（Windows）。这些走私有云，引擎层继续开源。
-- 详见 [0.6 速览产品 devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md) 与 [PLAN.md](PLAN.md) §v0.6。
+- 详见 [0.6 速览产品 devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md) 与 [PLAN.md](docs/PLAN.md) §v0.6。
 
 ---
 
@@ -127,7 +127,7 @@ rbcp digest "B站或小红书链接"     # 转录 + 生成速览（高亮/卡片
 | 去重 | 自动 | 已成功下过的链接再提交会提示，可选强制重下 |
 | 给 Agent 用 | 所有命令加 `--json` | 输出机器可读 JSON + 完整性标记，供 AI 编排内容调研 |
 
-字段契约、完整性标记（区分"拉全了"还是"被风控截断"）见 [SPEC.md](./SPEC.md)。
+字段契约、完整性标记（区分"拉全了"还是"被风控截断"）见 [SPEC.md](docs/SPEC.md)。
 
 ---
 
@@ -171,7 +171,7 @@ uv run rbcp digest "<链接>"      # 转录 + 生成速览（高亮/卡片/脉�
   - [挂机自主完成一个里程碑的复盘](docs/devlog/2026-06-06-overnight-autonomous-m4-retro.md)
   - [并行契约 + spike 先行](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md)
 
-完整索引（决策 / 开发 / 经验三条线）在 [LOG.md](./LOG.md)，全部详情在 [docs/devlog/](docs/devlog/)。
+完整索引（决策 / 开发 / 经验三条线）在 [LOG.md](docs/LOG.md)，全部详情在 [docs/devlog/](docs/devlog/)。
 
 ---
 
@@ -179,13 +179,13 @@ uv run rbcp digest "<链接>"      # 转录 + 生成速览（高亮/卡片/脉�
 
 | 文档 | 内容 |
 |---|---|
-| [PRD.md](./PRD.md) | 产品需求、定位、排期 |
-| [SPEC.md](./SPEC.md) | 技术规格、API、数据模型 |
-| [PLAN.md](./PLAN.md) | 里程碑进度 |
-| [LOG.md](./LOG.md) | 演进日志索引（决策 / 开发 / 经验） |
+| [PRD.md](docs/PRD.md) | 产品需求、定位、排期 |
+| [SPEC.md](docs/SPEC.md) | 技术规格、API、数据模型 |
+| [PLAN.md](docs/PLAN.md) | 里程碑进度 |
+| [LOG.md](docs/LOG.md) | 演进日志索引（决策 / 开发 / 经验） |
 | [CHANGELOG.md](./CHANGELOG.md) | 版本变更 |
 | [AGENTS.md](./AGENTS.md) | AI agent / 贡献者规则书（CLAUDE.md `@import` 它） |
-| [RELEASING.md](./RELEASING.md) | 发布流程（打 tag → CI 自动发 PyPI + 桌面 Release） |
+| [RELEASING.md](docs/RELEASING.md) | 发布流程（打 tag → CI 自动发 PyPI + 桌面 Release） |
 | [extension/README.md](extension/README.md) | 浏览器插件安装与使用 |
 | [desktop/README.md](desktop/README.md) | 桌面客户端构建与运行 |
 

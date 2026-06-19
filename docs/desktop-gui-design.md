@@ -1,7 +1,7 @@
 # RBCP Desktop GUI 设计 · 0.6（功能 / UI-UX / 前端美术）
 
 > 状态：**草案 v2，待审**（已过一轮 5 视角 AI 审：工程/产品/设计UX/安全红线 + Codex；本版把发现都收进来了）。审定后据此写实现计划（writing-plans）并更新 PLAN / DESIGN.md / digest 契约。
-> 视觉 token 见 [DESIGN.md](../DESIGN.md)，采集模型见 [SPEC.md](../SPEC.md)，复用的后端端点见 `app/web/routes.py`，digest 形状见 `docs/contracts/0.6-digest-json-contract.md`。
+> 视觉 token 见 [DESIGN.md](DESIGN.md)，采集模型见 [SPEC.md](SPEC.md)，复用的后端端点见 `app/web/routes.py`，digest 形状见 `docs/contracts/0.6-digest-json-contract.md`。
 > 交互参照物：`_sandbox/0.6-planning/{desktop-gui-mockup,desktop-layout-variants,icon-compare}.html`。
 
 ---
@@ -174,7 +174,7 @@
 
 ### 3.1 设计系统
 
-套用 [DESIGN.md](../DESIGN.md) 红蓝品牌系统（token 不重复）：红蓝撞色 · 大圆角 · 活泼友好 · 内容优先；亮色白底双 glow；品牌字红→蓝渐变。新界面复用 token，不另起炉灶。
+套用 [DESIGN.md](DESIGN.md) 红蓝品牌系统（token 不重复）：红蓝撞色 · 大圆角 · 活泼友好 · 内容优先；亮色白底双 glow；品牌字红→蓝渐变。新界面复用 token，不另起炉灶。
 
 ### 3.2 字体（**提案，DESIGN.md 暂为准**）
 
@@ -211,7 +211,7 @@
 ## 5. 参考
 
 mockup：`_sandbox/0.6-planning/{desktop-gui-mockup,desktop-layout-variants,icon-compare}.html`
-契约/系统：[DESIGN.md](../DESIGN.md)、[SPEC.md](../SPEC.md)、`app/web/routes.py`、`app/cli.py`、`docs/contracts/0.6-digest-json-contract.md`、`app/extract/contracts.py`
+契约/系统：[DESIGN.md](DESIGN.md)、[SPEC.md](SPEC.md)、`app/web/routes.py`、`app/cli.py`、`docs/contracts/0.6-digest-json-contract.md`、`app/extract/contracts.py`
 复盘：[devlog 2026-06-16](devlog/2026-06-16-0.6-m6-build-and-desktop-gap.md)
 
 ## 6. 待决 / 风险

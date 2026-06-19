@@ -2,7 +2,9 @@
 
 > 本仓库的规则书，所有 AI 编码 agent（Claude Code / Codex / Cursor / Copilot / Gemini 等）在本仓库工作时读这份。
 > `CLAUDE.md` 通过 `@AGENTS.md` 指向本文件（单一真相源），只在那边追加 Claude Code 专属内容。
-> 修改前先看 PRD.md / SPEC.md，理解上下文。
+> 修改前先看 `docs/PRD.md` / `docs/SPEC.md`，理解上下文。
+>
+> **仓库布局**：根目录只留 `README.md` / `AGENTS.md` / `CLAUDE.md` / `LICENSE` / `CHANGELOG.md`；其余规划/设计/发布文档（`PRD.md` / `SPEC.md` / `PLAN.md` / `DESIGN.md` / `REFERENCES.md` / `RELEASING.md` / `LOG.md`）全在 **`docs/`** 下。下文凡出现 `PLAN.md`、`SPEC.md` 等裸名，路径都是 `docs/` 里那一份。
 
 ## 项目目标（一句话）
 
@@ -33,7 +35,7 @@ uv run rbcp digest "<链接>"               # 转录 + 生成速览
 cd desktop/sidecar && bash build.sh       # 桌面端 sidecar 重打（改 Python 源码后必须）
 ```
 
-前端是纯 JS（`desktop/frontend/`、`app/web/templates/`），无构建步骤；改完用 `node --check <file>` 过语法。发布流程见 [RELEASING.md](./RELEASING.md)。
+前端是纯 JS（`desktop/frontend/`、`app/web/templates/`），无构建步骤；改完用 `node --check <file>` 过语法。发布流程见 [RELEASING.md](docs/RELEASING.md)。
 
 ## 不变量（红线，违反就是 bug）
 
@@ -105,7 +107,7 @@ P0 不要求高覆盖率，但**必须有以下集成测试**：
 feat(extractor): 实现 extract_url 包装上游 extract 函数
 fix(markdown): 修复 emoji 标题导致的 sanitize 报错
 ```
-**不自动 push**，等人说。合并走 PR（见 [RELEASING.md](./RELEASING.md)）。
+**不自动 push**，等人说。合并走 PR（见 [RELEASING.md](docs/RELEASING.md)）。
 
 ### 多 session 并行协作（多开 agent 同时做不同特性）
 
@@ -211,6 +213,17 @@ bash scripts/check-leaks.sh
 
 - **LOG.md**：纲要索引，分三条线（决策 / 开发 / 经验）。每条新事件加一行索引。
 - **docs/devlog/YYYY-MM-DD-{slug}.md**：详情文档，按需写。模板见 [docs/devlog/TEMPLATE.md](docs/devlog/TEMPLATE.md)。
+
+### 知识该放哪（经验生命周期）
+
+知识不是二选一放死一处，按性质分流、会"流动"。方向单向：规则 → 链回故事，别在多处复制整段。
+
+| 性质 | 去处 | 说明 |
+|---|---|---|
+| 原始记录（某次踩坑/决策的来龙去脉） | `docs/devlog/YYYY-MM-DD-slug.md` 详情 + `LOG.md` 一行索引 | 叙事、带日期、按需查 |
+| 提炼成规则（"以后永远做 X / 永不做 Y"） | **本文件 AGENTS.md** | 只放提炼后一句话 + 链回 devlog 出处；每会话必读，要短要稳 |
+| 可重复执行的流程（发布/部署/搭环境） | `docs/` 下专门 doc（如 [RELEASING.md](docs/RELEASING.md)） | AGENTS 只放链接；别埋进 devlog（找不到），别塞进 AGENTS（太占） |
+| 跨项目 / 关于人机协作方式 | 全局 `~/.claude/CLAUDE.md` 或 agent memory | 不塞进单个仓库 |
 
 ### 何时新增 LOG.md 索引
 

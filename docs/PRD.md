@@ -17,14 +17,14 @@
 
 两个入口共享同一组业务函数。`service/` 核心保持**前端无关**（不依赖 fastapi/typer），WebUI 与 CLI 是其上的薄壳——这条纪律给未来的 GUI 客户端留门（GUI 即第三层薄壳）。
 
-**形态与分发定位（2026-06-03 定，详见 [PLAN §Q1](PLAN.md) / [devlog](docs/devlog/2026-06-03-product-form-and-v3-scope.md)）**：不收敛到单一入口。CLI + 自部署 WebUI 走 **PyPI 分发**（`pipx`/`uv tool` 装）；**Tauri 桌面 GUI 客户端为门控 P2**（有真实非技术用户 + API Key 上手路径想清楚才做），属独立的第二条分发线。
+**形态与分发定位（2026-06-03 定，详见 [PLAN §Q1](PLAN.md) / [devlog](devlog/2026-06-03-product-form-and-v3-scope.md)）**：不收敛到单一入口。CLI + 自部署 WebUI 走 **PyPI 分发**（`pipx`/`uv tool` 装）；**Tauri 桌面 GUI 客户端为门控 P2**（有真实非技术用户 + API Key 上手路径想清楚才做），属独立的第二条分发线。
 
 **入口与受众定位**：同一套功能选项，三种方式设置——WebUI 给**勾选框**、CLI 给**开关**、Agent 听**人话**翻译成开关（工具本身不解析自然语言，翻译在 Agent 侧完成）。其中：
 
 - **单篇笔记 → 主要给人用**：浏览器点一下，或一条命令。
 - **博主全量 → 主要给 Agent 用**：先列清单，Agent 按规则筛选，再逐条下。筛选规则不写死进工具，交 Agent，保持灵活。
 
-**0.6 形态演进（2026-06-15 定，详见 [PLAN v0.6](PLAN.md) / [devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md)）**：从"管道 + 自部署 WebUI"演进为**给人的速览产品**（引擎仍开源，加产品层）。
+**0.6 形态演进（2026-06-15 定，详见 [PLAN v0.6](PLAN.md) / [devlog](devlog/2026-06-15-0.6-speed-read-product.md)）**：从"管道 + 自部署 WebUI"演进为**给人的速览产品**（引擎仍开源，加产品层）。
 
 - 产品 = **RBCP**，一条 Pipeline：**Extract**（采集转录→忠实原文，无损）→ **Digest**（高亮/卡片/脉络，有损 LLM，与 Extract 隔离）→ **Render**。
 - 形态壳：**RBCP CLI**（`rbcp`，给 Agent/脚本/批量）+ **RBCP Desktop**（Tauri GUI，给人，灵魂=速览；**原门控 P2 桌面 GUI 在此正式启动**）+ 将来 **RBCP Mobile**（触达，连云）。
@@ -53,7 +53,7 @@ B 站不自动判断字幕质量，由用户在 UI 手动触发"重抽 ASR"。
 1. **单链接**：即时处理
 2. **批量链接**：粘贴一批 URL，串行 + 限流
 3. **博主全量**：列清单 → 过滤 → 确认 → 下载
-   - 拉取实现（小红书）：**抓清单走浏览器插件（MV3 拦 `user_posted`）+ 下载走 rbcp 代理批量**（安全版，见 [博主安全批量](docs/blogger-safe-batch-feature.md)）；pydoll 版（M2b）转为不稳定可选项。B 站另一套机制，本期不做。
+   - 拉取实现（小红书）：**抓清单走浏览器插件（MV3 拦 `user_posted`）+ 下载走 rbcp 代理批量**（安全版，见 [博主安全批量](blogger-safe-batch-feature.md)）；pydoll 版（M2b）转为不稳定可选项。B 站另一套机制，本期不做。
    - 过滤：列清单（id+标题+类型+日期），由 **Agent 按规则筛选**（关键词或其他），工具不预设过滤维度
    - 下载前**先预览**：报「共 X 篇（图文 N / 视频 M），预计耗时 Y」，确认后再下；`--all` 默认要确认，`--yes` 跳过
    - 内容选项与单篇一致（带评论 / 存媒体 / 纯文本）
@@ -193,4 +193,4 @@ P1h · 任务用量/费用统计（M5a）：每任务记录 ASR 音频时长、V
 - 远期 LLM Wiki 不进需求文档，本项目交付 Markdown 文件库即可
 - 飞书移到 P2
 - P0 原则："产物正确"，不要"架构优雅"
-- 博主全量"抓清单"从 pydoll 改浏览器插件（pydoll 串行裸 IP 不安全、不可分发）；下载走代理（应对固定共享出口 IP）；pydoll 降为不稳定可选项。详见 [博主安全批量](docs/blogger-safe-batch-feature.md)（2026-06-05）
+- 博主全量"抓清单"从 pydoll 改浏览器插件（pydoll 串行裸 IP 不安全、不可分发）；下载走代理（应对固定共享出口 IP）；pydoll 降为不稳定可选项。详见 [博主安全批量](blogger-safe-batch-feature.md)（2026-06-05）

@@ -26,13 +26,13 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 
 ## v0.3 · 形态落地（发布里程碑）
 
-> Q1 形态决策（见下方开放问题 §Q1 / [devlog](docs/devlog/2026-06-03-product-form-and-v3-scope.md)）的首个落地版本：**可分发 + 可自部署 + WebUI 打磨**。
+> Q1 形态决策（见下方开放问题 §Q1 / [devlog](devlog/2026-06-03-product-form-and-v3-scope.md)）的首个落地版本：**可分发 + 可自部署 + WebUI 打磨**。
 
 | 工作流 | 内容 | 状态 |
 |---|---|---|
 | PyPI 上架 | 包元数据 + wheel 可发布（`pipx`/`uv tool` 装） | ✅ 打包配置就绪；发布待 PyPI pending publisher + tag |
 | CI/CD | ci.yml（PR/push 跑测试）+ publish.yml（tag 自动发，Trusted Publishing） | ✅ |
-| WSL 自部署 | 远程可达自部署指南（mirrored 网络 + Tailscale + 群晖同步） | ✅ 指南 [docs/deploy-wsl.md](docs/deploy-wsl.md)；作者实测跑通待验 |
+| WSL 自部署 | 远程可达自部署指南（mirrored 网络 + Tailscale + 群晖同步） | ✅ 指南 [docs/deploy-wsl.md](deploy-wsl.md)；作者实测跑通待验 |
 | WebUI 优化 | 红蓝品牌设计系统 + Markdown 渲染/源码切换 + QA | ✅ |
 
 **发布判据**：四块进 main → pyproject `version=0.3.0`（已 bump）→ 打 `v0.3.0` tag → CI 自动发 PyPI。
@@ -42,7 +42,7 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 
 ## v0.6 · 速览产品（Extract → Digest → Render；RBCP CLI / RBCP Desktop）
 
-> 方向调头（2026-06-15 定，详见 [LOG 决策纲要](LOG.md) / [devlog](docs/devlog/2026-06-15-0.6-speed-read-product.md)）：从"开源管道层"演进为**给人的速览产品**——引擎仍开源，在其上加产品层。
+> 方向调头（2026-06-15 定，详见 [LOG 决策纲要](LOG.md) / [devlog](devlog/2026-06-15-0.6-speed-read-product.md)）：从"开源管道层"演进为**给人的速览产品**——引擎仍开源，在其上加产品层。
 > 产品 = **RBCP**，一条 Pipeline：**Extract**（采集转录→忠实原文，开源库 `rbcp-extract`，原 Core）→ **Digest**（高亮/卡片/脉络，有损 LLM，`rbcp-digest`，与 Extract 隔离）→ **Render**。两壳 **RBCP CLI**（`rbcp`）/ **RBCP Desktop**（Tauri；原门控 P2 桌面 GUI 在此启动）；将来 **RBCP Mobile**。**RBCP Cloud（私有）** 托管+计费，单独私有仓库，不在开源范围。
 > 命名消歧：单说 RBCP=整个产品；指明用 RBCP CLI / RBCP Desktop / RBCP Mobile。
 
@@ -107,7 +107,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 > 目标：终端跑 `rbcp run <url>`，桌面多一个 Markdown 文件。
 >
-> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](docs/devlog/2026-05-09-p0-delivery.md)。
+> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](devlog/2026-05-09-p0-delivery.md)。
 
 ### 执行策略：TDD + Codex 并行
 
@@ -177,8 +177,8 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 > 目标：浏览器粘 URL，看到结果。
 >
-> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](docs/devlog/2026-05-09-p0-delivery.md)。
-> QA 实战 + 接线 bug 复盘见 [docs/devlog/2026-05-09-integration-layer-bugs.md](docs/devlog/2026-05-09-integration-layer-bugs.md)。
+> 实施详情见 [docs/devlog/2026-05-09-p0-delivery.md](devlog/2026-05-09-p0-delivery.md)。
+> QA 实战 + 接线 bug 复盘见 [docs/devlog/2026-05-09-integration-layer-bugs.md](devlog/2026-05-09-integration-layer-bugs.md)。
 
 ### 任务清单
 
@@ -254,7 +254,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 ### M2b · 博主全量（✅ 完成 2026-06-03；抓清单主路径已演进为插件，见 M4，pydoll 转不稳定可选项）
 
-> 实现方式重定为 pydoll **原生网络捕获**（`enable_network_events` + `get_network_logs` + `get_network_response_body`）。设计见 [博主全量+评论设计](docs/devlog/2026-06-02-blogger-full-and-comments-design.md)，实现踩坑见 [Phase 2 实测复盘](docs/devlog/2026-06-03-pydoll-native-capture-and-login.md)。只做小红书；B 站另一套机制本期不做。
+> 实现方式重定为 pydoll **原生网络捕获**（`enable_network_events` + `get_network_logs` + `get_network_response_body`）。设计见 [博主全量+评论设计](devlog/2026-06-02-blogger-full-and-comments-design.md)，实现踩坑见 [Phase 2 实测复盘](devlog/2026-06-03-pydoll-native-capture-and-login.md)。只做小红书；B 站另一套机制本期不做。
 > 真链路实测：清单抓 90 笔记（真标题/token/点赞），频率 ~14 请求/分钟。**新增 `rbcp login` 扫码登录命令**作为最终用户拿 cookie 的入口。
 
 - [ ] 加依赖 `pydoll`（CDP 连系统 Chrome，不打包 chromium）；宿主需装 Chrome/Edge
@@ -326,12 +326,12 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 ## M4 · 博主安全批量 + 错误地基（✅ 阶段1完成 2026-06-06）
 
-> 完整设计见 [博主安全批量功能文档](docs/blogger-safe-batch-feature.md)。把博主全量从 M2b 的 pydoll 串行（"能跑的残次品"：自动化痕迹 + 串行裸 IP）补成**安全可用**：抓清单改浏览器插件、下载走代理。同时补全项目错误处理（见 [错误审计](docs/error-handling-audit.md)）。
+> 完整设计见 [博主安全批量功能文档](blogger-safe-batch-feature.md)。把博主全量从 M2b 的 pydoll 串行（"能跑的残次品"：自动化痕迹 + 串行裸 IP）补成**安全可用**：抓清单改浏览器插件、下载走代理。同时补全项目错误处理（见 [错误审计](error-handling-audit.md)）。
 > 执行：先串行 **M4a** 打地基（PR #16），再 **M4b（PR #17）‖ M4c（PR #18）** 并行。三个 PR 各过 Codex 独立 review。
 > 真链路验收：真实小红书 URL 跑 `rbcp batch --text-only` 端到端出 Markdown + 断点续传 live 验证；插件↔batch 数据契约跨语言验证通过。
 > **未做（留后续）**：WebUI 导入清单入口（需浏览器 QA，自主夜间未验，明确推迟）；完整 §十二 验收（插件真抓 326 + 代理出口 + ≥5 含视频）需用户登录态浏览器 + 配好代理。
 
-> 波1（并行写计划 + 契约交叉核对 + token 过期 spike）已完成，见 [M4 波1 契约 + spike](docs/devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md)。下方任务已据此细化。
+> 波1（并行写计划 + 契约交叉核对 + token 过期 spike）已完成，见 [M4 波1 契约 + spike](devlog/2026-06-05-m4-wave1-contracts-and-token-spike.md)。下方任务已据此细化。
 
 ### M4a · 错误地基（串行，锁公共接缝）— 独占 `errors.py`(新)/`pipeline.py`(新)/`model.py`/`storage.py`/`extractor.py`+`fetcher.py`(仅 proxy 穿透)
 - [ ] `service/errors.py`：异常最小集（RbcpError/UnsupportedUrlError/ConfigError/NetworkError/ApiError/RiskControlError/AuthError(含 `reason`)/ParseError）+ 结构化字段 + `format_error_for_user()`
@@ -366,7 +366,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 ## M5 · 流式+用量统计 + WebUI v2（待启动，0.4.0 后）
 
-> 来源：0.4.0 发布后用户实测反馈 + provider 调研。详见 [M4 交付 + UX 迭代](docs/devlog/2026-06-06-m4-ship-and-ux-iteration.md)。建议拆成两批，先做 M5a（解掉现有痛点）。
+> 来源：0.4.0 发布后用户实测反馈 + provider 调研。详见 [M4 交付 + UX 迭代](devlog/2026-06-06-m4-ship-and-ux-iteration.md)。建议拆成两批，先做 M5a（解掉现有痛点）。
 > 2026-06-06 范围调整：provider 可配（Gemini 入口）因无真实需求**移出 M5a**，进下方待办区；M5a 改为「流式修超时 + 用量统计」（用户提出要看每任务 ASR/VLM 花多少 token/时间/钱）。
 
 ### M5a · 流式修超时 + 任务用量统计（高优先，一个 PR，0.4.1）
@@ -390,7 +390,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 ### 待办（无触发不做）
 - provider env 化（`RBCP_LLM_BASE_URL`/`_MODEL`/`_API_KEY`，VLM 同理，默认 DashScope，不引 SDK）：等真实换模型需求出现再做；M5a 流式改造已留好泛化解析的门。
-- **模型横评实验（平台化才触发）**：对比不同 ASR/VLM/LLM 模型的**效果 / 成本 / 延迟 / 耗时**，给「该用哪个模型」一个数据支撑而非拍脑袋。重点验 **VLM 切 Gemini 免费层**能省多少（图文识别场景）。**触发条件 = 做成多用户平台**（个体用户成本已 trivial，几毛钱一条，不值得动；平台聚合量大才需要省）。价格调研结论（2026-06-08，全球比价）：现状 paraformer-v2(ASR 0.29元/小时,含每月免费10h+中文最稳+免费说话人分离) + qwen3-vl-flash(VLM 0.0012元/张) **已是全球最便宜档**；唯一「每天循环白嫖」是 Gemini 免费层（一套额度覆盖音频+图像），但 ASR 走 Gemini 丢说话人分离。详见 [全球模型比价](docs/devlog/2026-06-08-global-model-pricing-and-benchmark-plan.md)。
+- **模型横评实验（平台化才触发）**：对比不同 ASR/VLM/LLM 模型的**效果 / 成本 / 延迟 / 耗时**，给「该用哪个模型」一个数据支撑而非拍脑袋。重点验 **VLM 切 Gemini 免费层**能省多少（图文识别场景）。**触发条件 = 做成多用户平台**（个体用户成本已 trivial，几毛钱一条，不值得动；平台聚合量大才需要省）。价格调研结论（2026-06-08，全球比价）：现状 paraformer-v2(ASR 0.29元/小时,含每月免费10h+中文最稳+免费说话人分离) + qwen3-vl-flash(VLM 0.0012元/张) **已是全球最便宜档**；唯一「每天循环白嫖」是 Gemini 免费层（一套额度覆盖音频+图像），但 ASR 走 Gemini 丢说话人分离。详见 [全球模型比价](devlog/2026-06-08-global-model-pricing-and-benchmark-plan.md)。
 
 ### M5b · WebUI v2（0.5.0，进行中 2026-06-07）
 - [x] 主页面整合「单条 / 批量」两个标签，去掉独立 `/batches` 页（路由重定向回主页）。
@@ -429,7 +429,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 
 ### Q1 · 产品形态：自部署服务端 / 打包客户端 / 命令行 / 包？ ✅ 已定（2026-06-03）
 
-> 完整诊断与部署拓扑见 [产品形态定案与 V3 范围](docs/devlog/2026-06-03-product-form-and-v3-scope.md)。
+> 完整诊断与部署拓扑见 [产品形态定案与 V3 范围](devlog/2026-06-03-product-form-and-v3-scope.md)。
 
 候选（讨论时的四个方向）：自部署服务端 / 打包客户端(Tauri) / 纯 CLI / Python 包。
 

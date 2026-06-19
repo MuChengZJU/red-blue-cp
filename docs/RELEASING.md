@@ -1,6 +1,6 @@
 # 发布流程（RELEASING）
 
-本仓库的发布**自动化**：打 tag `v*` → GitHub Actions（[`.github/workflows/publish.yml`](.github/workflows/publish.yml)）跑测试 → `uv build` → **PyPI Trusted Publishing（OIDC）自动发布**。**不需要、也不要手动 `uv publish` 或 PyPI token。**
+本仓库的发布**自动化**：打 tag `v*` → GitHub Actions（[`.github/workflows/publish.yml`](../.github/workflows/publish.yml)）跑测试 → `uv build` → **PyPI Trusted Publishing（OIDC）自动发布**。**不需要、也不要手动 `uv publish` 或 PyPI token。**
 
 PyPI 是「打 tag 自动发」，**不是**命令行手动发。桌面端 `.app` 走单独的 GitHub Release（手动 `gh release create` 附二进制）。
 
