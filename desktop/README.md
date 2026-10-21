@@ -56,6 +56,17 @@ digest 的 lazy import；digest 纯标准库依赖，闭包小、不拉 fastapi/
 LLM 部分用 `FakeProvider` 离线确定性替代、`_build_extract` 是桩，不需要真 API key——
 联调真链路时把 `run_digest` 换成调 `rbcp digest <url> --json`（M6f 那侧，形状一致）。
 
+## 设置（0.7 自定义模型服务商）
+
+设置页（`frontend/screens/settings.js`）不再只写一个百炼 Key：
+
+- **服务商预设**：千问AI平台（默认，`cn-beijing.maas.qianwenaiapi.com`）/ 旧百炼 DashScope / 自定义 OpenAI 兼容。切预设会同时改 ASR/VLM/LLM 的 base_url 与推荐模型。
+- **分能力配置**：ASR / VLM / LLM 各自 base_url、专用 Key（可留空继承通用 Key）、模型名。
+- **图片传法**：`auto`（千问/百炼传 URL，第三方先下载转 base64）/ `url` / `base64`。
+- **测试连接（先保存）**：逐个调 `POST /api/config/test`，ASR 只取上传凭证（不计费），VLM/LLM 发 8 token 的短请求。
+
+改了 Python 后端（`app/`）仍需 `bash sidecar/build.sh` 重打 sidecar；只改 `frontend/` 重载 app 即可。
+
 ## Spike 结论（PyInstaller 体积 / 冷启动，macOS arm64）
 
 | 模式 | 体积 | 冷启动（10 次均值） | 适用 |
