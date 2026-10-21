@@ -36,6 +36,7 @@ export const api = {
   importList(payload)        { return _fetch("POST", "/api/import-list", payload); },
   getConfig()                { return _fetch("GET",  "/api/config"); },
   setConfig(payload)         { return _fetch("POST", "/api/config", payload); },
+  testConfig(target)         { return _fetch("POST", "/api/config/test", { target }); },
   downloadUrl(id)            { return _base + "/api/jobs/" + id + "/download"; },
   // 导出 .md：必须带 Authorization 头去取（<a href> 跳转不带头 → 后端 401「Not
   // authenticated」，且会把 webview 整个导航到 401 JSON 页、没退路）。这里 fetch 成

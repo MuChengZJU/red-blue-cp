@@ -274,3 +274,22 @@ svg.lu{ width:17px; height:17px; stroke-width:2; vertical-align:middle; }
 /* 早期转录（无速览数据）回退阅读的提示条 */
 .md-fallback-banner{ max-width:760px; margin:0 auto 14px; padding:10px 14px; border-radius:var(--r-sm); background:rgba(217,130,26,.12); color:#9a5a00; font-size:13px; line-height:1.6; font-weight:600; }
 .md-fallback-bar{ max-width:760px; margin:0 auto 8px; display:flex; justify-content:flex-end; }
+
+/* ===== 0.7 设置页：自定义模型服务商 ===== */
+.settings-section{ border:1px solid var(--line); border-radius:var(--r-card); padding:16px 18px 6px; margin:0 0 16px; background:var(--bg); }
+.settings-section-head{ display:flex; align-items:center; gap:8px; margin-bottom:4px; }
+.settings-section-head h3{ margin:0; font-size:14px; font-weight:800; letter-spacing:-.01em; }
+.settings-badge{ font-size:10.5px; font-weight:800; letter-spacing:.04em; color:var(--muted); background:var(--soft-2); border-radius:var(--r-pill); padding:2px 8px; }
+.settings-section > .desc{ font-size:11.5px; color:var(--faint); font-weight:500; margin-bottom:12px; line-height:1.6; }
+.settings-section .field{ margin-bottom:14px; }
+.settings-provider{ background:var(--soft); }
+.settings-test{ display:flex; align-items:center; gap:10px; margin:0 0 14px; }
+.settings-test .btn-soft{ width:auto; margin-top:0; padding:7px 12px; }
+.settings-test-out{ font-size:11.5px; font-weight:600; color:var(--muted); line-height:1.5; word-break:break-word; }
+.settings-test-out.ok{ color:var(--rb-green); }
+.settings-test-out.fail{ color:var(--rb-red-strong); }
+.settings-actions{ display:flex; align-items:center; gap:12px; margin:4px 0 8px; }
+.settings-actions .btn-primary{ width:auto; }
+.settings-fb{ font-size:12.5px; font-weight:600; color:transparent; transition:color .15s; }
+.settings-fb.ok{ color:var(--rb-green); }
+.settings-fb.fail{ color:var(--rb-red-strong); }
