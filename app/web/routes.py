@@ -291,8 +291,33 @@ def set_config(payload: dict = Body(...)) -> dict:
     """保存设置：即时设进 os.environ（运行中下次请求生效）+ 落配置 .env（重启仍在）。"""
     from app.web import config_api
 
-    applied = config_api.set_config(payload)
+    try:
+        applied = config_api.set_config(payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return {"ok": True, "applied": applied}
+
+
+@api.post("/config/test")
+def test_config(payload: dict = Body(default={})) -> dict:
+    """探测模型服务连通性（设置页「测试连接」）。
+
+    统一返回 200 + ok 字段：前端只关心结果；真实报错体（服务商 JSON）放进 detail，
+    方便用户定位「模型名不存在 / key 无效 / base_url 写错」。
+    """
+    from app.web import config_api
+
+    target = str(payload.get("target") or "llm")
+    try:
+        return config_api.test_connection(target)
+    except Exception as error:  # noqa: BLE001 - 探测失败要回给设置页，不是 500
+        logger.warning("[config test] target=%s failed: %s", target, error)
+        return {
+            "ok": False,
+            "target": target,
+            "error": format_error_for_user(error),
+            "detail": _safe_error_detail(error),
+        }
 
 
 @api.get("/jobs/{job_id}")

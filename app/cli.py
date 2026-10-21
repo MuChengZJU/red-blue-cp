@@ -544,10 +544,20 @@ def config() -> None:
         tag = "  ← 当前生效" if primary is not None and path == primary else ""
         typer.echo(f"  {i}. [{mark}] {path}{tag}")
 
-    key = os.getenv("DASHSCOPE_API_KEY", "")
-    if key:
-        masked = f"{key[:4]}…{key[-2:]}" if len(key) > 6 else "已设置"
-        typer.echo(f"DASHSCOPE_API_KEY：{masked}")
+    from app.model_endpoints import asr_endpoint, llm_endpoint, vlm_endpoint
+
+    shared = os.getenv("DASHSCOPE_API_KEY", "")
+    if shared:
+        masked = f"{shared[:4]}…{shared[-2:]}" if len(shared) > 6 else "已设置"
+        typer.echo(f"DASHSCOPE_API_KEY（共享 key）：{masked}")
     else:
-        typer.secho("DASHSCOPE_API_KEY：未设置（必填）", fg=typer.colors.YELLOW)
+        typer.secho("DASHSCOPE_API_KEY：未设置（各能力也可用 RBCP_*_API_KEY 单独配）", fg=typer.colors.YELLOW)
         typer.echo(f"  写入示例：echo 'DASHSCOPE_API_KEY=sk-...' >> {cfg_dir / '.env'}")
+
+    asr, vlm, llm = asr_endpoint(), vlm_endpoint(), llm_endpoint()
+    typer.echo("")
+    typer.echo("生效的模型服务：")
+    typer.echo(f"  ASR  {asr.model:<24} {asr.base_url}")
+    typer.echo(f"  VLM  {vlm.model:<24} {vlm.base_url}")
+    typer.echo(f"  LLM  {llm.model:<24} {llm.base_url}")
+    typer.echo("  换服务商：设 RBCP_{ASR,VLM,LLM}_BASE_URL / _API_KEY / _MODEL（见 .env.example）")
