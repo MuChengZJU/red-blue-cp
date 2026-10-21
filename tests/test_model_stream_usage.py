@@ -182,7 +182,7 @@ class TestVlmStreaming:
         provider.vlm("https://example.com/2.jpg")
         stages = [e["stage"] for e in provider.usage_events]
         assert stages == ["vlm", "vlm"]
-        assert provider.usage_events[0]["model"] == "qwen3-vl-flash"
+        assert provider.usage_events[0]["model"] == "qwen3.8-flash"
 
 
 # ── asr usage ─────────────────────────────────────────────────

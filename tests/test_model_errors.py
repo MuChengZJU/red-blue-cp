@@ -41,7 +41,7 @@ class TestVlmErrors:
     @patch("app.extract.model.requests.post")
     def test_http_error_raises_api_error(self, mock_post):
         mock_post.return_value = _resp(status_code=403, text="forbidden")
-        provider = DashscopeProvider(api_key="k")
+        provider = DashscopeProvider(api_key="k", image_mode="url")
         with pytest.raises(ApiError) as ei:
             provider.vlm("https://img/x.jpg")
         assert ei.value.api_code == 403
