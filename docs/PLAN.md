@@ -14,6 +14,7 @@
 | M3 | 按需 | P2 完善 | 未启动 |
 | M4 | 3-4 | 博主安全批量 + 错误地基（插件抓清单 + 代理批量下载，补 M2b 残次品） | ✅ 阶段1完成 2026-06-06（WebUI 导入入口推迟） |
 | M6 | 并行 | **v0.6 速览产品**：Pipeline = Extract→Digest→Render + 两壳 RBCP Desktop/CLI（地基 M6a 先行，后 fan out） | ✅ 建成+验证 2026-06-16（feat/0.6，566 测试，未发布；详见 §v0.6） |
+| M7 | 0.5 | **v0.7 自定义模型服务商 + Desktop 设置页**：ASR/VLM/LLM 分能力 base_url+key+model；默认迁千问AI平台 qwen3.8-flash；VLM 图片 base64 双轨 | ✅ 建成 2026-10-21（待发布；646 测试） |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
 P1 = M2 ≈ 3-5 天（M2b/M2c ✅，M2a/d/e/f 未启动）
@@ -72,6 +73,33 @@ M4 = P1 范畴的演进（博主全量从 pydoll 串行 → 插件 + 代理安�
 ### 不在 v0.6（明确）
 
 RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未透，串行往后）。**商业相关（计费/定价/收款）属私有，不进开源文档。**
+
+---
+
+## v0.7 · 自定义模型服务商（2026-10-21，待发布）
+
+> 触发：DashScope 已迁到「千问AI平台」（`cn-beijing.maas.qianwenaiapi.com`），旧默认 VLM `qwen3-vl-flash` 不在新模型列表；用户需要接第三方/更便宜的模型。
+
+**交付**：
+
+| 子项 | 内容 | 状态 |
+|---|---|---|
+| 端点解析 | `app/model_endpoints.py`：ASR/VLM/LLM 各自 base_url+key+model；VLM 继承 LLM；空串回退默认 | ✅ |
+| provider 参数化 | `DashscopeProvider` 接受分能力端点；ASR 走 DashScope 原生协议，VLM/LLM 走 OpenAI 兼容 | ✅ |
+| 默认迁移 | ASR `paraformer-v2` / VLM `qwen3.8-flash` / LLM `qwen-plus`，base 全部 `cn-beijing.maas.qianwenaiapi.com` | ✅ 真链路实测 |
+| VLM 图片双轨 | auto：千问/百炼传 URL，第三方先下载转 base64；取图失败回退一次（带 referer） | ✅ |
+| 设置 API | `GET/POST /api/config` 扩展分能力字段 + key 打码；`POST /api/config/test` 连通性探测 | ✅ |
+| Desktop 设置页 | 服务商预设 / 分能力表单 / 模型提示 / 逐项测试连接 | ✅ 前端；sidecar 需重打 |
+| 定价表 | 收录 qwen3.8-flash / qwen3.7-flash / 新 ASR；未知模型费用记 None | ✅ |
+
+**验证**：ASR（上传凭证）/ LLM（qwen-plus）/ VLM（qwen3.8-flash 真图）三项 HTTP 探测均通过；643 测试。
+
+**遗留**：
+
+- [ ] Desktop sidecar 重打并重启验证（前端改动已可直接重载）
+- [ ] 本机旧 `.env` 若有 `RBCP_VLM_MODEL=Qwen-flash` 等旧值，需在设置页改成 `qwen3.8-flash`
+- [ ] 第三方 OpenAI 兼容服务商的 `response_format=json_object` 兼容性未逐一实测（不支持时速览会报 ApiError，需按服务商调整）
+- [ ] ASR 仅支持 DashScope 兼容协议；OpenAI Whisper 类接口未接
 
 ---
 
@@ -288,19 +316,15 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 - [ ] WebUI 详情页加"重抽 ASR"按钮
 - [ ] frontmatter status 改为 `asr_force` 标记
 
-### M2e · 模型抽象层（1.5 天，单独排足时间）
+### M2e · 模型抽象层（✅ 0.7 交付，2026-10-21）
 
-- [ ] 抽 `IModelProvider` 接口：
-  ```
-  asr(audio) -> text
-  vlm(images) -> text
-  llm_clean(text) -> text
-  ```
-- [ ] `DashscopeProvider` 实现（MVP 现状）
-- [ ] `OpenAICompatProvider` 实现（base_url + api_key + model 三件套）
-- [ ] 配置切换：`config/social-post-extractor.env` 加 `MODEL_PROVIDER` 字段
+- [x] `ModelProvider` Protocol（asr / vlm / llm_clean / complete_json）
+- [x] 端点参数化：ASR/VLM/LLM 各一套 `base_url + api_key + model`，不新增 Provider 类层级（反过度抽象）
+- [x] ASR 走 DashScope 原生异步协议；VLM/LLM 走 OpenAI 兼容（同一实现，按端点分派）
+- [x] 配置：`RBCP_{ASR,VLM,LLM}_BASE_URL/_API_KEY/_MODEL` + 设置页预设
+- [x] 第三方服务商 VLM 图片 base64 双轨
 
-**重点**：不要与 M2a-d 并行。三种调用形态差异大，会拆乱代码。
+**重点**：不要与 M2a-d 并行。三种调用形态差异大，会拆乱代码。此条已由 0.7 落地。
 
 ### M2f · 远程访问（0.5 天，运维任务）
 
@@ -389,7 +413,7 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 - **ASR 不动**：Gemini OpenAI 兼容层不支持音频转写 + 无结构化说话人分离，paraformer 短期保留；要换是独立课题。
 
 ### 待办（无触发不做）
-- provider env 化（`RBCP_LLM_BASE_URL`/`_MODEL`/`_API_KEY`，VLM 同理，默认 DashScope，不引 SDK）：等真实换模型需求出现再做；M5a 流式改造已留好泛化解析的门。
+- ~~provider env 化（`RBCP_LLM_BASE_URL`/`_MODEL`/`_API_KEY`，VLM 同理，默认 DashScope，不引 SDK）~~ ✅ 0.7 已做：扩展到 ASR/VLM/LLM 三套端点 + 自定义服务商 + 设置页连通性测试。
 - **模型横评实验（平台化才触发）**：对比不同 ASR/VLM/LLM 模型的**效果 / 成本 / 延迟 / 耗时**，给「该用哪个模型」一个数据支撑而非拍脑袋。重点验 **VLM 切 Gemini 免费层**能省多少（图文识别场景）。**触发条件 = 做成多用户平台**（个体用户成本已 trivial，几毛钱一条，不值得动；平台聚合量大才需要省）。价格调研结论（2026-06-08，全球比价）：现状 paraformer-v2(ASR 0.29元/小时,含每月免费10h+中文最稳+免费说话人分离) + qwen3-vl-flash(VLM 0.0012元/张) **已是全球最便宜档**；唯一「每天循环白嫖」是 Gemini 免费层（一套额度覆盖音频+图像），但 ASR 走 Gemini 丢说话人分离。详见 [全球模型比价](devlog/2026-06-08-global-model-pricing-and-benchmark-plan.md)。
 
 ### M5b · WebUI v2（0.5.0，进行中 2026-06-07）
