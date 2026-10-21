@@ -48,6 +48,7 @@ app/
     llm.py / orchestrator.py
   service/              # 0.6 弃用 shim：re-export app.extract.*，0.5.x 旧导入仍可用，0.7 删
   config.py             # 0.6 §A 配置发现（platformdirs：load_config / config_dir）
+  model_endpoints.py    # 0.7 模型端点解析：ASR/VLM/LLM 各自的 base_url + key + model、预设、图片传法
   web/
     routes.py           # 输入页 + 任务列表 + 详情 + 下载 + 博主/评论
     templates/          # Jinja2 模板
@@ -62,19 +63,28 @@ desktop/                # (0.6) RBCP Desktop：Tauri v2 壳 + PyInstaller sideca
 
 | 变量名 | 必填 | 默认值 | 说明 |
 |---|---|---|---|
-| `DASHSCOPE_API_KEY` | 是 | — | 百炼 API Key |
+| `DASHSCOPE_API_KEY` | 是 | — | 千问AI平台（原百炼）API Key；也是各能力 `RBCP_*_API_KEY` 的共享回退 |
 | `RBCP_CONFIG_FILE` | 否 | — | (0.6) 显式 `.env` 路径，优先级仅次于进程环境变量、高于用户配置目录（见上方发现顺序） |
 | `XHS_COOKIE` | 否 | — | 小红书 cookie（公开笔记不需要；单篇靠分享链接自带 xsec_token，仅博主批量用登录态） |
 | `RBCP_OUTPUT_DIR` | 否 | `~/transcript` | Markdown 输出目录（知识库，只放 .md + _index.sqlite） |
 | `RBCP_MEDIA_DIR` | 否 | `~/transcript-media` | (P1) `--save-media` 时原始视频/图片存放目录，独立于知识库 |
-| `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans） |
+| `RBCP_ASR_BASE_URL` | 否 | `https://cn-beijing.maas.qianwenaiapi.com/api/v1` | ASR 服务（DashScope 原生异步协议）根地址 |
+| `RBCP_ASR_API_KEY` | 否 | 回退 `DASHSCOPE_API_KEY` | ASR 专用 Key |
+| `RBCP_ASR_MODEL` | 否 | `paraformer-v2` | 录音文件转写 ASR 模型（REST 异步提交+轮询，可选 qwen3-asr-flash-filetrans / fun-asr） |
 | `RBCP_ASR_DIARIZATION` | 否 | `true` | 是否开启说话人分离（按声纹区分对谈中的不同人）。`true`/`1`/`yes` 为开 |
 | `RBCP_ASR_SPEAKER_COUNT` | 否 | — | 说话人数量提示（整数 2-100）。不填则自动判断；填了也只是辅助算法尽量输出该人数，不保证 |
-| `RBCP_PROXY` | 否 | — | (M4) 下载走代理护 IP（http/https，如 `http://127.0.0.1:7897`）。CLI `--proxy` 可覆盖；穿透到 explore 详情 + DashScope 主站调用，CDN 媒体字节默认不走 |
-| `RBCP_VLM_MODEL` | 否 | `qwen3-vl-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
-| `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清理 LLM 模型（OpenAI 兼容） |
+| `RBCP_PROXY` | 否 | — | (M4) 下载走代理护 IP（http/https，如 `http://127.0.0.1:7897`）。CLI `--proxy` 可覆盖；穿透到 explore 详情 + 模型服务主站调用，CDN 媒体字节默认不走 |
+| `RBCP_VLM_BASE_URL` | 否 | 回退 `RBCP_LLM_BASE_URL`（默认 `https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1`） | VLM 的 OpenAI 兼容 base |
+| `RBCP_VLM_API_KEY` | 否 | 回退 `RBCP_LLM_API_KEY` → `DASHSCOPE_API_KEY` | VLM 专用 Key |
+| `RBCP_VLM_MODEL` | 否 | `qwen3.8-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
+| `RBCP_VLM_IMAGE_MODE` | 否 | `auto` | 图片传法：`auto`（千问/百炼传 URL，第三方先下载转 base64；取图失败回退一次）/ `url` / `base64` |
+| `RBCP_LLM_BASE_URL` | 否 | `https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1` | 文本清洗/速览 LLM 的 OpenAI 兼容 base |
+| `RBCP_LLM_API_KEY` | 否 | 回退 `DASHSCOPE_API_KEY` | LLM 专用 Key |
+| `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清洗 / 速览 LLM 模型（OpenAI 兼容） |
 
-代码里 `os.getenv("RBCP_ASR_MODEL", "paraformer-v2")` 带默认值读取，不配就用默认。
+空串一律等同未设（设置页历史脏数据兜底）。`RBCP_*_BASE_URL` 可填 `.../v1`、`.../compatible-mode/v1`、`.../openai` 等 OpenAI 兼容 base，也可直接填完整 `.../chat/completions`；无 scheme 会自动补 `http://`。
+
+**服务商预设**（`app/model_endpoints.py`）：`qianwen`（默认，千问AI平台 cn-beijing）/ `dashscope`（旧百炼）/ `custom`。ASR 与 VLM/LLM 可混搭——例如 ASR 用千问、VLM/LLM 用 OpenRouter。
 
 P0 走捷径：
 - 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
@@ -141,6 +151,14 @@ POST /api/jobs/{id}/rerun           # 强制重抽（B 站手动 ASR，待做）
 POST /api/uploaders/posts           # body: {user_url} → 列博主笔记清单(不下载) + 总数/预估
 POST /api/comments                  # body: {url, sub?} → 抓评论写 .comments.md
 GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）
+```
+
+0.7 设置 API（桌面端设置页用）：
+
+```
+GET  /api/config                    # 生效配置 + 模型预设；key 只回打码值 + 来源（own/shared/none）
+POST /api/config                    # 写 os.environ + 配置 .env；空串跳过，base_url 补 http:// 并校验
+POST /api/config/test               # body: {target: asr|vlm|llm} → 连通性探测（200 + ok，不抛 500）
 ```
 
 **安全约束**：所有文件接口必须通过 `job_id` 反查 `md_path`，**不允许**用户传任意 path（防路径穿越）。
@@ -438,14 +456,15 @@ P1 引入持久化前不要做多进程部署。
 ```
 多图笔记全量处理，不设 max_images 上限。VLM 调用可并发（成本低、速度快）。
 
-1. 优先：把图片 URL 直接喂给 qwen3-vl-flash（可并发）
-2. 失败回退（单张）：
-   - 用 requests.get 下载到 tempfile
-   - 必须保留 referer / user-agent headers（小红书图片有防盗链）
-   - 喂给 VLM 后立即删除
+1. 优先：把图片 URL 直接喂给能抓公网图片的服务商（千问/百炼，默认 qwen3.8-flash）
+2. 第三方 OpenAI 兼容服务商（OpenRouter/DeepSeek/Gemini 等）：auto 模式先下载图片，
+   转 base64 data URL 内联（不落 tempfile，内存里用完即弃）
+3. 失败回退（单张，仅 auto + 服务商取图失败 400/403/404/422）：
+   - 用 requests.get 下载，必须保留 referer / user-agent headers（小红书防盗链）
+   - 转 base64 后重试一次；下载失败保留原始模型错误
 ```
 
-不要把"URL 直接喂模型"当作稳定主路径，必须做双轨。
+不要把"URL 直接喂模型"当作稳定主路径，必须做双轨。实现见 `app/extract/model.py::DashscopeProvider.vlm` / `_image_as_data_url`，`RBCP_VLM_IMAGE_MODE` 可强制 `url` 或 `base64`。
 
 ### 8.2b VLM/LLM 流式调用 + 用量采集（M5a）
 
