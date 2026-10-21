@@ -48,7 +48,7 @@ app/
     llm.py / orchestrator.py
   service/              # 0.6 弃用 shim：re-export app.extract.*，0.5.x 旧导入仍可用，0.7 删
   config.py             # 0.6 §A 配置发现（platformdirs：load_config / config_dir）
-  model_endpoints.py    # 0.7 模型端点解析：ASR/VLM/LLM 各自的 base_url + key + model、预设、图片传法
+  model_endpoints.py    # 0.6.1 模型端点解析：ASR/VLM/LLM 各自的 base_url + key + model、预设、图片传法
   web/
     routes.py           # 输入页 + 任务列表 + 详情 + 下载 + 博主/评论
     templates/          # Jinja2 模板
@@ -86,7 +86,7 @@ desktop/                # (0.6) RBCP Desktop：Tauri v2 壳 + PyInstaller sideca
 
 空串一律等同未设（设置页历史脏数据兜底）。`RBCP_*_BASE_URL` 可填 `.../v1`、`.../compatible-mode/v1`、`.../openai` 等 OpenAI 兼容 base，也可直接填完整 `.../chat/completions`；无 scheme 会自动补 `http://`。
 
-**服务商预设**（`app/model_endpoints.py`）：`qianwen`（默认，千问AI平台 cn-beijing）/ `custom`（任意 OpenAI 兼容）。0.7 起全部能力默认走新平台；ASR 与 VLM/LLM 仍可混搭（例如 ASR 用千问、VLM/LLM 用 OpenRouter）。
+**服务商预设**（`app/model_endpoints.py`）：`qianwen`（默认，千问AI平台 cn-beijing）/ `custom`（任意 OpenAI 兼容）。0.6.1 起全部能力默认走新平台；ASR 与 VLM/LLM 仍可混搭（例如 ASR 用千问、VLM/LLM 用 OpenRouter）。
 
 P0 走捷径：
 - 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
@@ -155,7 +155,7 @@ POST /api/comments                  # body: {url, sub?} → 抓评论写 .commen
 GET  /api/jobs/zip?ids=1,2,3        # 批量打包下载（按 id，不暴露 path）
 ```
 
-0.7 设置 API（桌面端设置页用）：
+0.6.1 设置 API（桌面端设置页用）：
 
 ```
 GET  /api/config                    # 生效配置 + 模型预设；key 只回打码值 + 来源（own/shared/none）

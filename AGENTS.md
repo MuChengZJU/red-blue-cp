@@ -15,7 +15,7 @@
 ## 当前阶段
 
 **0.6.0 已发布**（PyPI + GitHub Release，MIT 开源）：速览产品 Pipeline = **Extract→Digest→Render**。`service/`→`extract/`（采集转录→忠实原文，无损）+ 新 `digest/`（原文→高亮/卡片/脉络，有损 LLM，确定性服务端锚定，与 extract 隔离）+ `app/config.py`（platformdirs 配置发现）+ **CLI** `rbcp digest/ls` + **`desktop/`**（RBCP Desktop = Tauri v2 + PyInstaller sidecar，内置 serve，全功能：任务/文件库/账单/设置/速览阅读器）。612 测试。桌面端本版仅 **macOS arm64、未签名**（首开右键→打开过 Gatekeeper），引擎/CLI/WebUI 全平台走 PyPI。
-**0.7 开发中（未发布）**：DashScope 迁「千问AI平台」→ **自定义模型服务商**：ASR/VLM/LLM 各自 `base_url + api_key + model`（`app/model_endpoints.py`），默认 ASR `paraformer-v2` + VLM/LLM `qwen3.7-flash`（`cn-beijing.maas.qianwenaiapi.com`，思考模式默认关），VLM 图片 auto/base64 双轨；设置 API 加连通性探测，RBCP Desktop 设置页重做。详见 `docs/PLAN.md §v0.7`。
+**0.6.1 已发布（2026-10-21，PyPI + GitHub Release）**：DashScope 迁「千问AI平台」→ **自定义模型服务商**：ASR/VLM/LLM 各自 `base_url + api_key + model`（`app/model_endpoints.py`），默认 ASR `paraformer-v2` + VLM/LLM `qwen3.7-flash`（`cn-beijing.maas.qianwenaiapi.com`，思考模式默认关），VLM 图片 auto/base64 双轨；设置 API 加连通性探测，RBCP Desktop 设置页重做。详见 `docs/PLAN.md §v0.6.1`。
 **历史**：0.5.2 = P0 URL→Markdown 闭环、博主全量/评论、M4 安全批量、M5a 流式+用量、M5b WebUI v2。**浏览器插件 0.3.1**（油猴主推）。
 
 **桌面端注意**：跑的是**冻结的 PyInstaller sidecar**（`desktop/src-tauri/binaries/rbcp-serve-<triple>`）。改了 Python 源码必须 `desktop/sidecar/build.sh` 重打 + 重启 app 才生效；前端（`desktop/frontend/`）改动靠重载（Cmd+R）。

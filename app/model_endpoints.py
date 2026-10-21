@@ -1,4 +1,4 @@
-"""模型服务端点解析（0.7）：ASR / VLM / LLM 可分别指向不同服务商。
+"""模型服务端点解析（0.6.1）：ASR / VLM / LLM 可分别指向不同服务商。
 
 背景：百炼 DashScope 已迁到「千问AI平台」（``maas.qianwenaiapi.com``），新模型
 （新模型如 ``qwen3.7-flash`` / ``qwen3.8-flash``）只在 ``cn-beijing.maas.qianwenaiapi.com``
@@ -54,7 +54,7 @@ IMAGE_MODES = ("auto", "url", "base64")
 DEFAULT_IMAGE_MODE = "auto"
 
 # 设置页预设。base_url 是「OpenAI 兼容 base」，不含 /chat/completions。
-# 0.7 起只保留千问AI平台 + 自定义；旧百炼 DashScope 不再作为预设（需要时手填 URL）。
+# 0.6.1 起只保留千问AI平台 + 自定义；旧百炼 DashScope 不再作为预设（需要时手填 URL）。
 PROVIDER_PRESETS = (
     {
         "id": "qianwen",
