@@ -135,8 +135,14 @@ def _extract_xiaohongshu_text(
         image_urls = [_normalize_image_url(str(url)) for url in info.get("image_urls") or []]
         metadata["status"] = "vision"
         metadata["image_count"] = len(image_urls)
-        # 图文走 VLM，无句级时间戳 → segments=None（坐标用 image_index）
-        return "\n\n".join(provider.vlm(image_url) for image_url in image_urls), None, metadata
+        # 图文走 VLM，无句级时间戳 → segments=None（坐标用 image_index）。
+        # 传 referer：第三方服务商走 base64 回退时，下载图片要带小红书/B站防盗链头。
+        referer = info.get("referer")
+        return (
+            "\n\n".join(provider.vlm(image_url, referer=referer) for image_url in image_urls),
+            None,
+            metadata,
+        )
 
     media_url = info.get("audio_url") or info.get("video_url")
     metadata["status"] = "asr"

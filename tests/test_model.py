@@ -105,12 +105,12 @@ class TestDashscopeVlm:
         assert "https://example.com/pic.jpg" in str(image_parts[0])
 
     @patch("app.extract.model.requests.post")
-    def test_default_model_is_qwen3_vl_flash(self, mock_post):
+    def test_default_model_is_qwen3_8_flash(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
         provider.vlm("https://example.com/pic.jpg")
         payload = mock_post.call_args[1].get("json", {})
-        assert payload["model"] == "qwen3-vl-flash"
+        assert payload["model"] == "qwen3.8-flash"
 
     @patch("app.extract.model.requests.post")
     def test_uses_configured_vlm_model(self, mock_post):
@@ -123,7 +123,7 @@ class TestDashscopeVlm:
     @patch("app.extract.model.requests.post")
     def test_raises_on_http_error(self, mock_post):
         mock_post.return_value = _mock_http_error(403)
-        provider = DashscopeProvider(api_key="test-key")
+        provider = DashscopeProvider(api_key="test-key", image_mode="url")
         with pytest.raises(Exception):
             provider.vlm("https://example.com/pic.jpg")
 

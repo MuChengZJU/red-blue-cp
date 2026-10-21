@@ -55,13 +55,17 @@ def _provider_from_env(
     proxies: dict[str, str] | None = None,
     media_proxies: dict[str, str] | None = None,
 ) -> DashscopeProvider:
-    # 用 `or 默认` 而非 getenv(key, default)：设置页存空串后 env 被设成 ""，
-    # getenv 的默认值不生效，会把 model="" 发给 DashScope → HTTP 400（无法转录）。
-    # 空串等同未设，回退默认模型名。
-    asr_model = os.getenv("RBCP_ASR_MODEL") or "paraformer-v2"
-    # PR#46 收尾：VLM/LLM 模型也接进 provider（之前运行时只认 ASR 模型，这两个 env 形同虚设）。
-    vlm_model = os.getenv("RBCP_VLM_MODEL") or "qwen3-vl-flash"
-    llm_model = os.getenv("RBCP_LLM_MODEL") or "qwen-plus"
+    """按 env 构造 provider：ASR / VLM / LLM 的 base_url、key、model 各自可配。
+
+    空串等同未设（设置页历史上会存空串），由 model_endpoints 回退默认值。
+    显式传入的 ``api_key`` 优先级低于各能力自己的 ``RBCP_*_API_KEY``，高于空值；
+    这样旧调用方（CLI/Web 传 DASHSCOPE_API_KEY）和新的分能力 key 都能工作。
+    """
+    from app.model_endpoints import asr_endpoint, llm_endpoint, vlm_endpoint, vlm_image_mode
+
+    asr = asr_endpoint()
+    vlm = vlm_endpoint()
+    llm = llm_endpoint()
     diarization_enabled = os.getenv("RBCP_ASR_DIARIZATION", "true").strip().lower() in {
         "1", "true", "yes", "on",
     }
@@ -69,13 +73,20 @@ def _provider_from_env(
     speaker_count = int(speaker_count_raw) if speaker_count_raw.isdigit() else None
     return DashscopeProvider(
         api_key=api_key,
-        asr_model=asr_model,
-        vlm_model=vlm_model,
-        llm_model=llm_model,
+        asr_model=asr.model,
+        vlm_model=vlm.model,
+        llm_model=llm.model,
         diarization_enabled=diarization_enabled,
         speaker_count=speaker_count,
         proxies=proxies,
         media_proxies=media_proxies,
+        asr_base_url=asr.base_url,
+        asr_api_key=asr.api_key or None,
+        vlm_base_url=vlm.base_url,
+        vlm_api_key=vlm.api_key or None,
+        llm_base_url=llm.base_url,
+        llm_api_key=llm.api_key or None,
+        image_mode=vlm_image_mode(),
     )
 
 

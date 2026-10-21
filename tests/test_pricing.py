@@ -1,9 +1,10 @@
 """M5a：单价表 + 费用估算 — 契约测试。
 
-单价来源：阿里云百炼「模型调用价格」官方页（2026-06-06 查证）：
+单价来源：千问AI平台「模型价格」官方页（2026-10-21 查证）：
 - paraformer-v2：0.00008 元/秒（按输入音频秒数，输出不计费）
 - qwen-plus（0-128K 档，非思考输出）：输入 0.0008 / 输出 0.002 元每千 token
-- qwen3-vl-flash（0-32K 档）：输入 0.00015 / 输出 0.0015 元每千 token
+- qwen3.8-flash：输入 0.0008 / 输出 0.0027 元每千 token
+- qwen3-vl-flash（旧百炼，保留）：输入 0.00015 / 输出 0.0015 元每千 token
 """
 
 import pytest
@@ -35,6 +36,20 @@ class TestSummarizeUsage:
         summary = summarize_usage(events)
         # 2000/1000*0.00015 + 1000/1000*0.0015 = 0.0003 + 0.0015
         assert summary["events"][0]["cost_yuan"] == pytest.approx(0.0018)
+
+    def test_qwen38_flash_cost(self):
+        events = [{"stage": "vlm", "model": "qwen3.8-flash",
+                   "input_tokens": 2000, "output_tokens": 1000,
+                   "elapsed_seconds": 5.0}]
+        summary = summarize_usage(events)
+        # 2000/1000*0.0008 + 1000/1000*0.0027
+        assert summary["events"][0]["cost_yuan"] == pytest.approx(0.0043)
+
+    def test_new_asr_model_cost(self):
+        events = [{"stage": "asr", "model": "qwen3-asr-flash-filetrans",
+                   "audio_seconds": 3600, "elapsed_seconds": 60.0}]
+        summary = summarize_usage(events)
+        assert summary["events"][0]["cost_yuan"] == pytest.approx(0.792)
 
     def test_total_sums_multiple_events(self):
         events = [

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import json
 import logging
 import mimetypes
@@ -12,7 +13,16 @@ from urllib.parse import urlparse
 import requests
 
 from app.extract.contracts import Segment, build_canonical_text_and_segments
-from app.extract.errors import ApiError, NetworkError, ParseError
+from app.extract.errors import ApiError, ConfigError, NetworkError, ParseError
+from app.model_endpoints import (
+    DEFAULT_ASR_BASE_URL,
+    DEFAULT_ASR_MODEL,
+    DEFAULT_CHAT_BASE_URL,
+    DEFAULT_IMAGE_MODE,
+    DEFAULT_LLM_MODEL,
+    DEFAULT_VLM_MODEL,
+    IMAGE_MODES,
+)
 
 
 _log = logging.getLogger("rbcp.model")
@@ -108,10 +118,30 @@ def _parse_sse_stream(lines: Iterator[str]) -> tuple[str, dict[str, Any] | None]
     return "".join(parts), usage
 
 
-CHAT_COMPLETIONS_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/chat/completions"
-UPLOAD_POLICY_URL = "https://dashscope.aliyuncs.com/api/v1/uploads"
-TRANSCRIPTION_URL = "https://dashscope.aliyuncs.com/api/v1/services/audio/asr/transcription"
-TASK_URL_TEMPLATE = "https://dashscope.aliyuncs.com/api/v1/tasks/{task_id}"
+def build_chat_completions_url(base_url: str) -> str:
+    """OpenAI 兼容 base → chat/completions 完整 URL。
+
+    允许用户填 ``.../v1``、``.../compatible-mode/v1``、``.../openai`` 等 base，
+    也容忍直接填完整 ``.../chat/completions``（不重复拼）。
+    """
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        raise ConfigError("模型服务 base_url 为空")
+    if base.endswith("/chat/completions"):
+        return base
+    # 只填了域名（https://api.example.com）时补 /v1，避免拼成 /chat/completions 404。
+    if urlparse(base).path in ("", "/"):
+        base = base + "/v1"
+    return base + "/chat/completions"
+
+
+def build_asr_url(base_url: str, path: str) -> str:
+    """DashScope 原生 ASR base（``.../api/v1``）+ 子路径。"""
+    base = (base_url or "").strip().rstrip("/")
+    if not base:
+        raise ConfigError("ASR 服务 base_url 为空")
+    return base + "/" + path.lstrip("/")
+
 
 DEFAULT_MEDIA_HEADERS = {
     "User-Agent": (
@@ -119,6 +149,9 @@ DEFAULT_MEDIA_HEADERS = {
         "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36"
     )
 }
+
+# 单张图片内联上限：超过就报错，别把 base64 撑进几百 MB 的请求体。
+_MAX_INLINE_IMAGE_BYTES = 10 * 1024 * 1024
 
 LLM_CLEAN_PROMPT = (
     "请对以下原始文本做轻量清洗，只提升可读性，不新增信息，不摘要。"
@@ -140,7 +173,7 @@ class ModelProvider(Protocol):
         """转写音频 → (canonical text, segments)。segments 句级、char offset 对齐 text。"""
         ...
 
-    def vlm(self, image_url: str) -> str:
+    def vlm(self, image_url: str, referer: str | None = None) -> str:
         ...
 
     def llm_clean(self, raw_text: str) -> str:
@@ -148,16 +181,35 @@ class ModelProvider(Protocol):
 
 
 class DashscopeProvider:
+    """DashScope 原生 ASR + OpenAI 兼容 VLM/LLM 的混合 provider。
+
+    类名保留 ``DashscopeProvider`` 是历史兼容（CLI/Web/测试都这么 import）；现在
+    ASR 与 chat 的 base_url / api_key 都可分别配置，因此它实际能接：
+    - 千问AI平台（默认，``cn-beijing.maas.qianwenaiapi.com``）
+    - 旧百炼 DashScope
+    - 任意 OpenAI 兼容的 VLM/LLM 服务（OpenRouter / DeepSeek / Gemini 兼容层等）
+    ASR 仍要求服务商兼容 DashScope 异步转写协议。
+    """
+
     def __init__(
         self,
         api_key: str,
-        asr_model: str = "paraformer-v2",
-        vlm_model: str = "qwen3-vl-flash",
-        llm_model: str = "qwen-plus",
+        asr_model: str = DEFAULT_ASR_MODEL,
+        vlm_model: str = DEFAULT_VLM_MODEL,
+        llm_model: str = DEFAULT_LLM_MODEL,
         diarization_enabled: bool = True,
         speaker_count: int | None = None,
         proxies: dict[str, str] | None = None,
         media_proxies: dict[str, str] | None = None,
+        *,
+        asr_base_url: str = DEFAULT_ASR_BASE_URL,
+        chat_base_url: str = DEFAULT_CHAT_BASE_URL,
+        asr_api_key: str | None = None,
+        vlm_api_key: str | None = None,
+        llm_api_key: str | None = None,
+        vlm_base_url: str | None = None,
+        llm_base_url: str | None = None,
+        image_mode: str = DEFAULT_IMAGE_MODE,
     ) -> None:
         self.api_key = api_key
         self.asr_model = asr_model
@@ -165,6 +217,14 @@ class DashscopeProvider:
         self.llm_model = llm_model
         self.diarization_enabled = diarization_enabled
         self.speaker_count = speaker_count
+        self.asr_base_url = asr_base_url
+        self.llm_base_url = llm_base_url or chat_base_url
+        self.vlm_base_url = vlm_base_url or self.llm_base_url
+        # 每个能力可独立 key；未单独配就回退共享 api_key（旧 DASHSCOPE_API_KEY 语义）。
+        self.asr_api_key = asr_api_key or api_key
+        self.vlm_api_key = vlm_api_key or llm_api_key or api_key
+        self.llm_api_key = llm_api_key or api_key
+        self.image_mode = image_mode if image_mode in IMAGE_MODES else DEFAULT_IMAGE_MODE
         # 主站调用走 proxies；CDN 媒体字节走 media_proxies（默认 None=不走，护 IP 在主站层）
         self._proxies = proxies
         self._media_proxies = media_proxies
@@ -182,7 +242,9 @@ class DashscopeProvider:
                 }
             ],
         }
-        text, usage = self._stream_chat_completion(payload, operation="llm_clean")
+        text, usage = self._stream_chat_completion(
+            payload, operation="llm_clean", base_url=self.llm_base_url, api_key=self.llm_api_key
+        )
         return text
 
     def complete_json(
@@ -191,17 +253,82 @@ class DashscopeProvider:
         """调 LLM 产 JSON（response_format=json_object）。给 rbcp-digest 用（鸭子注入）。
 
         复用 _stream_chat_completion → 继承 SSE 流式/重试/usage 记账（stage=operation）。
-        spike 实证 qwen-plus 流式 + json_object 返合法 JSON。返回 (raw_json_text, usage)。
+        并非所有第三方 OpenAI 兼容服务都支持 response_format：只有报错体明确指向
+        response_format/JSON 时才去掉它重试一次，其余错误原样冒泡（不掩盖真实原因）。
         """
         payload = {
             "model": self.llm_model,
             "messages": [{"role": "user", "content": prompt}],
             "response_format": {"type": "json_object"},
         }
-        return self._stream_chat_completion(payload, operation=operation)
+        try:
+            return self._stream_chat_completion(
+                payload,
+                operation=operation,
+                base_url=self.llm_base_url,
+                api_key=self.llm_api_key,
+            )
+        except ApiError as exc:
+            body = (exc.payload_excerpt or "").lower()
+            unsupported = "response_format" in body or "json mode" in body
+            if exc.api_code not in {400, 404, 422} or not unsupported:
+                raise
+            _log.warning(
+                "[%s] 服务商不支持 response_format，去掉后重试一次（HTTP %s）",
+                operation, exc.api_code,
+            )
+            payload.pop("response_format", None)
+            return self._stream_chat_completion(
+                payload,
+                operation=operation,
+                base_url=self.llm_base_url,
+                api_key=self.llm_api_key,
+            )
 
-    def vlm(self, image_url: str) -> str:
-        payload = {
+    def vlm(self, image_url: str, referer: str | None = None) -> str:
+        """图片理解。
+
+        图片传法由 ``image_mode`` 决定：
+        - ``auto``：DashScope/千问（能直接抓公网 URL）传 URL；第三方服务先下载并
+          转 base64 data URL（避免防盗链/网关不取图）。
+        - ``url``：始终传 URL，失败不重试。
+        - ``base64``：始终下载后内联。
+
+        ``url``/``auto`` 下若服务商取图失败（400/403/404/422），回退下载一次再试，
+        对齐 SPEC「URL 优先喂 VLM，失败回退 tempfile」的双轨约定。
+        """
+        inline = self._should_inline_image(image_url)
+        if inline:
+            image_url = self._image_as_data_url(image_url, referer)
+        payload = self._vlm_payload(image_url)
+        try:
+            text, usage = self._stream_chat_completion(
+                payload, operation="vlm", base_url=self.vlm_base_url, api_key=self.vlm_api_key
+            )
+            return text
+        except ApiError as exc:
+            if (
+                inline
+                or self.image_mode != "auto"
+                or not self._is_image_fetch_error(exc)
+                or not _is_http_url(image_url)
+            ):
+                raise
+            _log.warning("[vlm] URL 直传失败（HTTP %s），回退 base64 重试", exc.api_code)
+            try:
+                data_url = self._image_as_data_url(image_url, referer)
+            except Exception:  # noqa: BLE001 - 下载失败时保留原始模型错误
+                raise exc
+            text, usage = self._stream_chat_completion(
+                self._vlm_payload(data_url),
+                operation="vlm",
+                base_url=self.vlm_base_url,
+                api_key=self.vlm_api_key,
+            )
+            return text
+
+    def _vlm_payload(self, image_url: str) -> dict[str, Any]:
+        return {
             "model": self.vlm_model,
             "messages": [
                 {
@@ -213,16 +340,120 @@ class DashscopeProvider:
                 }
             ],
         }
-        text, usage = self._stream_chat_completion(payload, operation="vlm")
-        return text
+
+    def _should_inline_image(self, image_url: str) -> bool:
+        if image_url.startswith("data:") or not _is_http_url(image_url):
+            return False
+        if self.image_mode == "base64":
+            return True
+        if self.image_mode == "url":
+            return False
+        # auto：只有千问/百炼的服务端会主动抓公网图片；第三方网关通常不抓。
+        return not _provider_fetches_image_url(self.vlm_base_url)
+
+    @staticmethod
+    def _is_image_fetch_error(exc: ApiError) -> bool:
+        return exc.api_code in {400, 403, 404, 422}
+
+    def _image_as_data_url(self, image_url: str, referer: str | None) -> str:
+        """下载图片 → data URL（带 referer，防小红书防盗链；超 10MB 拒绝）。"""
+        headers = dict(DEFAULT_MEDIA_HEADERS)
+        if referer:
+            headers["Referer"] = referer
+        with requests.Session() as session:
+            session.trust_env = False
+            if self._media_proxies:
+                session.proxies.update(self._media_proxies)
+            with session.get(
+                image_url, headers=headers, timeout=60, stream=True, allow_redirects=True
+            ) as response:
+                if response.status_code >= 400:
+                    body = _body_excerpt(response)
+                    _log.error(
+                        "[download_image] HTTP %s url=%s body=%s",
+                        response.status_code, image_url, body,
+                    )
+                    raise NetworkError(
+                        f"image download HTTP {response.status_code}",
+                        operation="download_image",
+                        debug_context={"status": response.status_code, "url": image_url},
+                    )
+                content_type = (response.headers.get("Content-Type") or "image/jpeg").split(
+                    ";", 1
+                )[0].strip() or "image/jpeg"
+                chunks: list[bytes] = []
+                total = 0
+                for chunk in response.iter_content(chunk_size=64 * 1024):
+                    if not chunk:
+                        continue
+                    total += len(chunk)
+                    if total > _MAX_INLINE_IMAGE_BYTES:
+                        raise NetworkError(
+                            f"image too large (> {_MAX_INLINE_IMAGE_BYTES} bytes)",
+                            operation="download_image",
+                            debug_context={"url": image_url},
+                        )
+                    chunks.append(chunk)
+        encoded = base64.b64encode(b"".join(chunks)).decode("ascii")
+        return f"data:{content_type};base64,{encoded}"
+
+    def probe(self, kind: str) -> dict[str, Any]:
+        """连通性探测：ASR 只取上传凭证（不计费），VLM/LLM 发一条极短 chat。
+
+        给设置页「测试连接」用；失败抛 RbcpError（route 层翻成人话）。
+        """
+        t0 = time.monotonic()
+        if kind == "asr":
+            self._get_upload_policy()
+            return {
+                "ok": True,
+                "target": "asr",
+                "model": self.asr_model,
+                "base_url": self.asr_base_url,
+                "elapsed_ms": int((time.monotonic() - t0) * 1000),
+            }
+        if kind == "vlm":
+            base_url, api_key, model = self.vlm_base_url, self.vlm_api_key, self.vlm_model
+        elif kind == "llm":
+            base_url, api_key, model = self.llm_base_url, self.llm_api_key, self.llm_model
+        else:
+            raise ConfigError(f"未知的探测目标：{kind}")
+        payload = {
+            "model": model,
+            "messages": [{"role": "user", "content": "只回复 ok"}],
+            "max_tokens": 8,
+        }
+        text, _usage = self._stream_chat_completion(
+            payload,
+            operation=f"probe_{kind}",
+            base_url=base_url,
+            api_key=api_key,
+            timeout=(10, 60),
+        )
+        return {
+            "ok": True,
+            "target": kind,
+            "model": model,
+            "base_url": base_url,
+            "reply": text.strip()[:100],
+            "elapsed_ms": int((time.monotonic() - t0) * 1000),
+        }
 
     def _stream_chat_completion(
-        self, payload: dict[str, Any], *, operation: str
+        self,
+        payload: dict[str, Any],
+        *,
+        operation: str,
+        base_url: str | None = None,
+        api_key: str | None = None,
+        timeout: tuple[int, int] = _STREAM_TIMEOUT,
     ) -> tuple[str, dict[str, Any] | None]:
         """流式调 chat/completions：建连可重试，流中断不重试（整段重跑放大等待）。
 
         usage 顺手记进 self.usage_events（token 数 + 耗时）。
         """
+        url = build_chat_completions_url(base_url or self.llm_base_url)
+        key = api_key if api_key is not None else self.llm_api_key
         body = {
             **payload,
             "stream": True,
@@ -232,10 +463,10 @@ class DashscopeProvider:
         response = _retry_network(
             operation,
             lambda: requests.post(
-                CHAT_COMPLETIONS_URL,
-                headers=self._json_auth_headers(),
+                url,
+                headers=self._json_auth_headers(key),
                 json=body,
-                timeout=_STREAM_TIMEOUT,
+                timeout=timeout,
                 stream=True,
                 proxies=self._proxies,
             ),
@@ -250,8 +481,8 @@ class DashscopeProvider:
         ) as exc:
             _log.error("[%s] SSE 流中断（不重试）：%s", operation, exc)
             raise NetworkError(
-                f"DashScope {operation} 流式响应中断",
-                platform="dashscope",
+                f"{operation} 流式响应中断",
+                platform="model",
                 operation=operation,
             ) from exc
         finally:
@@ -281,9 +512,9 @@ class DashscopeProvider:
         })
         return text, segments
 
-    def _json_auth_headers(self) -> dict[str, str]:
+    def _json_auth_headers(self, api_key: str | None = None) -> dict[str, str]:
         return {
-            "Authorization": f"Bearer {self.api_key}",
+            "Authorization": f"Bearer {api_key if api_key is not None else self.api_key}",
             "Content-Type": "application/json",
         }
 
@@ -363,8 +594,8 @@ class DashscopeProvider:
         response = _retry_network(
             "get_upload_policy",
             lambda: requests.get(
-                UPLOAD_POLICY_URL,
-                headers=self._json_auth_headers(),
+                build_asr_url(self.asr_base_url, "uploads"),
+                headers=self._json_auth_headers(self.asr_api_key),
                 params={
                     "action": "getPolicy",
                     "model": self.asr_model,
@@ -386,7 +617,7 @@ class DashscopeProvider:
 
     def _submit_transcription_task(self, oss_url: str) -> str:
         headers = {
-            **self._json_auth_headers(),
+            **self._json_auth_headers(self.asr_api_key),
             "X-DashScope-Async": "enable",
             "X-DashScope-OssResourceResolve": "enable",
         }
@@ -407,7 +638,7 @@ class DashscopeProvider:
         response = _retry_network(
             "submit_transcription",
             lambda: requests.post(
-                TRANSCRIPTION_URL,
+                build_asr_url(self.asr_base_url, "services/audio/asr/transcription"),
                 headers=headers,
                 json=body,
                 timeout=60,
@@ -445,7 +676,7 @@ class DashscopeProvider:
 
         计费秒数来自 poll 响应**顶层** usage.duration（spike 实证），不是 output 里。
         """
-        headers = self._json_auth_headers()
+        headers = self._json_auth_headers(self.asr_api_key)
         deadline = time.monotonic() + 7200
         last_payload: dict[str, Any] | None = None
 
@@ -453,7 +684,7 @@ class DashscopeProvider:
             response = _retry_network(
                 "poll_transcription",
                 lambda: requests.get(
-                    TASK_URL_TEMPLATE.format(task_id=task_id),
+                    build_asr_url(self.asr_base_url, f"tasks/{task_id}"),
                     headers=headers,
                     timeout=60,
                     proxies=self._proxies,
@@ -607,3 +838,20 @@ def _content_type(source_url: str, response: requests.Response, file_name: str) 
         return content_type
     guessed, _ = mimetypes.guess_type(file_name or source_url)
     return guessed or "application/octet-stream"
+
+
+def _is_http_url(url: str) -> bool:
+    try:
+        parsed = urlparse(url)
+    except ValueError:
+        return False
+    return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
+
+
+def _provider_fetches_image_url(base_url: str) -> bool:
+    """千问/百炼的服务端会主动抓公网图片；第三方兼容网关大多不会。
+
+    ``auto`` 模式下用它决定「URL 直传」还是「先下载转 base64」。
+    """
+    host = (urlparse(base_url).hostname or "").lower()
+    return host.endswith("qianwenaiapi.com") or host.endswith("aliyuncs.com")
