@@ -14,7 +14,7 @@
 | M3 | 按需 | P2 完善 | 未启动 |
 | M4 | 3-4 | 博主安全批量 + 错误地基（插件抓清单 + 代理批量下载，补 M2b 残次品） | ✅ 阶段1完成 2026-06-06（WebUI 导入入口推迟） |
 | M6 | 并行 | **v0.6 速览产品**：Pipeline = Extract→Digest→Render + 两壳 RBCP Desktop/CLI（地基 M6a 先行，后 fan out） | ✅ 建成+验证 2026-06-16（feat/0.6，566 测试，未发布；详见 §v0.6） |
-| M7 | 0.5 | **v0.7 自定义模型服务商 + Desktop 设置页**：ASR/VLM/LLM 分能力 base_url+key+model；默认迁千问AI平台 qwen3.8-flash；VLM 图片 base64 双轨 | ✅ 建成 2026-10-21（待发布；646 测试） |
+| M7 | 0.5 | **v0.7 自定义模型服务商 + Desktop 设置页**：ASR/VLM/LLM 分能力 base_url+key+model；默认迁千问AI平台（ASR paraformer-v2 / VLM/LLM qwen3.7-flash，思考关）；VLM 图片 base64 双轨 | ✅ 建成 2026-10-21（待发布；653 测试） |
 
 P0 = M0 + M1a + M1b（+ M1c 增强）≈ 2-2.5 天（CC 辅助开发）→ **已完成，首个可用版本 v0.1.0**
 P1 = M2 ≈ 3-5 天（M2b/M2c ✅，M2a/d/e/f 未启动）
@@ -86,18 +86,19 @@ RBCP Cloud / 计费 / RBCP Mobile / 精读跨篇 / 可追溯速览（设计未�
 |---|---|---|
 | 端点解析 | `app/model_endpoints.py`：ASR/VLM/LLM 各自 base_url+key+model；VLM 继承 LLM；空串回退默认 | ✅ |
 | provider 参数化 | `DashscopeProvider` 接受分能力端点；ASR 走 DashScope 原生协议，VLM/LLM 走 OpenAI 兼容 | ✅ |
-| 默认迁移 | ASR `paraformer-v2` / VLM `qwen3.8-flash` / LLM `qwen-plus`，base 全部 `cn-beijing.maas.qianwenaiapi.com` | ✅ 真链路实测 |
-| VLM 图片双轨 | auto：千问/百炼传 URL，第三方先下载转 base64；取图失败回退一次（带 referer） | ✅ |
+| 默认迁移 | ASR `paraformer-v2` / VLM+LLM `qwen3.7-flash`，base 全部 `cn-beijing.maas.qianwenaiapi.com`；思考模式默认关 | ✅ 真链路实测 |
+| VLM 图片双轨 | auto：千问传 URL，第三方先下载转 base64；取图失败回退一次（带 referer） | ✅ |
 | 设置 API | `GET/POST /api/config` 扩展分能力字段 + key 打码；`POST /api/config/test` 连通性探测 | ✅ |
 | Desktop 设置页 | 服务商预设 / 分能力表单 / 模型提示 / 逐项测试连接 | ✅ 前端；sidecar 需重打 |
-| 定价表 | 收录 qwen3.8-flash / qwen3.7-flash / 新 ASR；未知模型费用记 None | ✅ |
+| 思考模式 | `RBCP_LLM_THINKING` / `RBCP_VLM_THINKING` 默认 false；qwen3.7/3.8-flash 默认开会烧大量 output token，只对 Qwen 端点注入 `enable_thinking` | ✅ 实测 |
+| 定价表 | 收录 qwen3.8-flash / qwen3.7-flash / 新 ASR；qwen3.7/3.5/3.6-flash 按输入 token 阶梯计价；未知模型费用记 None | ✅ |
 
-**验证**：ASR（上传凭证）/ LLM（qwen-plus）/ VLM（qwen3.8-flash 真图）三项 HTTP 探测均通过；643 测试。
+**验证**：ASR 真实音频转写、LLM/VLM `qwen3.7-flash` 真实调用、中文 OCR 与速览 JSON 均通过；653 测试。
 
 **遗留**：
 
-- [ ] Desktop sidecar 重打并重启验证（前端改动已可直接重载）
-- [ ] 本机旧 `.env` 若有 `RBCP_VLM_MODEL=Qwen-flash` 等旧值，需在设置页改成 `qwen3.8-flash`
+- [x] Desktop sidecar 重打并冒烟验证（冻结二进制起服务 + 配置端点）；`.app` 已重建，DMG 受沙箱限制未出
+- [ ] 本机旧 `.env` 若有 `RBCP_VLM_MODEL=Qwen-flash` 等旧值，需在设置页改成 `qwen3.7-flash`
 - [ ] 第三方 OpenAI 兼容服务商的 `response_format=json_object` 兼容性未逐一实测（不支持时速览会报 ApiError，需按服务商调整）
 - [ ] ASR 仅支持 DashScope 兼容协议；OpenAI Whisper 类接口未接
 

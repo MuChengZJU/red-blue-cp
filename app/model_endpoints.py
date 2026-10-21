@@ -1,7 +1,7 @@
 """模型服务端点解析（0.7）：ASR / VLM / LLM 可分别指向不同服务商。
 
 背景：百炼 DashScope 已迁到「千问AI平台」（``maas.qianwenaiapi.com``），新模型
-（如本版默认 VLM ``qwen3.8-flash``）只在 ``cn-beijing.maas.qianwenaiapi.com``
+（新模型如 ``qwen3.7-flash`` / ``qwen3.8-flash``）只在 ``cn-beijing.maas.qianwenaiapi.com``
 区域端点提供；旧默认 VLM ``qwen3-vl-flash`` 不在新模型列表里。同时用户需要接
 第三方 OpenAI 兼容服务。因此把「服务商/模型」从硬编码 URL 里拆出来，按能力分别解析：
 
@@ -33,16 +33,20 @@ from dataclasses import dataclass
 QIANWEN_ASR_BASE_URL = "https://cn-beijing.maas.qianwenaiapi.com/api/v1"
 QIANWEN_CHAT_BASE_URL = "https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1"
 
-# 旧百炼 DashScope（保留 preset，供老 key / 老模型继续用）
-DASHSCOPE_ASR_BASE_URL = "https://dashscope.aliyuncs.com/api/v1"
-DASHSCOPE_CHAT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-
 DEFAULT_ASR_BASE_URL = QIANWEN_ASR_BASE_URL
 DEFAULT_CHAT_BASE_URL = QIANWEN_CHAT_BASE_URL
 
+# 性价比选型（2026-10-21 按千问AI平台价格表核算）：
+# - ASR: paraformer-v2 0.00008 元/秒（0.288 元/小时），且支持说话人分离；
+#   qwen3-asr-flash-filetrans / fun-asr 均 0.00022 元/秒（0.792 元/小时）。
+# - VLM/LLM: qwen3.7-flash 0.2/0.8 元每百万 token（≤32K），比 qwen3.8-flash
+#   （0.8/2.7）便宜约 4 倍；两者都支持图片/视频、结构化输出、1M 上下文。
+#   注意两者都默认开启思考模式，必须显式 enable_thinking=false，否则短文本
+#   清洗也会烧掉上千 output token（实测）。
 DEFAULT_ASR_MODEL = "paraformer-v2"
-DEFAULT_VLM_MODEL = "qwen3.8-flash"
-DEFAULT_LLM_MODEL = "qwen-plus"
+DEFAULT_VLM_MODEL = "qwen3.7-flash"
+DEFAULT_LLM_MODEL = "qwen3.7-flash"
+DEFAULT_THINKING = False
 
 # VLM 图片传法：auto=非 DashScope 服务商自动转 base64；url=始终传 URL；
 # base64=始终下载后内联（小红书防盗链/第三方网关不取图时用）。
@@ -50,7 +54,7 @@ IMAGE_MODES = ("auto", "url", "base64")
 DEFAULT_IMAGE_MODE = "auto"
 
 # 设置页预设。base_url 是「OpenAI 兼容 base」，不含 /chat/completions。
-# 预设同时带推荐模型：切旧百炼时必须把 VLM 换回 qwen3-vl-flash，否则新模型在旧端点 404。
+# 0.7 起只保留千问AI平台 + 自定义；旧百炼 DashScope 不再作为预设（需要时手填 URL）。
 PROVIDER_PRESETS = (
     {
         "id": "qianwen",
@@ -59,15 +63,6 @@ PROVIDER_PRESETS = (
         "llm_base_url": QIANWEN_CHAT_BASE_URL,
         "asr_model": DEFAULT_ASR_MODEL,
         "vlm_model": DEFAULT_VLM_MODEL,
-        "llm_model": DEFAULT_LLM_MODEL,
-    },
-    {
-        "id": "dashscope",
-        "label": "百炼 DashScope（旧）",
-        "asr_base_url": DASHSCOPE_ASR_BASE_URL,
-        "llm_base_url": DASHSCOPE_CHAT_BASE_URL,
-        "asr_model": DEFAULT_ASR_MODEL,
-        "vlm_model": "qwen3-vl-flash",
         "llm_model": DEFAULT_LLM_MODEL,
     },
     {
@@ -138,6 +133,23 @@ def vlm_endpoint() -> Endpoint:
 def vlm_image_mode() -> str:
     mode = _env("RBCP_VLM_IMAGE_MODE").lower() or DEFAULT_IMAGE_MODE
     return mode if mode in IMAGE_MODES else DEFAULT_IMAGE_MODE
+
+
+def _env_bool(name: str, default: bool = False) -> bool:
+    raw = _env(name).lower()
+    if not raw:
+        return default
+    return raw in {"1", "true", "yes", "on"}
+
+
+def llm_thinking() -> bool:
+    """LLM 思考模式，默认关：qwen3.7/3.8-flash 默认开，短文本清洗会烧上千 token。"""
+    return _env_bool("RBCP_LLM_THINKING", DEFAULT_THINKING)
+
+
+def vlm_thinking() -> bool:
+    """VLM 思考模式，默认关（识图+OCR 不需要长思维链）。"""
+    return _env_bool("RBCP_VLM_THINKING", DEFAULT_THINKING)
 
 
 def detect_preset(asr_base_url: str, chat_base_url: str) -> str:

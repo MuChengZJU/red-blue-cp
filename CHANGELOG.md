@@ -10,14 +10,15 @@ DashScope 已迁到「千问AI平台」（`cn-beijing.maas.qianwenaiapi.com`）�
 
 ### 新增
 - **自定义模型服务商**：`RBCP_{ASR,VLM,LLM}_BASE_URL / _API_KEY / _MODEL`；未单独配 key 时回退 `DASHSCOPE_API_KEY`，VLM 未配置时继承 LLM。ASR 仍走 DashScope 原生异步转写协议，VLM/LLM 走 OpenAI 兼容 `/chat/completions`。
-- **默认模型迁移**：ASR `paraformer-v2`、VLM `qwen3.8-flash`、LLM `qwen-plus`；默认端点 `cn-beijing.maas.qianwenaiapi.com`（`qwen3.8-flash` 只在该区域提供）。
-- **VLM 图片双轨**：`RBCP_VLM_IMAGE_MODE=auto` 下，千问/百炼直传图片 URL，第三方服务商先下载转 base64（带 referer 防小红书防盗链）；服务端取图失败（400/403/404/422）自动回退一次。
+- **默认模型迁移**：ASR `paraformer-v2`、VLM/LLM `qwen3.7-flash`；默认端点 `cn-beijing.maas.qianwenaiapi.com`（新模型只在该区域提供）。`qwen3.7-flash` 单价 0.2/0.8 元每百万 token，比 `qwen3.8-flash` 的 0.8/2.7 便宜约 4 倍，且同样支持图片/视频与结构化输出。
+- **VLM 图片双轨**：`RBCP_VLM_IMAGE_MODE=auto` 下，千问直传图片 URL，第三方服务商先下载转 base64（带 referer 防小红书防盗链）；服务端取图失败（400/403/404/422）自动回退一次。
+- **思考模式默认关**：`qwen3.7/3.8-flash` 默认开思考，短文本清洗实测会烧 1371 个 output token；新增 `RBCP_LLM_THINKING` / `RBCP_VLM_THINKING`（默认 false），设置页可逐项开关。
 - **设置 API**：`GET/POST /api/config` 支持分能力字段、key 打码与来源（自有/共享）；`POST /api/config/test` 逐项探测 ASR / VLM / LLM 连通性（ASR 只取上传凭证，不计费）。
 - **RBCP Desktop 设置页重做**：服务商预设（千问AI平台 / 旧百炼 / 自定义）、ASR/VLM/LLM 分区表单、模型候选、图片传法选择、逐项「测试连接（先保存）」。
-- **定价表**：收录 `qwen3.8-flash` / `qwen3.7-flash` / `qwen3.5-flash` / `qwen3-asr-flash-filetrans` 等；未知模型仍展示用量但不瞎编费用。
+- **定价表**：收录 `qwen3.8-flash` / `qwen3.7-flash` / `qwen3.5-flash` / `qwen3-asr-flash-filetrans` 等；`qwen3.7/3.5/3.6-flash` 按输入 token 阶梯计价；未知模型仍展示用量但不瞎编费用。
 
 ### 说明
-- 646 测试。真链路已实测：ASR 上传凭证、LLM `qwen-plus`、VLM `qwen3.8-flash`（URL 与 base64 两种传法）均通过。
+- 653 测试。真链路已实测：ASR 真实音频转写、LLM `qwen3.7-flash` 清洗/速览 JSON、VLM `qwen3.7-flash` 中文 OCR（URL 与 base64 两种传法）均通过。
 - 本版仅后端 + 桌面前端源码；桌面端需重打 PyInstaller sidecar 才会带上后端改动。
 - 第三方服务商的 `response_format=json_object` 兼容性未逐一实测；不支持时速览会报 `ApiError`。
 - ASR 未接 OpenAI Whisper 类接口，仅支持 DashScope 兼容的异步转写协议。

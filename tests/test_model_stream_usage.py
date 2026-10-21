@@ -116,7 +116,7 @@ class TestLlmCleanStreaming:
         assert len(provider.usage_events) == 1
         event = provider.usage_events[0]
         assert event["stage"] == "llm_clean"
-        assert event["model"] == "qwen-plus"
+        assert event["model"] == "qwen3.7-flash"
         assert event["input_tokens"] == 13
         assert event["output_tokens"] == 39
         assert event["elapsed_seconds"] >= 0
@@ -182,7 +182,7 @@ class TestVlmStreaming:
         provider.vlm("https://example.com/2.jpg")
         stages = [e["stage"] for e in provider.usage_events]
         assert stages == ["vlm", "vlm"]
-        assert provider.usage_events[0]["model"] == "qwen3.8-flash"
+        assert provider.usage_events[0]["model"] == "qwen3.7-flash"
 
 
 # ── asr usage ─────────────────────────────────────────────────

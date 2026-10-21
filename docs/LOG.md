@@ -31,7 +31,7 @@
 
 | 日期 | 优先级 | 类别 | 决策 | 详情 |
 |---|---|---|---|---|
-| 2026-10-21 | 🟡 中 | 架构 | DashScope 迁千问AI平台（`cn-beijing.maas.qianwenaiapi.com`），模型端点从硬编码改为 **ASR/VLM/LLM 三套 base_url+key+model 可独立配置**，默认 VLM `qwen3.8-flash`；VLM 图片 auto 双轨（第三方转 base64）；Desktop 设置页加预设/逐项测试连接。保留单 Provider 参数化，不引入多 Provider 类层级 | PLAN §v0.7 / SPEC §配置项 |
+| 2026-10-21 | 🟡 中 | 架构 | DashScope 迁千问AI平台（`cn-beijing.maas.qianwenaiapi.com`），模型端点从硬编码改为 **ASR/VLM/LLM 三套 base_url+key+model 可独立配置**，默认 ASR `paraformer-v2` + VLM/LLM `qwen3.7-flash`（思考模式默认关）；VLM 图片 auto 双轨（第三方转 base64）；Desktop 设置页加预设/逐项测试连接。保留单 Provider 参数化，不引入多 Provider 类层级 | PLAN §v0.7 / SPEC §配置项 |
 | 2026-06-19 | 🟡 中 | 工程 | 仓库根目录收敛：根只留 `README/AGENTS/CLAUDE/LICENSE/CHANGELOG`，`PRD/SPEC/PLAN/DESIGN/REFERENCES/RELEASING/LOG` 全移入 `docs/`，交叉链接一并修；AGENTS 日志体系补「经验生命周期」分流表（跨工具统一规范，全局 CLAUDE.md 蓝本） | 本次提交 |
 | 2026-06-15 | 🔴 高 | 形态/范围/架构 | **0.6 调头做「给人的速览」产品**（引擎仍开源）：Pipeline = Extract→Digest→Render，两壳 RBCP CLI / RBCP Desktop（原门控 P2 桌面 GUI 启动）+ 将来 Mobile；速览=高亮/卡片/脉络三形态同屏；砍本地模型、defer 收藏夹/知识库；商业（托管+手机+按实际使用计费）走私有 RBCP Cloud，不进开源。exp/agent-interface-demo(MCP demo) 存档 parked | [0.6 速览产品](devlog/2026-06-15-0.6-speed-read-product.md) / PLAN §v0.6 |
 | 2026-06-05 | 🔴 高 | 范围/架构 | 博主全量抓清单 pydoll→浏览器插件(MV3)，pydoll 降不稳定可选项（红线#9 改）；下载加代理（应对固定共享出口 IP）；立项 **M4 博主安全批量 + 错误地基**（M4a 地基串行→M4b‖M4c 并行） | [博主安全批量](blogger-safe-batch-feature.md) / [Codex review](devlog/2026-06-05-codex-review-blogger-batch.md) |
@@ -74,7 +74,7 @@
 
 | 日期 | 阶段 | 状态 | 备注 |
 |---|---|---|---|
-| 2026-10-21 | v0.7 自定义模型服务商 + Desktop 设置页 | done | DashScope 迁千问AI平台（`cn-beijing.maas.qianwenaiapi.com`；`qwen3.8-flash` 只在 cn-beijing 可用，全局端点报 Model not exist）。新增 `app/model_endpoints.py`：ASR/VLM/LLM 各自 base_url+key+model，VLM 继承 LLM；`DashscopeProvider` 参数化（ASR 原生协议 / VLM/LLM OpenAI 兼容）。VLM 图片 auto 双轨（千问传 URL、第三方下载转 base64、取图失败回退一次带 referer）。设置 API 扩展 + `POST /api/config/test`；Desktop 设置页预设/分区/逐项测试连接；定价表补 qwen3.8-flash。646 测试；真链路探测 ASR/LLM/VLM 全过；sidecar 重打、冻结二进制冒烟通过；Tauri .app 重建（DMG 打包受沙箱限制失败）。 |
+| 2026-10-21 | v0.7 自定义模型服务商 + Desktop 设置页 | done | DashScope 迁千问AI平台（`cn-beijing.maas.qianwenaiapi.com`；`qwen3.7-flash` / `qwen3.8-flash` 只在 cn-beijing 可用，全局端点报 Model not exist）。新增 `app/model_endpoints.py`：ASR/VLM/LLM 各自 base_url+key+model，VLM 继承 LLM；`DashscopeProvider` 参数化（ASR 原生协议 / VLM/LLM OpenAI 兼容）。VLM 图片 auto 双轨（千问传 URL、第三方下载转 base64、取图失败回退一次带 referer）。设置 API 扩展 + `POST /api/config/test`；Desktop 设置页预设/分区/逐项测试连接；定价表补 qwen3.7/3.8-flash 并按输入 token 阶梯计价；思考模式默认关（qwen3.7/3.8-flash 默认开会烧上千 output token）。653 测试；真链路 ASR 实际音频转写、LLM 清洗/速览 JSON、VLM 中文 OCR 全过；sidecar 重打、冻结二进制冒烟通过；Tauri .app 重建（DMG 打包受沙箱限制失败）。 |
 | 2026-05-08 | 早期需求探索 | done | ChatGPT 多轮，得出"开源工具链 vs Get 笔记"的对比 |
 | 2026-05-09 | 仓库选型完成 | done | 主体确定 social-post-extractor-mcp，P1 接 bilibili-cli/xiaohongshu-cli |
 | 2026-05-09 | 文档冻结 v3.1 | done | PRD / SPEC / PLAN / CLAUDE / REFERENCES / LOG 创建 |

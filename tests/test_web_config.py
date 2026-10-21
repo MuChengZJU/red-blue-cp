@@ -17,6 +17,7 @@ _KEYS = [
     "RBCP_VLM_BASE_URL", "RBCP_VLM_API_KEY",
     "RBCP_LLM_BASE_URL", "RBCP_LLM_API_KEY",
     "RBCP_VLM_IMAGE_MODE",
+    "RBCP_LLM_THINKING", "RBCP_VLM_THINKING",
 ]
 
 
@@ -102,9 +103,10 @@ def test_get_config_returns_effective_defaults_and_presets(clean):
     assert g["provider_preset"] == "qianwen"
     assert g["asr_base_url"].startswith("https://cn-beijing.maas.qianwenaiapi.com/")
     assert g["llm_base_url"].endswith("/compatible-mode/v1")
-    assert g["vlm_model"] == "qwen3.8-flash"
+    assert g["vlm_model"] == "qwen3.7-flash"
+    assert g["llm_thinking"] is False and g["vlm_thinking"] is False
     assert g["image_mode"] == "auto"
-    assert {p["id"] for p in g["presets"]} == {"qianwen", "dashscope", "custom"}
+    assert {p["id"] for p in g["presets"]} == {"qianwen", "custom"}
 
 
 def test_set_custom_provider_persists_and_masks(clean):
@@ -161,3 +163,14 @@ def test_config_test_endpoint_reports_failure(clean, monkeypatch):
         body = c.post("/api/config/test", json={"target": "llm"}).json()
     assert body["ok"] is False
     assert "boom" in body["error"]
+
+
+def test_thinking_flags_roundtrip(clean):
+    c = TestClient(app)
+    r = c.post("/api/config", json={"llm_thinking": True, "vlm_thinking": False})
+    assert r.status_code == 200, r.text
+    assert os.environ["RBCP_LLM_THINKING"] == "true"
+    assert os.environ["RBCP_VLM_THINKING"] == "false"
+    g = c.get("/api/config").json()
+    assert g["llm_thinking"] is True
+    assert g["vlm_thinking"] is False

@@ -88,8 +88,8 @@ class TestEndpoints:
         assert llm.base_url == ep.QIANWEN_CHAT_BASE_URL
         assert vlm.base_url == ep.QIANWEN_CHAT_BASE_URL
         assert asr.model == "paraformer-v2"
-        assert vlm.model == "qwen3.8-flash"
-        assert llm.model == "qwen-plus"
+        assert vlm.model == "qwen3.7-flash"
+        assert llm.model == "qwen3.7-flash"
 
     def test_empty_env_falls_back_to_defaults(self, clean_env):
         for key in _ENV_KEYS:
@@ -141,9 +141,18 @@ class TestEndpoints:
         clean_env.setenv("RBCP_VLM_IMAGE_MODE", "bogus")
         assert ep.vlm_image_mode() == "auto"
 
+    def test_thinking_defaults_off_and_env_override(self, clean_env):
+        assert ep.llm_thinking() is False
+        assert ep.vlm_thinking() is False
+        clean_env.setenv("RBCP_LLM_THINKING", "true")
+        clean_env.setenv("RBCP_VLM_THINKING", "1")
+        assert ep.llm_thinking() is True
+        assert ep.vlm_thinking() is True
+        clean_env.setenv("RBCP_LLM_THINKING", "bogus")
+        assert ep.llm_thinking() is False
+
     def test_detect_preset(self):
         assert ep.detect_preset(ep.QIANWEN_ASR_BASE_URL, ep.QIANWEN_CHAT_BASE_URL) == "qianwen"
-        assert ep.detect_preset(ep.DASHSCOPE_ASR_BASE_URL, ep.DASHSCOPE_CHAT_BASE_URL) == "dashscope"
         assert ep.detect_preset("https://x/api/v1", "https://x/v1") == "custom"
 
 
@@ -311,7 +320,7 @@ class TestProbe:
         result = DashscopeProvider(api_key="k", llm_base_url="https://llm.example.com/v1").probe("llm")
         assert result["ok"] is True
         assert result["target"] == "llm"
-        assert result["model"] == "qwen-plus"
+        assert result["model"] == "qwen3.7-flash"
         assert result["base_url"] == "https://llm.example.com/v1"
 
     @patch("app.extract.model.requests.get")
@@ -326,3 +335,32 @@ class TestProbe:
     def test_probe_unknown_target(self):
         with pytest.raises(ConfigError):
             DashscopeProvider(api_key="k").probe("nope")
+
+
+# ── 思考模式（qwen3.7/3.8-flash 默认开，必须显式关） ──────────
+
+class TestThinkingMode:
+
+    @patch("app.extract.model.requests.post")
+    def test_qwen_thinking_off_by_default(self, mock_post):
+        mock_post.return_value = _stream_response()
+        provider = DashscopeProvider(api_key="k")
+        provider.llm_clean("raw")
+        payload = mock_post.call_args.kwargs["json"]
+        assert payload["enable_thinking"] is False
+
+    @patch("app.extract.model.requests.post")
+    def test_qwen_thinking_can_be_enabled(self, mock_post):
+        mock_post.return_value = _stream_response()
+        provider = DashscopeProvider(api_key="k", llm_thinking=True)
+        provider.llm_clean("raw")
+        assert mock_post.call_args.kwargs["json"]["enable_thinking"] is True
+
+    @patch("app.extract.model.requests.post")
+    def test_custom_provider_does_not_receive_qwen_extension(self, mock_post):
+        mock_post.return_value = _stream_response()
+        provider = DashscopeProvider(
+            api_key="k", llm_base_url="https://third-party.example.com/v1", image_mode="url"
+        )
+        provider.llm_clean("raw")
+        assert "enable_thinking" not in mock_post.call_args.kwargs["json"]

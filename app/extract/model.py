@@ -20,6 +20,7 @@ from app.model_endpoints import (
     DEFAULT_CHAT_BASE_URL,
     DEFAULT_IMAGE_MODE,
     DEFAULT_LLM_MODEL,
+    DEFAULT_THINKING,
     DEFAULT_VLM_MODEL,
     IMAGE_MODES,
 )
@@ -210,6 +211,8 @@ class DashscopeProvider:
         vlm_base_url: str | None = None,
         llm_base_url: str | None = None,
         image_mode: str = DEFAULT_IMAGE_MODE,
+        llm_thinking: bool = DEFAULT_THINKING,
+        vlm_thinking: bool = DEFAULT_THINKING,
     ) -> None:
         self.api_key = api_key
         self.asr_model = asr_model
@@ -225,6 +228,9 @@ class DashscopeProvider:
         self.vlm_api_key = vlm_api_key or llm_api_key or api_key
         self.llm_api_key = llm_api_key or api_key
         self.image_mode = image_mode if image_mode in IMAGE_MODES else DEFAULT_IMAGE_MODE
+        # 思考模式默认关：qwen3.7/3.8-flash 默认开，短文本清洗会烧上千 output token。
+        self.llm_thinking = bool(llm_thinking)
+        self.vlm_thinking = bool(vlm_thinking)
         # 主站调用走 proxies；CDN 媒体字节走 media_proxies（默认 None=不走，护 IP 在主站层）
         self._proxies = proxies
         self._media_proxies = media_proxies
@@ -243,7 +249,11 @@ class DashscopeProvider:
             ],
         }
         text, usage = self._stream_chat_completion(
-            payload, operation="llm_clean", base_url=self.llm_base_url, api_key=self.llm_api_key
+            payload,
+            operation="llm_clean",
+            base_url=self.llm_base_url,
+            api_key=self.llm_api_key,
+            thinking=self.llm_thinking,
         )
         return text
 
@@ -267,6 +277,7 @@ class DashscopeProvider:
                 operation=operation,
                 base_url=self.llm_base_url,
                 api_key=self.llm_api_key,
+                thinking=self.llm_thinking,
             )
         except ApiError as exc:
             body = (exc.payload_excerpt or "").lower()
@@ -283,6 +294,7 @@ class DashscopeProvider:
                 operation=operation,
                 base_url=self.llm_base_url,
                 api_key=self.llm_api_key,
+                thinking=self.llm_thinking,
             )
 
     def vlm(self, image_url: str, referer: str | None = None) -> str:
@@ -303,7 +315,11 @@ class DashscopeProvider:
         payload = self._vlm_payload(image_url)
         try:
             text, usage = self._stream_chat_completion(
-                payload, operation="vlm", base_url=self.vlm_base_url, api_key=self.vlm_api_key
+                payload,
+                operation="vlm",
+                base_url=self.vlm_base_url,
+                api_key=self.vlm_api_key,
+                thinking=self.vlm_thinking,
             )
             return text
         except ApiError as exc:
@@ -324,6 +340,7 @@ class DashscopeProvider:
                 operation="vlm",
                 base_url=self.vlm_base_url,
                 api_key=self.vlm_api_key,
+                thinking=self.vlm_thinking,
             )
             return text
 
@@ -429,6 +446,7 @@ class DashscopeProvider:
             base_url=base_url,
             api_key=api_key,
             timeout=(10, 60),
+            thinking=False,
         )
         return {
             "ok": True,
@@ -447,6 +465,7 @@ class DashscopeProvider:
         base_url: str | None = None,
         api_key: str | None = None,
         timeout: tuple[int, int] = _STREAM_TIMEOUT,
+        thinking: bool | None = None,
     ) -> tuple[str, dict[str, Any] | None]:
         """流式调 chat/completions：建连可重试，流中断不重试（整段重跑放大等待）。
 
@@ -459,6 +478,10 @@ class DashscopeProvider:
             "stream": True,
             "stream_options": {"include_usage": True},
         }
+        # 千问系模型默认开思考模式；我们只在 Qwen 端点显式注入开关，
+        # 第三方 OpenAI 兼容服务不认识这个扩展参数，不能盲发。
+        if thinking is not None and _is_qwen_provider(url):
+            body["enable_thinking"] = bool(thinking)
         t0 = time.monotonic()
         response = _retry_network(
             operation,
@@ -848,10 +871,18 @@ def _is_http_url(url: str) -> bool:
     return parsed.scheme in {"http", "https"} and bool(parsed.netloc)
 
 
+def _is_qwen_provider(base_url: str) -> bool:
+    """是否千问AI平台 / 旧百炼端点（决定能否发 enable_thinking 等 Qwen 扩展参数）。"""
+    try:
+        host = (urlparse(base_url).hostname or "").lower()
+    except ValueError:
+        return False
+    return host.endswith("qianwenaiapi.com") or host.endswith("aliyuncs.com")
+
+
 def _provider_fetches_image_url(base_url: str) -> bool:
     """千问/百炼的服务端会主动抓公网图片；第三方兼容网关大多不会。
 
     ``auto`` 模式下用它决定「URL 直传」还是「先下载转 base64」。
     """
-    host = (urlparse(base_url).hostname or "").lower()
-    return host.endswith("qianwenaiapi.com") or host.endswith("aliyuncs.com")
+    return _is_qwen_provider(base_url)

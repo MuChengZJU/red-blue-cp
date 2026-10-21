@@ -98,8 +98,8 @@ class TestProviderModelDefaults:
         monkeypatch.setenv("RBCP_LLM_MODEL", "")
         p = _provider_from_env("sk-test")
         assert p.asr_model == "paraformer-v2"
-        assert p.vlm_model == "qwen3.8-flash"
-        assert p.llm_model == "qwen-plus"
+        assert p.vlm_model == "qwen3.7-flash"
+        assert p.llm_model == "qwen3.7-flash"
 
     def test_explicit_model_envs_still_honored(self, monkeypatch):
         from app.extract.pipeline import _provider_from_env

@@ -73,12 +73,12 @@ class TestDashscopeLlmClean:
             provider.llm_clean("text")
 
     @patch("app.extract.model.requests.post")
-    def test_default_model_is_qwen_plus(self, mock_post):
+    def test_default_model_is_qwen37_flash(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
         provider.llm_clean("text")
         payload = mock_post.call_args[1].get("json", {})
-        assert payload["model"] == "qwen-plus"
+        assert payload["model"] == "qwen3.7-flash"
 
 
 # ── VLM ────────────────────────────────────────────────────────
@@ -105,12 +105,12 @@ class TestDashscopeVlm:
         assert "https://example.com/pic.jpg" in str(image_parts[0])
 
     @patch("app.extract.model.requests.post")
-    def test_default_model_is_qwen3_8_flash(self, mock_post):
+    def test_default_model_is_qwen37_flash(self, mock_post):
         mock_post.return_value = _mock_chat_response("ok")
         provider = DashscopeProvider(api_key="test-key")
         provider.vlm("https://example.com/pic.jpg")
         payload = mock_post.call_args[1].get("json", {})
-        assert payload["model"] == "qwen3.8-flash"
+        assert payload["model"] == "qwen3.7-flash"
 
     @patch("app.extract.model.requests.post")
     def test_uses_configured_vlm_model(self, mock_post):
