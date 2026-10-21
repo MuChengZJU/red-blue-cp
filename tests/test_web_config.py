@@ -13,6 +13,10 @@ from app.web.routes import app
 _KEYS = [
     "DASHSCOPE_API_KEY", "RBCP_OUTPUT_DIR", "RBCP_PROXY",
     "RBCP_ASR_MODEL", "RBCP_VLM_MODEL", "RBCP_LLM_MODEL",
+    "RBCP_ASR_BASE_URL", "RBCP_ASR_API_KEY",
+    "RBCP_VLM_BASE_URL", "RBCP_VLM_API_KEY",
+    "RBCP_LLM_BASE_URL", "RBCP_LLM_API_KEY",
+    "RBCP_VLM_IMAGE_MODE",
 ]
 
 
@@ -89,3 +93,71 @@ def test_persist_merges_existing(clean):
     body = (clean / ".env").read_text(encoding="utf-8")
     assert "DASHSCOPE_API_KEY=sk-aaa1111bbbb" in body  # 第一次的没被第二次覆盖掉
     assert "RBCP_PROXY=http://127.0.0.1:1080" in body
+
+
+# ── 0.7 自定义模型服务商 ──────────────────────────────────────
+
+def test_get_config_returns_effective_defaults_and_presets(clean):
+    g = TestClient(app).get("/api/config").json()
+    assert g["provider_preset"] == "qianwen"
+    assert g["asr_base_url"].startswith("https://cn-beijing.maas.qianwenaiapi.com/")
+    assert g["llm_base_url"].endswith("/compatible-mode/v1")
+    assert g["vlm_model"] == "qwen3.8-flash"
+    assert g["image_mode"] == "auto"
+    assert {p["id"] for p in g["presets"]} == {"qianwen", "dashscope", "custom"}
+
+
+def test_set_custom_provider_persists_and_masks(clean):
+    c = TestClient(app)
+    r = c.post("/api/config", json={
+        "asr_base_url": "https://asr.example.com/api/v1",
+        "asr_api_key": "asr-secret-1234",
+        "asr_model": "fun-asr",
+        "llm_base_url": "https://llm.example.com/v1",
+        "llm_api_key": "llm-secret-5678",
+        "llm_model": "my-llm",
+        "vlm_base_url": "https://vlm.example.com/v1",
+        "vlm_model": "my-vlm",
+        "image_mode": "base64",
+    })
+    assert r.status_code == 200, r.text
+    assert os.environ["RBCP_LLM_BASE_URL"] == "https://llm.example.com/v1"
+    body = (clean / ".env").read_text(encoding="utf-8")
+    assert "RBCP_LLM_API_KEY=llm-secret-5678" in body
+    assert "RBCP_VLM_IMAGE_MODE=base64" in body
+
+    g = c.get("/api/config").json()
+    assert g["provider_preset"] == "custom"
+    assert g["asr_model"] == "fun-asr"
+    assert g["llm_model"] == "my-llm"
+    assert g["vlm_model"] == "my-vlm"
+    assert g["image_mode"] == "base64"
+    assert g["llm_api_key_set"] is True
+    assert "llm-secret-5678" not in str(g)  # 绝不明文回传
+
+
+def test_base_url_without_scheme_gets_http(clean):
+    r = TestClient(app).post("/api/config", json={"proxy": "", "llm_base_url": "127.0.0.1:8080/v1"})
+    assert r.status_code == 200
+    assert os.environ["RBCP_LLM_BASE_URL"] == "http://127.0.0.1:8080/v1"
+
+
+def test_invalid_base_url_and_image_mode_rejected(clean):
+    c = TestClient(app)
+    r = c.post("/api/config", json={"llm_base_url": "ftp://example.com/v1"})
+    assert r.status_code == 400
+    r = c.post("/api/config", json={"image_mode": "bogus"})
+    assert r.status_code == 400
+
+
+def test_config_test_endpoint_reports_failure(clean, monkeypatch):
+    from unittest.mock import patch
+
+    c = TestClient(app)
+    with patch("app.web.config_api.test_connection",
+               return_value={"ok": True, "target": "llm", "model": "qwen-plus"}):
+        assert c.post("/api/config/test", json={"target": "llm"}).json()["ok"] is True
+    with patch("app.web.config_api.test_connection", side_effect=RuntimeError("boom")):
+        body = c.post("/api/config/test", json={"target": "llm"}).json()
+    assert body["ok"] is False
+    assert "boom" in body["error"]
