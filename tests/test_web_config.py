@@ -96,7 +96,7 @@ def test_persist_merges_existing(clean):
     assert "RBCP_PROXY=http://127.0.0.1:1080" in body
 
 
-# ── 0.7 自定义模型服务商 ──────────────────────────────────────
+# ── 0.6.1 自定义模型服务商 ──────────────────────────────────────
 
 def test_get_config_returns_effective_defaults_and_presets(clean):
     g = TestClient(app).get("/api/config").json()

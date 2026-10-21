@@ -2,7 +2,7 @@
 
 本项目版本遵循语义化版本。日期为发布日。
 
-## 0.7.0 — 未发布（2026-10-21）
+## 0.6.1 — 2026-10-21
 
 **主题：自定义模型服务商 + 迁移千问AI平台。**
 
@@ -14,12 +14,12 @@ DashScope 已迁到「千问AI平台」（`cn-beijing.maas.qianwenaiapi.com`）�
 - **VLM 图片双轨**：`RBCP_VLM_IMAGE_MODE=auto` 下，千问直传图片 URL，第三方服务商先下载转 base64（带 referer 防小红书防盗链）；服务端取图失败（400/403/404/422）自动回退一次。
 - **思考模式默认关**：`qwen3.7/3.8-flash` 默认开思考，短文本清洗实测会烧 1371 个 output token；新增 `RBCP_LLM_THINKING` / `RBCP_VLM_THINKING`（默认 false），设置页可逐项开关。
 - **设置 API**：`GET/POST /api/config` 支持分能力字段、key 打码与来源（自有/共享）；`POST /api/config/test` 逐项探测 ASR / VLM / LLM 连通性（ASR 只取上传凭证，不计费）。
-- **RBCP Desktop 设置页重做**：服务商预设（千问AI平台 / 旧百炼 / 自定义）、ASR/VLM/LLM 分区表单、模型候选、图片传法选择、逐项「测试连接（先保存）」。
+- **RBCP Desktop 设置页重做**：服务商预设（千问AI平台 / 自定义 OpenAI 兼容）、ASR/VLM/LLM 分区表单、模型候选、图片传法选择、思考开关、逐项「测试连接（先保存）」。
 - **定价表**：收录 `qwen3.8-flash` / `qwen3.7-flash` / `qwen3.5-flash` / `qwen3-asr-flash-filetrans` 等；`qwen3.7/3.5/3.6-flash` 按输入 token 阶梯计价；未知模型仍展示用量但不瞎编费用。
 
 ### 说明
 - 653 测试。真链路已实测：ASR 真实音频转写、LLM `qwen3.7-flash` 清洗/速览 JSON、VLM `qwen3.7-flash` 中文 OCR（URL 与 base64 两种传法）均通过。
-- 本版仅后端 + 桌面前端源码；桌面端需重打 PyInstaller sidecar 才会带上后端改动。
+- 桌面端由 GitHub Actions 在 tag 上构建 macOS arm64 DMG 与 Windows x64 EXE；本机也可用 `desktop/sidecar/build.sh` + `cargo tauri build` 自建。Windows 产物「能构建 ≠ 已验证」，引擎尚未在 Windows 实机跑真链路。
 - 第三方服务商的 `response_format=json_object` 兼容性未逐一实测；不支持时速览会报 `ApiError`。
 - ASR 未接 OpenAI Whisper 类接口，仅支持 DashScope 兼容的异步转写协议。
 

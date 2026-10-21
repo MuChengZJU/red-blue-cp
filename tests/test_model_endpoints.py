@@ -1,4 +1,4 @@
-"""0.7 · 模型服务端点解析 + 自定义 provider 契约测试。
+"""0.6.1 · 模型服务端点解析 + 自定义 provider 契约测试。
 
 覆盖：
 - base_url 拼接/补全（OpenAI 兼容 / DashScope 原生 ASR）

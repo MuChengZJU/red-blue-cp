@@ -117,7 +117,7 @@ tags: []                   # 远期手动/自动加
 
 | 关注点 | MVP | 后期 |
 |---|---|---|
-| 模型 | ModelProvider Protocol + DashscopeProvider（默认千问AI平台 paraformer-v2 / qwen3.7-flash / qwen3.7-flash） | ✅ 0.7 已支持自定义服务商：ASR/VLM/LLM 分能力 base_url + key + model，VLM/LLM 走 OpenAI 兼容 |
+| 模型 | ModelProvider Protocol + DashscopeProvider（默认千问AI平台 paraformer-v2 / qwen3.7-flash / qwen3.7-flash） | ✅ 0.6.1 已支持自定义服务商：ASR/VLM/LLM 分能力 base_url + key + model，VLM/LLM 走 OpenAI 兼容 |
 | 内容存储 | 本地 Markdown + frontmatter | — |
 | 索引存储 | SQLite（任务状态） | + FTS5 全文 |
 | 中间媒体 | tempfile 临时目录，跑完即删；可选 `--save-media` 存到独立 `RBCP_MEDIA_DIR`（不进知识库） | — |
@@ -166,13 +166,13 @@ P1a · 批量 + 限流              (1 天)
 P1b · 博主全量（pydoll 拦截器） (1.5 天) ✅ M2b 交付；抓清单主路径已演进为插件，见 P1g
 P1c · 评论提取（同套浏览器代签）(0.5 天) ✅ M2c 交付
 P1d · B 站手动 ASR 切换         (0.5 天)
-P1e · 模型抽象层（最后做）       (1.5 天) ✅ 0.7 交付（自定义服务商 + 模型）
+P1e · 模型抽象层（最后做）       (1.5 天) ✅ 0.6.1 交付（自定义服务商 + 模型）
 P1f · 远程访问 tailscale         (0.5 天)
 P1g · 博主安全批量（插件抓清单 + 代理批量下载 + 错误地基）= M4，把 P1b 的"能跑残次品"补成安全可用
 P1h · 任务用量/费用统计（M5a）：每任务记录 ASR 音频时长、VLM/LLM token 数、各阶段耗时，按官方单价估算费用；详情页展示明细，列表页展示累计
 ```
 
-模型抽象（P1e）单独排足时间，**不要与 P1a-d 并行**——ASR（REST 异步转写）和 VLM/LLM（OpenAI 兼容 HTTP）两种调用模式差异大。0.7 的落法是**保持一个 provider、把端点参数化**（ASR/VLM/LLM 各一套 base_url + api_key + model），不引入多 Provider 类层级。
+模型抽象（P1e）单独排足时间，**不要与 P1a-d 并行**——ASR（REST 异步转写）和 VLM/LLM（OpenAI 兼容 HTTP）两种调用模式差异大。0.6.1 的落法是**保持一个 provider、把端点参数化**（ASR/VLM/LLM 各一套 base_url + api_key + model），不引入多 Provider 类层级。
 
 ### P2 · 完善（按需）
 

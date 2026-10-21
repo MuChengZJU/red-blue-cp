@@ -56,7 +56,7 @@ digest 的 lazy import；digest 纯标准库依赖，闭包小、不拉 fastapi/
 LLM 部分用 `FakeProvider` 离线确定性替代、`_build_extract` 是桩，不需要真 API key——
 联调真链路时把 `run_digest` 换成调 `rbcp digest <url> --json`（M6f 那侧，形状一致）。
 
-## 设置（0.7 自定义模型服务商）
+## 设置（0.6.1 自定义模型服务商）
 
 设置页（`frontend/screens/settings.js`）不再只写一个百炼 Key：
 

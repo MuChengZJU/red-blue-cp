@@ -4,7 +4,7 @@
 本模块让设置真正配置 serve：set_config 即时 os.environ（运行中下一次请求就生效，
 _provider_from_env 每次读 env）+ 落 platformdirs 配置目录的 .env（重启仍在）。
 
-0.7 起支持「自定义模型服务商」：ASR / VLM / LLM 可分别配置 base_url、api_key、model。
+0.6.1 起支持「自定义模型服务商」：ASR / VLM / LLM 可分别配置 base_url、api_key、model。
 未单独配置的能力回退共享 key（DASHSCOPE_API_KEY）和默认端点（千问AI平台）。
 
 安全：配置 .env 写在用户配置目录（`~/Library/Application Support/rbcp/.env` 等），
