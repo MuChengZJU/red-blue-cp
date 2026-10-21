@@ -78,6 +78,10 @@ jobs:
       - name: Sidecar smoke test (起 serve + 打一下)
         shell: bash
         run: |
+          # 诊断步骤：永远 exit 0，不阻断 Windows 构建（Windows 引擎尚未实机验证）。
+          # GitHub 的 bash 默认 set -e；日志还没写出来时 grep 返回 1 会让整个 job 挂掉，
+          # 所以这里显式 set +e + 每次 grep 加 || true。
+          set +e
           # sidecar 绑随机端口，stdout 某行吐 {"port":...,"token":...}（见 serve_entry.py）。
           # 注意：uvicorn 的 INFO 日志排在 JSON 前，且重定向到文件是块缓冲——
           # 故 PYTHONUNBUFFERED=1 立即刷新 + grep 整个文件（别只读首行）。
@@ -86,7 +90,7 @@ jobs:
           SVPID=$!
           PORT=""
           for i in $(seq 1 45); do
-            PORT=$(grep -o '"port"[^0-9]*[0-9][0-9]*' sidecar.log 2>/dev/null | grep -o '[0-9][0-9]*' | tail -n1)
+            PORT=$(grep -o '"port"[^0-9]*[0-9][0-9]*' sidecar.log 2>/dev/null | grep -o '[0-9][0-9]*' | tail -n1 || true)
             [ -n "$PORT" ] && break
             sleep 1
           done
@@ -94,9 +98,10 @@ jobs:
           if [ -n "$PORT" ] && curl -sf "http://127.0.0.1:$PORT/" >/dev/null 2>&1; then
             echo "serve up on port $PORT"; OK=1
           fi
-          kill $SVPID 2>/dev/null || true
+          if [ -n "$SVPID" ]; then kill "$SVPID" 2>/dev/null || true; fi
           echo "----- sidecar.log -----"; cat sidecar.log || true
-          if [ "$OK" != "1" ]; then echo "::warning::Windows sidecar 未在 30s 内起来/响应（仅警告，不阻断构建——Windows 引擎尚未验证）"; fi
+          if [ "$OK" != "1" ]; then echo "::warning::Windows sidecar 未在 45s 内起来/响应（仅警告，不阻断构建——Windows 引擎尚未验证）"; fi
+          exit 0
       - name: Install tauri-cli
         run: cargo install tauri-cli --version "^2.0" --locked
       - name: Build app (.exe / NSIS)
