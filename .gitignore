@@ -1,4 +1,7 @@
 .env
+# 配置备份可能含 API key（如 .env.bak.20261021）；只放行示例文件
+.env.*
+!.env.example
 _reference/
 __pycache__/
 *.pyc
