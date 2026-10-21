@@ -61,7 +61,9 @@ def _provider_from_env(
     显式传入的 ``api_key`` 优先级低于各能力自己的 ``RBCP_*_API_KEY``，高于空值；
     这样旧调用方（CLI/Web 传 DASHSCOPE_API_KEY）和新的分能力 key 都能工作。
     """
-    from app.model_endpoints import asr_endpoint, llm_endpoint, vlm_endpoint, vlm_image_mode
+    from app.model_endpoints import (
+        asr_endpoint, llm_endpoint, llm_thinking, vlm_endpoint, vlm_image_mode, vlm_thinking,
+    )
 
     asr = asr_endpoint()
     vlm = vlm_endpoint()
@@ -87,6 +89,8 @@ def _provider_from_env(
         llm_base_url=llm.base_url,
         llm_api_key=llm.api_key or None,
         image_mode=vlm_image_mode(),
+        llm_thinking=llm_thinking(),
+        vlm_thinking=vlm_thinking(),
     )
 
 

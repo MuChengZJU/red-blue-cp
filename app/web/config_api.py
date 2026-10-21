@@ -25,9 +25,11 @@ from app.model_endpoints import (
     asr_endpoint,
     detect_preset,
     llm_endpoint,
+    llm_thinking,
     shared_api_key,
     vlm_endpoint,
     vlm_image_mode,
+    vlm_thinking,
 )
 
 # UI 字段名 → 环境变量名（非密钥类）
@@ -41,7 +43,12 @@ _FIELDS = {
     "llm_base_url": "RBCP_LLM_BASE_URL",
     "llm_model": "RBCP_LLM_MODEL",
     "image_mode": "RBCP_VLM_IMAGE_MODE",
+    "llm_thinking": "RBCP_LLM_THINKING",
+    "vlm_thinking": "RBCP_VLM_THINKING",
 }
+
+# 布尔字段：前端可能传 true/false 或 "true"/"false"，统一落成小写字符串。
+_BOOL_FIELDS = {"llm_thinking", "vlm_thinking"}
 
 # 密钥类字段：读出打码，写入时留空=不改
 _SECRET_FIELDS = {
@@ -103,6 +110,8 @@ def get_config() -> dict[str, Any]:
         "vlm_base_url": vlm.base_url,
         "vlm_model": vlm.model,
         "image_mode": vlm_image_mode(),
+        "llm_thinking": llm_thinking(),
+        "vlm_thinking": vlm_thinking(),
         "provider_preset": detect_preset(asr.base_url, llm.base_url),
         "presets": [dict(p) for p in PROVIDER_PRESETS],
     }
@@ -141,6 +150,8 @@ def set_config(updates: dict[str, Any]) -> list[str]:
             val = _normalize_base_url(val, field=ui)
         if ui == "image_mode" and val not in IMAGE_MODES:
             raise ValueError(f"image_mode 只支持 {', '.join(IMAGE_MODES)}，收到：{val}")
+        if ui in _BOOL_FIELDS:
+            val = "true" if val.lower() in {"1", "true", "yes", "on"} else "false"
         os.environ[env] = val
         applied[env] = val
     if applied:

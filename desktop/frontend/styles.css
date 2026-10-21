@@ -293,3 +293,5 @@ svg.lu{ width:17px; height:17px; stroke-width:2; vertical-align:middle; }
 .settings-fb{ font-size:12.5px; font-weight:600; color:transparent; transition:color .15s; }
 .settings-fb.ok{ color:var(--rb-green); }
 .settings-fb.fail{ color:var(--rb-red-strong); }
+.settings-check{ display:flex; align-items:flex-start; gap:8px; font-size:12px; font-weight:600; color:var(--muted); margin:0 0 14px; line-height:1.5; cursor:pointer; }
+.settings-check input{ margin:2px 0 0; accent-color:var(--rb-blue); }

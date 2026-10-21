@@ -79,3 +79,19 @@ class TestSummarizeUsage:
     def test_empty_events_returns_none(self):
         # text_only / 纯字幕任务可能一次模型都没调
         assert summarize_usage([]) is None
+
+    def test_qwen37_flash_first_tier(self):
+        events = [{"stage": "llm_clean", "model": "qwen3.7-flash",
+                   "input_tokens": 2000, "output_tokens": 1000,
+                   "elapsed_seconds": 1.0}]
+        summary = summarize_usage(events)
+        # 2000/1000*0.0002 + 1000/1000*0.0008
+        assert summary["events"][0]["cost_yuan"] == pytest.approx(0.0012)
+
+    def test_qwen37_flash_second_tier(self):
+        events = [{"stage": "digest", "model": "qwen3.7-flash",
+                   "input_tokens": 40_000, "output_tokens": 1000,
+                   "elapsed_seconds": 1.0}]
+        summary = summarize_usage(events)
+        # 40*0.0006 + 1*0.0024
+        assert summary["events"][0]["cost_yuan"] == pytest.approx(0.0264)

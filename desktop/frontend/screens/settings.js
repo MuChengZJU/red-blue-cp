@@ -24,21 +24,19 @@ var FALLBACK = {
   asr_base_url: 'https://cn-beijing.maas.qianwenaiapi.com/api/v1',
   asr_model: 'paraformer-v2',
   vlm_base_url: 'https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1',
-  vlm_model: 'qwen3.8-flash',
+  vlm_model: 'qwen3.7-flash',
   llm_base_url: 'https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1',
-  llm_model: 'qwen-plus',
+  llm_model: 'qwen3.7-flash',
   image_mode: 'auto',
+  llm_thinking: false,
+  vlm_thinking: false,
   output_dir: '',
   proxy: '',
   presets: [
     { id: 'qianwen', label: '千问AI平台（默认）',
       asr_base_url: 'https://cn-beijing.maas.qianwenaiapi.com/api/v1',
       llm_base_url: 'https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1',
-      asr_model: 'paraformer-v2', vlm_model: 'qwen3.8-flash', llm_model: 'qwen-plus' },
-    { id: 'dashscope', label: '百炼 DashScope（旧）',
-      asr_base_url: 'https://dashscope.aliyuncs.com/api/v1',
-      llm_base_url: 'https://dashscope.aliyuncs.com/compatible-mode/v1',
-      asr_model: 'paraformer-v2', vlm_model: 'qwen3-vl-flash', llm_model: 'qwen-plus' },
+      asr_model: 'paraformer-v2', vlm_model: 'qwen3.7-flash', llm_model: 'qwen3.7-flash' },
     { id: 'custom', label: '自定义 OpenAI 兼容', asr_base_url: '', llm_base_url: '',
       asr_model: '', vlm_model: '', llm_model: '' }
   ]
@@ -53,12 +51,12 @@ var CAPABILITIES = [
   {
     prefix: 'vlm', label: '图片理解 · VLM', badge: '多模态',
     desc: '小红书图文用它识图；OpenAI 兼容 /chat/completions。第三方服务商默认先下载图片转 base64，避免防盗链。',
-    modelHints: ['qwen3.8-flash', 'qwen3.7-flash', 'qwen3.5-flash', 'qwen3-vl-plus']
+    modelHints: ['qwen3.7-flash', 'qwen3.8-flash', 'qwen3.5-flash', 'qwen3-vl-plus']
   },
   {
     prefix: 'llm', label: '文本清洗 / 速览 · LLM', badge: '文本',
     desc: '字幕清洗与速览 JSON 生成；OpenAI 兼容 /chat/completions。',
-    modelHints: ['qwen-plus', 'qwen3.8-flash', 'qwen3.7-flash', 'qwen3.5-flash']
+    modelHints: ['qwen3.7-flash', 'qwen3.8-flash', 'qwen-plus', 'qwen3.5-flash']
   }
 ];
 
@@ -115,6 +113,14 @@ function sectionHtml(cfg, cap) {
       + '<option value="base64"' + (mode === 'base64' ? ' selected' : '') + '>始终转 base64</option>'
       + '</select><div class="desc">自动：千问/百炼传 URL，第三方服务商先下载转 base64；'
       + '服务端取图失败会自动回退一次。</div></div>';
+  }
+
+  if (p === 'vlm' || p === 'llm') {
+    var thinkingOn = !!(cfg && cfg[p + '_thinking']);
+    html += '<label class="settings-check">'
+      + '<input type="checkbox" id="s-' + p + '-thinking"' + (thinkingOn ? ' checked' : '')
+      + '> 开启思考模式（默认关：更便宜更快；复杂速览/识图再开）'
+      + '</label>';
   }
 
   html += '<div class="settings-test">'
@@ -212,6 +218,8 @@ function collectPayload() {
     if (base) payload[p + '_base_url'] = base.value.trim();
     if (model) payload[p + '_model'] = model.value.trim();
     if (capKey && capKey.value.trim()) payload[p + '_api_key'] = capKey.value.trim();
+    var think = document.getElementById('s-' + p + '-thinking');
+    if (think) payload[p + '_thinking'] = think.checked;
   }
   var mode = document.getElementById('s-image-mode');
   if (mode) payload.image_mode = mode.value;

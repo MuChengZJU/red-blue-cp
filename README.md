@@ -80,9 +80,9 @@ rbcp config        # 打印你本机的配置目录 + 写 Key 的确切命令（
 echo 'DASHSCOPE_API_KEY=sk-你的key' >> "<rbcp config 打印的路径>/.env"
 ```
 
-单篇公开内容只需这一个 Key。默认模型走**千问AI平台**（原百炼 DashScope，`cn-beijing.maas.qianwenaiapi.com`）：ASR `paraformer-v2`、VLM `qwen3.8-flash`、LLM `qwen-plus`。[千问AI平台 API Key →](https://platform.qianwenai.com/home/api-keys)
+单篇公开内容只需这一个 Key。默认模型走**千问AI平台**（原百炼 DashScope，`cn-beijing.maas.qianwenaiapi.com`）：ASR `paraformer-v2`、VLM/LLM `qwen3.7-flash`。[千问AI平台 API Key →](https://platform.qianwenai.com/home/api-keys)
 
-想换服务商/模型（OpenRouter、DeepSeek、Gemini 兼容层、自建网关、旧百炼）？在 `.env` 里按能力覆盖即可，VLM/LLM 是 OpenAI 兼容接口：
+想换服务商/模型（OpenRouter、DeepSeek、Gemini 兼容层、自建网关）？在 `.env` 里按能力覆盖即可，VLM/LLM 是 OpenAI 兼容接口：
 
 ```bash
 RBCP_VLM_BASE_URL=https://openrouter.ai/api/v1
@@ -160,7 +160,7 @@ desktop/              # RBCP Desktop：Tauri v2 壳 + PyInstaller sidecar（内�
 extension/            # 浏览器插件：油猴脚本 + MV3 扩展，抓博主清单导出 notes.json
 ```
 
-技术栈：FastAPI + Jinja2 + Typer + SQLite + asyncio；速览的呈现在桌面端是原生 HTML/CSS/JS（Tauri v2）；模型默认走千问AI平台（ASR `paraformer-v2` / 视觉 `qwen3.8-flash` / 文本 `qwen-plus`，OpenAI 兼容端点流式调用），ASR/VLM/LLM 可分别换服务商；下载走代理（`requests` 显式 proxies）。插件抓清单优先读页面初始状态、补以网络拦截，不驱动自动化浏览器。
+技术栈：FastAPI + Jinja2 + Typer + SQLite + asyncio；速览的呈现在桌面端是原生 HTML/CSS/JS（Tauri v2）；模型默认走千问AI平台（ASR `paraformer-v2` / 视觉/文本 `qwen3.7-flash`，OpenAI 兼容端点流式调用），ASR/VLM/LLM 可分别换服务商；下载走代理（`requests` 显式 proxies）。插件抓清单优先读页面初始状态、补以网络拦截，不驱动自动化浏览器。
 
 ```bash
 uv sync && uv run pytest        # 612 测试

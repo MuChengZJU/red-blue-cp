@@ -94,7 +94,7 @@ fetched_at: 2026-MM-DD
 duration_sec: 600          # 视频特有
 image_count: 9             # 图文特有
 asr_model: paraformer-v2
-vision_model: qwen3.8-flash
+vision_model: qwen3.7-flash
 status: subtitle | asr | vision | asr_force
 tags: []                   # 远期手动/自动加
 ---
@@ -117,7 +117,7 @@ tags: []                   # 远期手动/自动加
 
 | 关注点 | MVP | 后期 |
 |---|---|---|
-| 模型 | ModelProvider Protocol + DashscopeProvider（默认千问AI平台 paraformer-v2 / qwen3.8-flash / qwen-plus） | ✅ 0.7 已支持自定义服务商：ASR/VLM/LLM 分能力 base_url + key + model，VLM/LLM 走 OpenAI 兼容 |
+| 模型 | ModelProvider Protocol + DashscopeProvider（默认千问AI平台 paraformer-v2 / qwen3.7-flash / qwen3.7-flash） | ✅ 0.7 已支持自定义服务商：ASR/VLM/LLM 分能力 base_url + key + model，VLM/LLM 走 OpenAI 兼容 |
 | 内容存储 | 本地 Markdown + frontmatter | — |
 | 索引存储 | SQLite（任务状态） | + FTS5 全文 |
 | 中间媒体 | tempfile 临时目录，跑完即删；可选 `--save-media` 存到独立 `RBCP_MEDIA_DIR`（不进知识库） | — |

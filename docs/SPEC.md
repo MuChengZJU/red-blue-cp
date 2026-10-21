@@ -76,15 +76,17 @@ desktop/                # (0.6) RBCP Desktop：Tauri v2 壳 + PyInstaller sideca
 | `RBCP_PROXY` | 否 | — | (M4) 下载走代理护 IP（http/https，如 `http://127.0.0.1:7897`）。CLI `--proxy` 可覆盖；穿透到 explore 详情 + 模型服务主站调用，CDN 媒体字节默认不走 |
 | `RBCP_VLM_BASE_URL` | 否 | 回退 `RBCP_LLM_BASE_URL`（默认 `https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1`） | VLM 的 OpenAI 兼容 base |
 | `RBCP_VLM_API_KEY` | 否 | 回退 `RBCP_LLM_API_KEY` → `DASHSCOPE_API_KEY` | VLM 专用 Key |
-| `RBCP_VLM_MODEL` | 否 | `qwen3.8-flash` | 图片理解 VLM 模型（OpenAI 兼容） |
-| `RBCP_VLM_IMAGE_MODE` | 否 | `auto` | 图片传法：`auto`（千问/百炼传 URL，第三方先下载转 base64；取图失败回退一次）/ `url` / `base64` |
+| `RBCP_VLM_MODEL` | 否 | `qwen3.7-flash` | 图片理解 VLM 模型（OpenAI 兼容；性价比首选，更强可换 qwen3.8-flash） |
+| `RBCP_VLM_IMAGE_MODE` | 否 | `auto` | 图片传法：`auto`（千问传 URL，第三方先下载转 base64；取图失败回退一次）/ `url` / `base64` |
+| `RBCP_VLM_THINKING` | 否 | `false` | VLM 思考模式。qwen3.7/3.8-flash 默认开，关闭后识图更快更便宜 |
 | `RBCP_LLM_BASE_URL` | 否 | `https://cn-beijing.maas.qianwenaiapi.com/compatible-mode/v1` | 文本清洗/速览 LLM 的 OpenAI 兼容 base |
 | `RBCP_LLM_API_KEY` | 否 | 回退 `DASHSCOPE_API_KEY` | LLM 专用 Key |
-| `RBCP_LLM_MODEL` | 否 | `qwen-plus` | 文本清洗 / 速览 LLM 模型（OpenAI 兼容） |
+| `RBCP_LLM_MODEL` | 否 | `qwen3.7-flash` | 文本清洗 / 速览 LLM 模型（OpenAI 兼容；更稳可换 qwen-plus / qwen3.8-flash） |
+| `RBCP_LLM_THINKING` | 否 | `false` | LLM 思考模式。qwen3.7/3.8-flash 默认开，关闭后短文本清洗不会烧上千 output token |
 
 空串一律等同未设（设置页历史脏数据兜底）。`RBCP_*_BASE_URL` 可填 `.../v1`、`.../compatible-mode/v1`、`.../openai` 等 OpenAI 兼容 base，也可直接填完整 `.../chat/completions`；无 scheme 会自动补 `http://`。
 
-**服务商预设**（`app/model_endpoints.py`）：`qianwen`（默认，千问AI平台 cn-beijing）/ `dashscope`（旧百炼）/ `custom`。ASR 与 VLM/LLM 可混搭——例如 ASR 用千问、VLM/LLM 用 OpenRouter。
+**服务商预设**（`app/model_endpoints.py`）：`qianwen`（默认，千问AI平台 cn-beijing）/ `custom`（任意 OpenAI 兼容）。0.7 起全部能力默认走新平台；ASR 与 VLM/LLM 仍可混搭（例如 ASR 用千问、VLM/LLM 用 OpenRouter）。
 
 P0 走捷径：
 - 提交 URL → `asyncio.create_task(asyncio.to_thread(sync_extract_and_save, url))` 后台跑
@@ -456,7 +458,7 @@ P1 引入持久化前不要做多进程部署。
 ```
 多图笔记全量处理，不设 max_images 上限。VLM 调用可并发（成本低、速度快）。
 
-1. 优先：把图片 URL 直接喂给能抓公网图片的服务商（千问/百炼，默认 qwen3.8-flash）
+1. 优先：把图片 URL 直接喂给能抓公网图片的服务商（千问，默认 qwen3.7-flash）
 2. 第三方 OpenAI 兼容服务商（OpenRouter/DeepSeek/Gemini 等）：auto 模式先下载图片，
    转 base64 data URL 内联（不落 tempfile，内存里用完即弃）
 3. 失败回退（单张，仅 auto + 服务商取图失败 400/403/404/422）：
